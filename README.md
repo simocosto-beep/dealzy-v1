@@ -70,3 +70,10 @@ Dealzy V1.4 groups discovery, local search, comparison, planning, savings tools,
 - RLS-protected tables for profiles, saved deals, trips, trip items, alerts, price watches and coupons.
 - Legacy JSON sync table retained for compatibility while features migrate to normalized tables.
 - Security advisor currently reports no issues.
+
+
+## Travel provider validation
+- Booking.com live accommodation data was successfully queried through the connected ChatGPT provider for Miami test dates.
+- Skyscanner is connected in ChatGPT for assisted flight-price searches.
+- These ChatGPT connections do **not** automatically grant Dealzy's public website API credentials.
+- Public Dealzy travel search remains gated until official provider API/affiliate access is available.
