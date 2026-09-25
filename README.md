@@ -4,7 +4,7 @@
 
 Dealzy is evolving into an AI-powered deals super-app: one search experience for local experiences, food, wellness, travel, shopping, comparison, savings, alerts, favorites and trip planning.
 
-## Current V1.2
+## Current V1.3
 - Responsive mobile-first web app
 - Dealzy AI local intent parsing
 - Browser geolocation (permission based)
@@ -15,9 +15,15 @@ Dealzy is evolving into an AI-powered deals super-app: one search experience for
   - Budget Finder
   - Savings Calculator
   - Local alert rules
+  - Provider search
+  - Split & Tip
   - Provider status
   - Install/share
 - PWA manifest + service worker app shell
+- Server-side `/api/search` provider gateway with demo fallback
+- `/api/health` service health endpoint
+- Security headers via `vercel.json`
+- SEO basics: sitemap, robots, Open Graph metadata
 - Demo inventory fallback
 
 ## Provider strategy
@@ -36,3 +42,16 @@ One search bar should understand intent: what, where, when, budget, party size a
 
 ## Safety and trust
 Display source, current price, original price when verified, partner terms and affiliate disclosure. Do not present demo inventory as live partner inventory.
+
+## V1.3 architecture
+- UI remains provider-agnostic.
+- Browser features are progressive enhancements; core browsing still works when location or APIs are unavailable.
+- Live provider credentials must stay in Vercel environment variables and server-side functions only.
+- The search API currently exposes demo fallback explicitly; it must never label demo content as a live partner offer.
+
+## Next integration gates
+1. Add approved live affiliate credentials in Vercel.
+2. Implement provider adapters server-side.
+3. Add user accounts before cloud-synced favorites and server alerts.
+4. Add push/email alert delivery after explicit user opt-in.
+5. Expand Canada only after currency, localization and partner coverage are verified.
