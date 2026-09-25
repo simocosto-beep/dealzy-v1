@@ -174,3 +174,19 @@ create index if not exists idx_dealzy_notifications_user_time
 on public.dealzy_notifications(user_id, created_at desc);
 create unique index if not exists uq_dealzy_notifications_user_dedupe
 on public.dealzy_notifications(user_id, dedupe_key) where dedupe_key is not null;
+
+
+create table if not exists public.dealzy_travel_searches (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null,
+  search_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.dealzy_travel_searches enable row level security;
+drop policy if exists "dealzy_travel_searches_own" on public.dealzy_travel_searches;
+create policy "dealzy_travel_searches_own" on public.dealzy_travel_searches
+for all using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
+create index if not exists idx_dealzy_travel_searches_user_time
+on public.dealzy_travel_searches(user_id, created_at desc);
