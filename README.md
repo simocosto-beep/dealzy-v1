@@ -84,3 +84,7 @@ Dealzy V1.4 groups discovery, local search, comparison, planning, savings tools,
 - Searches can be saved locally and included in cloud backup/sync.
 - Hotels open Booking.com search, flights open Skyscanner search, while Dealzy waits for its own official public provider credentials.
 - Dealzy never labels provider click-through data as native live Dealzy inventory.
+
+
+## Hybrid normalized sync
+Dealzy now keeps the compatibility JSON snapshot while also upserting cloud data into normalized Supabase tables for profiles, favorites, alerts, price watches, coupons and travel searches. Stable client keys are used to avoid duplicate rows during repeated automatic syncs. No destructive table replacement is used by the sync endpoint.
