@@ -131,6 +131,7 @@
         <button class="dz-tool" data-tool="budget"><span class="emoji">🎯</span><b>Budget Finder</b><span>Find options that fit your category and budget.</span></button>
         <button class="dz-tool" data-tool="savings"><span class="emoji">💸</span><b>Savings Calculator</b><span>See discount percentage and money saved.</span></button>
         <button class="dz-tool" data-tool="alerts"><span class="emoji">🔔</span><b>Deal Alerts</b><span>Save a watch rule for future matching deals.</span></button>
+        <button class="dz-tool" data-tool="notifications"><span class="emoji">📬</span><b>Notifications</b><span>See price-watch matches and Dealzy alerts.</span></button>
         <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
         <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
         <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
@@ -365,6 +366,27 @@
     };
   }
 
+  async function checkPriceWatches(showResult=true){
+    const session=await getCloudSession();
+    let watches=[];
+    try{watches=JSON.parse(localStorage.getItem('dealzyPriceWatch')||'[]')}catch(_){}
+    if(!session||!session.access_token||!watches.length) return {ok:false,reason:'not-ready'};
+    try{
+      const r=await fetch('/api/watch-check',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+        body:JSON.stringify({watches})
+      });
+      const d=await r.json();
+      if(showResult){
+        showPanel('<h3>📉 Price Watch</h3><div class="dz-result"><b>'+((d.matches||[]).length)+' match'+((d.matches||[]).length===1?'':'es')+'</b><br>'+
+          ((d.matches||[]).length?(d.matches||[]).map(x=>esc(x.deal.title)+' · '+money(x.deal.price)+' ≤ '+money(x.target)).join('<br>'):'No watched price target matched the current provider inventory.')+
+          '</div><div class="dz-small" style="margin-top:9px">Current check mode: '+esc(d.mode||'unknown')+'. Demo results are never presented as live partner offers.</div>');
+      }
+      return d;
+    }catch(_){return {ok:false,reason:'api-error'}}
+  }
+
   function watchTool(){
     const key='dealzyPriceWatch';
     let items=JSON.parse(localStorage.getItem(key)||'[]');
@@ -374,8 +396,9 @@
         <label>Target price<input id="dzWatchPrice" type="number" min="0" placeholder="99"></label>
       </div>
       <button class="dz-action" id="dzWatchSave">Add watch</button>
+      <button class="dz-action alt" id="dzWatchCheck">Check prices now</button>
       <div class="dz-result"><b>${items.length} watch${items.length===1?'':'es'}</b><br>${items.length?items.map((x,i)=>'<span class="dz-chip">'+esc(x.name)+' ≤ '+money(x.target)+' <button data-del-watch="'+i+'" style="border:0;background:none;cursor:pointer">×</button></span>').join(''):'Nothing watched yet.'}</div>
-      <div class="dz-small" style="margin-top:9px">Current V1 stores watch rules locally. Automatic price checks activate when live provider feeds are connected.</div>`);
+      <div class="dz-small" style="margin-top:9px">Price observations are now stored in your private cloud history. The checker currently labels fallback inventory clearly; approved live feeds can plug into the same engine later.</div>`);
     panel.querySelector('#dzWatchSave').onclick=()=>{
       const name=panel.querySelector('#dzWatchName').value.trim();
       const target=Number(panel.querySelector('#dzWatchPrice').value)||0;
@@ -383,9 +406,30 @@
       items.push({name,target,createdAt:new Date().toISOString()});
       localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); watchTool();
     };
+    panel.querySelector('#dzWatchCheck').onclick=()=>checkPriceWatches(true);
     panel.querySelectorAll('[data-del-watch]').forEach(b=>b.onclick=()=>{
       items.splice(Number(b.dataset.delWatch),1); localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); watchTool();
     });
+  }
+
+  async function notificationsTool(){
+    const session=await getCloudSession();
+    if(!session||!session.access_token){
+      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Sign in to My Dealzy to use your private notification center.</div>');
+      return;
+    }
+    showPanel('<h3>📬 Notifications</h3><div class="dz-result">Loading…</div>');
+    try{
+      const r=await fetch('/api/notifications',{headers:{'Authorization':'Bearer '+session.access_token}});
+      const d=await r.json();
+      const rows=d.notifications||[];
+      showPanel('<h3>📬 Notifications</h3><div class="dz-result">'+
+        (rows.length?rows.map(n=>'<div style="padding:8px 0;border-bottom:1px solid #e9ecf2"><b>'+esc(n.title)+'</b><br>'+esc(n.body)+'<br><span class="dz-small">'+new Date(n.created_at).toLocaleString()+'</span></div>').join(''):'No notifications yet.')+
+        '</div><button class="dz-action alt" id="dzNotifRefresh">Refresh</button>');
+      const b=panel.querySelector('#dzNotifRefresh'); if(b) b.onclick=notificationsTool;
+    }catch(_){
+      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Notification service is temporarily unavailable.</div>');
+    }
   }
 
   function couponsTool(){
@@ -518,8 +562,11 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
+
+  // Quietly check saved watches after the app settles. This creates in-app notifications only when a signed-in user has watches.
+  setTimeout(()=>checkPriceWatches(false),3500);
 
   // PWA shell registration.
   if('serviceWorker' in navigator){
