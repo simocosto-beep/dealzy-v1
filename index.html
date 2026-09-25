@@ -79,13 +79,13 @@ function renderExplore(){
 }
 function renderFavs(){const list=deals.filter(d=>state.favorites.has(d.id));$('#favoritesGrid').innerHTML=list.length?list.map(dealCard).join(''):`<div class="empty" style="grid-column:1/-1">No favorites yet. Tap ♡ on a deal to save it.</div>`;bindCards($('#favoritesGrid'))}
 function renderTrips(){const list=deals.filter(d=>state.trip.includes(d.id));$('#tripItems').innerHTML=list.length?list.map(d=>`<div class="tripCard"><b>${d.title}</b><div class="meta">${d.place} · $${d.price}</div></div>`).join(''):`<div class="empty">Your trip is empty.</div>`}
-function toggleFav(id){state.favorites.has(id)?state.favorites.delete(id):state.favorites.add(id);localStorage.setItem('dealzyFavs',JSON.stringify([...state.favorites]));toast(state.favorites.has(id)?'Saved to Favorites':'Removed from Favorites')}
+function toggleFav(id){state.favorites.has(id)?state.favorites.delete(id):state.favorites.add(id);localStorage.setItem('dealzyFavs',JSON.stringify([...state.favorites]));if(window.DealzyCloud)window.DealzyCloud.queueSync();toast(state.favorites.has(id)?'Saved to Favorites':'Removed from Favorites')}
 function openDeal(id){const d=deals.find(x=>x.id===id),pct=Math.round((1-d.price/d.old)*100);$('#detailHero').style.backgroundImage=`url('${d.img}')`;$('#detailBadge').textContent=`🔥 ${pct}% OFF`;$('#detailTitle').textContent=d.title;$('#detailMeta').textContent=`Miami, FL · ${d.place} · ${d.rating}`;$('#detailPrice').textContent=`$${d.price}`;$('#detailOld').textContent=`$${d.old}`;$('#detailSave').textContent=`Save ${pct}%`;$('#detailText').textContent=d.text;$('#partnerBtn').onclick=()=>toast('Demo partner link — live affiliate link will be connected after approval.');$('#detailOverlay').classList.remove('hidden')}
 function show(v){['home','explore','favorites','trips','profile'].forEach(x=>$(`#${x}View`).classList.toggle('hidden',x!==v));$$('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));window.scrollTo({top:0,behavior:'smooth'})}
 $$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view));$('#closeDetail').onclick=()=>$('#detailOverlay').classList.add('hidden');$('#detailOverlay').onclick=e=>{if(e.target===$('#detailOverlay'))$('#detailOverlay').classList.add('hidden')};
 function aiSearch(q){const t=q.toLowerCase();state.filter=t.includes('spa')||t.includes('massage')?'Spa & Beauty':t.includes('dinner')||t.includes('food')||t.includes('restaurant')||t.includes('brunch')?'Food & Drink':t.includes('family')||t.includes('kids')?'Family':t.includes('hotel')||t.includes('travel')||t.includes('stay')?'Travel':t.includes('boat')||t.includes('cruise')||t.includes('things to do')?'Things to Do':'All';const m=t.match(/(?:under|below|max|less than)\s*\$?\s*(\d{1,4})/);state.maxPrice=m?Number(m[1]):null;$('#exploreQuery').value=q.replace(/date night|tonight|this weekend|near me|under \$?\d+|below \$?\d+|max \$?\d+|less than \$?\d+/gi,'').trim();show('explore');renderExplore();toast('Dealzy AI interpreted category'+(state.maxPrice?' + budget':''))}
 $('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});
-$('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));renderTrips();toast('Favorites added to Miami Weekend')};
+$('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));if(window.DealzyCloud)window.DealzyCloud.queueSync();renderTrips();toast('Favorites added to Miami Weekend')};
 function updateGeoUI(){
   if(state.coords){
     $('#locationBtn').textContent='📍 Near you';
@@ -100,7 +100,7 @@ function useLocation(){
   navigator.geolocation.getCurrentPosition(
     p=>{
       state.coords={lat:p.coords.latitude,lng:p.coords.longitude};
-      localStorage.setItem('dealzyCoords',JSON.stringify(state.coords));
+      localStorage.setItem('dealzyCoords',JSON.stringify(state.coords));if(window.DealzyCloud)window.DealzyCloud.queueSync();
       updateGeoUI();toast('Location enabled for nearby deals');
     },
     ()=>{if($('#useLocationBtn')) $('#useLocationBtn').textContent='Try again';toast('Location permission was not granted.')}
