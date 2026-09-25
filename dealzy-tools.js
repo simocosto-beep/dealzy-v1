@@ -177,22 +177,91 @@
     showPanel('<h3>🗺️ Nearby Map</h3><div class="dz-small">Centered on your current location. Live deal pins will appear here when provider coordinates are available.</div><iframe title="Dealzy nearby map" src="'+src+'" style="width:100%;height:340px;border:0;border-radius:16px;margin-top:12px" loading="lazy"></iframe><div class="dz-result"><b>Radius preference:</b> '+esc(prefs.radius||10)+' miles<br><span class="dz-small">Dealzy stores only the optional browser coordinate locally in this build.</span></div>');
   }
 
-  function accountTool(){
-    const key='dealzyLocalProfile';
-    const profile=JSON.parse(localStorage.getItem(key)||'{"name":"","email":""}');
+  async function accountTool(){
+    const profileKey='dealzyLocalProfile';
+    const sessionKey='dealzyCloudSession';
+    const profile=JSON.parse(localStorage.getItem(profileKey)||'{"name":"","email":""}');
+    const session=JSON.parse(localStorage.getItem(sessionKey)||'null');
+    let configured=false;
+    try{const r=await fetch('/api/cloud-status',{cache:'no-store'}); const s=await r.json(); configured=!!s.configured;}catch(_){}
+    if(!configured){
+      showPanel(`<h3>👤 My Dealzy</h3>
+        <div class="dz-form">
+          <label>Display name<input id="dzName" value="${esc(profile.name||'')}" placeholder="Your name"></label>
+          <label>Email<input id="dzEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
+        </div>
+        <button class="dz-action" id="dzSaveProfile">Save on this device</button>
+        <div class="dz-result"><b>Cloud sync: ready but not connected</b><br><span class="dz-small">Supabase support is built into Dealzy. Once the cloud project is connected, this screen will switch to real signup/login and sync.</span></div>`);
+      panel.querySelector('#dzSaveProfile').onclick=()=>{
+        const name=panel.querySelector('#dzName').value.trim();
+        const email=panel.querySelector('#dzEmail').value.trim();
+        localStorage.setItem(profileKey,JSON.stringify({name,email,updatedAt:new Date().toISOString()}));
+        accountTool();
+      };
+      return;
+    }
+
+    if(session&&session.access_token){
+      showPanel(`<h3>👤 My Dealzy</h3>
+        <div class="dz-result"><b>Cloud account connected</b><br><span class="dz-small">${esc(session.user&&session.user.email?session.user.email:(profile.email||'Signed in'))}</span></div>
+        <button class="dz-action" id="dzSyncUp">Sync this device → Cloud</button>
+        <button class="dz-action alt" id="dzSyncDown">Restore Cloud → this device</button>
+        <button class="dz-action alt" id="dzLogout">Sign out</button>
+        <div id="dzSyncStatus"></div>`);
+      const status=panel.querySelector('#dzSyncStatus');
+      const bundle=()=>{
+        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+        const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
+      };
+      panel.querySelector('#dzSyncUp').onclick=async()=>{
+        status.innerHTML='<div class="dz-result">Syncing…</div>';
+        try{
+          const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:bundle()})});
+          const d=await r.json(); if(!r.ok) throw new Error(d.error||'Sync failed');
+          status.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b></div>';
+        }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Sync failed')+'</div>'}
+      };
+      panel.querySelector('#dzSyncDown').onclick=async()=>{
+        status.innerHTML='<div class="dz-result">Restoring…</div>';
+        try{
+          const r=await fetch('/api/sync',{headers:{'Authorization':'Bearer '+session.access_token}});
+          const d=await r.json(); if(!r.ok) throw new Error(d.error||'Restore failed');
+          if(d.data) Object.entries(d.data).forEach(([k,v])=>localStorage.setItem(k,String(v)));
+          status.innerHTML='<div class="dz-result"><b>Cloud data restored.</b> Reload Dealzy to apply it.</div>';
+        }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Restore failed')+'</div>'}
+      };
+      panel.querySelector('#dzLogout').onclick=()=>{localStorage.removeItem(sessionKey); accountTool();};
+      return;
+    }
+
     showPanel(`<h3>👤 My Dealzy</h3>
       <div class="dz-form">
-        <label>Display name<input id="dzName" value="${esc(profile.name||'')}" placeholder="Your name"></label>
-        <label>Email<input id="dzEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
+        <label>Email<input id="dzCloudEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
+        <label>Password<input id="dzCloudPassword" type="password" minlength="6" placeholder="Minimum 6 characters"></label>
       </div>
-      <button class="dz-action" id="dzSaveProfile">Save on this device</button>
-      <div class="dz-result"><b>Cloud sync: not connected yet</b><br><span class="dz-small">Favorites, trips and alerts currently stay on this browser. This profile is a local foundation only; no fake cloud account is created.</span></div>`);
-    panel.querySelector('#dzSaveProfile').onclick=()=>{
-      const name=panel.querySelector('#dzName').value.trim();
-      const email=panel.querySelector('#dzEmail').value.trim();
-      localStorage.setItem(key,JSON.stringify({name,email,updatedAt:new Date().toISOString()}));
-      showPanel('<h3>👤 My Dealzy</h3><div class="dz-result"><b>Saved locally.</b><br>Your profile foundation is ready. Cloud authentication will be connected as a separate backend step.</div>');
+      <button class="dz-action" id="dzLogin">Sign in</button>
+      <button class="dz-action alt" id="dzSignup">Create account</button>
+      <div id="dzAuthStatus" class="dz-small" style="margin-top:10px">Cloud sync is available on this deployment.</div>`);
+    const run=async action=>{
+      const email=panel.querySelector('#dzCloudEmail').value.trim(), password=panel.querySelector('#dzCloudPassword').value;
+      const out=panel.querySelector('#dzAuthStatus');
+      if(!email||!password){out.textContent='Enter your email and password.';return}
+      out.textContent=action==='login'?'Signing in…':'Creating account…';
+      try{
+        const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,email,password})});
+        const d=await r.json();
+        if(!r.ok) throw new Error(d.msg||d.message||d.error_description||d.error||'Authentication failed');
+        if(d.access_token){
+          localStorage.setItem(sessionKey,JSON.stringify(d));
+          localStorage.setItem(profileKey,JSON.stringify({...profile,email,updatedAt:new Date().toISOString()}));
+          accountTool();
+        }else{
+          out.textContent='Account created. Check your email if confirmation is required, then sign in.';
+        }
+      }catch(e){out.textContent=e.message||'Authentication failed'}
     };
+    panel.querySelector('#dzLogin').onclick=()=>run('login');
+    panel.querySelector('#dzSignup').onclick=()=>run('signup');
   }
 
   function plannerTool(){
