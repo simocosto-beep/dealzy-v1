@@ -1,5 +1,5 @@
 function cfg(){
-  return {base:(process.env.SUPABASE_URL||'').replace(/\/$/,''),key:process.env.SUPABASE_ANON_KEY||''};
+  return {base:'https://stkmhgeuavsidpapqvyw.supabase.co',key:'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh'};
 }
 function token(req){
   const h=req.headers.authorization||'';
@@ -12,7 +12,6 @@ async function currentUser(base,key,jwt){
 }
 module.exports = async function handler(req,res){
   const {base,key}=cfg(), jwt=token(req);
-  if(!base||!key) return res.status(503).json({error:'Cloud sync is not configured yet.'});
   if(!jwt) return res.status(401).json({error:'Missing access token'});
   const user=await currentUser(base,key,jwt);
   if(!user||!user.id) return res.status(401).json({error:'Invalid session'});
