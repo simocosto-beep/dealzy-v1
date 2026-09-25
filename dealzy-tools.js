@@ -28,7 +28,7 @@
         access_token,refresh_token,expires_in,token_type,user,
         confirmedAt:new Date().toISOString()
       }));
-      history.replaceState(history.state||{dealzy:true,layer:'view',view:'home'},'',location.pathname+location.search);
+      history.replaceState(null,'',location.pathname+location.search);
       setTimeout(()=>{
         const t=document.getElementById('toast');
         if(t){t.textContent='Email confirmed · My Dealzy is connected';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2800);}
@@ -149,33 +149,10 @@
   document.body.appendChild(wrap);
 
   const panel = wrap.querySelector('#dzPanel');
-  const hideTools = () => { wrap.classList.remove('open'); panel.classList.remove('open'); };
-  const close = () => {
-    const layer=history.state&&history.state.layer;
-    if(layer==='toolpanel') history.go(-2);
-    else if(layer==='toolbox') history.back();
-    else hideTools();
-  };
-  fab.onclick = () => {
-    wrap.classList.add('open');
-    panel.classList.remove('open');
-    if(window.DealzyNav) window.DealzyNav.pushLayer('toolbox');
-    else history.pushState({dealzy:true,layer:'toolbox',view:'home'},'',location.pathname+location.search);
-  };
+  const close = () => { wrap.classList.remove('open'); panel.classList.remove('open'); };
+  fab.onclick = () => wrap.classList.add('open');
   wrap.querySelector('.dz-close').onclick = close;
   wrap.onclick = e => { if (e.target === wrap) close(); };
-  window.addEventListener('popstate',e=>{
-    const s=e.state||{};
-    if(s.layer==='toolbox'){
-      wrap.classList.add('open');
-      panel.classList.remove('open');
-    }else if(s.layer==='toolpanel'){
-      wrap.classList.add('open');
-      panel.classList.add('open');
-    }else{
-      hideTools();
-    }
-  });
 
   function getDeals(){
     try { return Array.isArray(deals) ? deals : []; } catch (_) { return []; }
@@ -706,10 +683,6 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    const current=history.state&&history.state.layer;
-    const navState={dealzy:true,layer:'toolpanel',view:(window.DealzyNav&&window.DealzyNav.currentView?window.DealzyNav.currentView():'home'),tool:t};
-    if(current==='toolpanel') history.replaceState(navState,'',location.pathname+location.search);
-    else history.pushState(navState,'',location.pathname+location.search);
     ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,travel:travelTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
