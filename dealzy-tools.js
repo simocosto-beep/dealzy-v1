@@ -296,7 +296,7 @@
         try{
           const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:bundle()})});
           const d=await r.json(); if(!r.ok) throw new Error(d.error||'Sync failed');
-          status.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b></div>';
+          status.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b><br><span class="dz-small">'+(d.structured&&d.structured.ok?'Structured Supabase tables updated.':'Legacy backup saved; structured sync partially pending.')+'</span></div>';
         }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Sync failed')+'</div>'}
       };
       panel.querySelector('#dzSyncDown').onclick=async()=>{
