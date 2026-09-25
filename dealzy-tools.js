@@ -149,9 +149,12 @@
     };
   }
 
-  function providersTool(){
+  async function providersTool(){
+    let api='CHECKING';
+    try{const r=await fetch('/api/health',{cache:'no-store'}); const h=await r.json(); api=h&&h.ok?'ACTIVE':'OFFLINE';}catch(_){api='OFFLINE'}
     showPanel(`<h3>🔌 Deal Sources</h3>
       <div class="dz-provider"><div><b>Dealzy Demo Inventory</b><div class="dz-small">Current fallback dataset</div></div><span class="dz-status live">ACTIVE</span></div>
+      <div class="dz-provider"><div><b>Dealzy Search API</b><div class="dz-small">Server-side provider gateway</div></div><span class="dz-status ${api==='ACTIVE'?'live':''}">${api}</span></div>
       <div class="dz-provider"><div><b>Browser Location</b><div class="dz-small">Used with user permission</div></div><span class="dz-status live">ACTIVE</span></div>
       <div class="dz-provider"><div><b>Groupon / Affiliate feed</b><div class="dz-small">Adapter ready; credentials required</div></div><span class="dz-status">PENDING</span></div>
       <div class="dz-provider"><div><b>CJ Affiliate</b><div class="dz-small">Adapter slot prepared</div></div><span class="dz-status">PENDING</span></div>
