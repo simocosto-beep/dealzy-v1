@@ -8,7 +8,8 @@ module.exports = async function handler(req,res){
       {name:'Watch & Notification Engine',status:'active',kind:'cloud'},
       {name:'Groupon / Affiliate feed',status:'pending',kind:'affiliate'},
       {name:'CJ Affiliate',status:'pending',kind:'affiliate'},
-      {name:'Travel / Tickets',status:'planned',kind:'travel'}
+      {name:'Skyscanner Flight Search',status:'active-clickout',kind:'travel'},
+      {name:'Travel / Tickets API',status:'planned',kind:'travel'}
     ],
     liveExternalProviders:0,
     note:'Dealzy does not label fallback inventory as live external offers.'
