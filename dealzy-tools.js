@@ -55,6 +55,8 @@
         <button class="dz-tool" data-tool="budget"><span class="emoji">🎯</span><b>Budget Finder</b><span>Find options that fit your category and budget.</span></button>
         <button class="dz-tool" data-tool="savings"><span class="emoji">💸</span><b>Savings Calculator</b><span>See discount percentage and money saved.</span></button>
         <button class="dz-tool" data-tool="alerts"><span class="emoji">🔔</span><b>Deal Alerts</b><span>Save a watch rule for future matching deals.</span></button>
+        <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
+        <button class="dz-tool" data-tool="split"><span class="emoji">🧾</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
         <button class="dz-tool" data-tool="providers"><span class="emoji">🔌</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
         <button class="dz-tool" data-tool="app"><span class="emoji">📲</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
       </div>
@@ -149,6 +151,51 @@
     };
   }
 
+  function splitTool(){
+    showPanel(`<h3>🧾 Split & Tip</h3>
+      <div class="dz-form">
+        <label>Bill amount<input id="dzBill" type="number" min="0" step="0.01" value="100"></label>
+        <label>Tip %<input id="dzTip" type="number" min="0" step="1" value="20"></label>
+        <label>People<input id="dzPeople" type="number" min="1" step="1" value="2"></label>
+      </div>
+      <button class="dz-action" id="dzSplit">Calculate</button>
+      <div id="dzSplitResult"></div>`);
+    panel.querySelector('#dzSplit').onclick=()=>{
+      const bill=Number(panel.querySelector('#dzBill').value)||0;
+      const tipPct=Number(panel.querySelector('#dzTip').value)||0;
+      const people=Math.max(1,Number(panel.querySelector('#dzPeople').value)||1);
+      const tip=bill*(tipPct/100), total=bill+tip, each=total/people;
+      panel.querySelector('#dzSplitResult').innerHTML='<div class="dz-result"><b>Total '+money(total)+'</b><br>Tip '+money(tip)+' · '+people+' people · <b>'+money(each)+' each</b></div>';
+    };
+  }
+
+  function providerSearchTool(){
+    showPanel(`<h3>✨ Provider Search</h3>
+      <div class="dz-form">
+        <label>What are you looking for?<input id="dzProviderQ" placeholder="dinner, spa, cruise"></label>
+        <label>Maximum price<input id="dzProviderMax" type="number" min="1" value="100"></label>
+      </div>
+      <button class="dz-action" id="dzProviderGo">Search Dealzy</button>
+      <div id="dzProviderResult"></div>
+      <div class="dz-small" style="margin-top:9px">This uses Dealzy's provider gateway. It currently returns the verified demo fallback until approved live sources are connected.</div>`);
+    panel.querySelector('#dzProviderGo').onclick=async()=>{
+      const q=panel.querySelector('#dzProviderQ').value.trim();
+      const max=Number(panel.querySelector('#dzProviderMax').value)||0;
+      const out=panel.querySelector('#dzProviderResult');
+      out.innerHTML='<div class="dz-result">Searching…</div>';
+      try{
+        const p=new URLSearchParams({q});
+        if(max) p.set('maxPrice',String(max));
+        const r=await fetch('/api/search?'+p.toString(),{headers:{'Accept':'application/json'}});
+        if(!r.ok) throw new Error('search failed');
+        const data=await r.json();
+        out.innerHTML='<div class="dz-result">'+(data.results&&data.results.length
+          ? data.results.map(d=>'<div style="margin:8px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place||'')+'<br><span class="dz-small">Save '+money(d.savings||0)+' · '+(d.discountPct||0)+'% off · '+esc(d.source||data.mode||'Dealzy')+'</span></div>').join('')
+          : 'No matching deal found.')+'</div>';
+      }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. The main app still works with local fallback data.</div>'}
+    };
+  }
+
   async function providersTool(){
     let api='CHECKING';
     try{const r=await fetch('/api/health',{cache:'no-store'}); const h=await r.json(); api=h&&h.ok?'ACTIVE':'OFFLINE';}catch(_){api='OFFLINE'}
@@ -168,7 +215,7 @@
     showPanel(`<h3>📲 App & Share</h3>
       <button class="dz-action" id="dzInstall">Install Dealzy</button>
       <button class="dz-action alt" id="dzShare">Share Dealzy</button>
-      <div class="dz-small" style="margin-top:10px">Install availability depends on your browser. Dealzy V1.2 also includes an offline app shell.</div>`);
+      <div class="dz-small" style="margin-top:10px">Install availability depends on your browser. Dealzy V1.3 also includes an offline app shell.</div>`);
     panel.querySelector('#dzInstall').onclick=async()=>{
       if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch(_){} deferredInstall=null;}
       else showPanel('<h3>📲 Install Dealzy</h3><div class="dz-result">Use your browser menu → “Add to Home screen” or “Install app”.</div>');
@@ -182,7 +229,7 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
   // PWA shell registration.
