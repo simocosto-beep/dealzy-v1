@@ -190,3 +190,18 @@ for all using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 create index if not exists idx_dealzy_travel_searches_user_time
 on public.dealzy_travel_searches(user_id, created_at desc);
+
+
+alter table public.dealzy_alerts add column if not exists client_key text;
+alter table public.dealzy_price_watches add column if not exists client_key text;
+alter table public.dealzy_coupons add column if not exists client_key text;
+alter table public.dealzy_travel_searches add column if not exists client_key text;
+
+create unique index if not exists uq_dealzy_alerts_user_client
+on public.dealzy_alerts(user_id, client_key) where client_key is not null;
+create unique index if not exists uq_dealzy_price_watches_user_client
+on public.dealzy_price_watches(user_id, client_key) where client_key is not null;
+create unique index if not exists uq_dealzy_coupons_user_client
+on public.dealzy_coupons(user_id, client_key) where client_key is not null;
+create unique index if not exists uq_dealzy_travel_searches_user_client
+on public.dealzy_travel_searches(user_id, client_key) where client_key is not null;
