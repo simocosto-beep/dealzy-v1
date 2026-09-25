@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dealzy-v1.vercel.app/sitemap.xml
