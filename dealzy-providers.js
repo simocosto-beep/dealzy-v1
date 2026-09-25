@@ -35,6 +35,21 @@
     normalize
   };
 
+  // Server search adapter. Today it returns normalized demo fallback; later it can aggregate approved live partners.
+  window.DealzyProviders.register('server',{
+    async search(query,ctx={}){
+      const p=new URLSearchParams();
+      if(query) p.set('q',query);
+      if(ctx.category) p.set('category',ctx.category);
+      if(ctx.maxPrice) p.set('maxPrice',ctx.maxPrice);
+      if(ctx.limit) p.set('limit',ctx.limit);
+      const r=await fetch('/api/search?'+p.toString(),{headers:{'Accept':'application/json'}});
+      if(!r.ok) throw new Error('Dealzy API unavailable');
+      const data=await r.json();
+      return data.results||[];
+    }
+  });
+
   // Stable fallback inventory. Real providers can be added without changing UI code.
   window.DealzyProviders.register('demo',{
     async search(){
