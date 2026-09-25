@@ -1,7 +1,6 @@
 async function callSupabase(path,body){
-  const base=process.env.SUPABASE_URL;
-  const key=process.env.SUPABASE_ANON_KEY;
-  if(!base||!key) return {status:503,data:{error:'Cloud auth is not configured yet.'}};
+  const base='https://stkmhgeuavsidpapqvyw.supabase.co';
+  const key='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
   const r=await fetch(base.replace(/\/$/,'')+path,{
     method:'POST',
     headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key},
