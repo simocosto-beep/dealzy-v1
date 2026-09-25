@@ -77,3 +77,10 @@ Dealzy V1.4 groups discovery, local search, comparison, planning, savings tools,
 - Skyscanner is connected in ChatGPT for assisted flight-price searches.
 - These ChatGPT connections do **not** automatically grant Dealzy's public website API credentials.
 - Public Dealzy travel search remains gated until official provider API/affiliate access is available.
+
+
+## Travel Hub
+- Hotels, flights, rental cars and things-to-do are grouped in one Super App module.
+- Searches can be saved locally and included in cloud backup/sync.
+- Hotels open Booking.com search, flights open Skyscanner search, while Dealzy waits for its own official public provider credentials.
+- Dealzy never labels provider click-through data as native live Dealzy inventory.
