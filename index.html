@@ -102,17 +102,4 @@ $('#locationBtn').onclick=useLocation;
 $('#useLocationBtn').onclick=useLocation;
 renderAll();updateGeoUI();
 </script>
-</body></html>+state.maxPrice:''}`;$('#filters').innerHTML=['All',...cats.map(c=>c[1])].map(x=>`<button class="${state.filter===x?'active':''}" data-filter="${x}">${x}</button>`).join('');$('#filters').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore()});$('#exploreGrid').innerHTML=list.length?list.map(dealCard).join(''):`<div class="empty" style="grid-column:1/-1">No demo deal matches this search yet. Try another category or budget.</div>`;bindCards($('#exploreGrid'))}
-function renderFavs(){const list=deals.filter(d=>state.favorites.has(d.id));$('#favoritesGrid').innerHTML=list.length?list.map(dealCard).join(''):`<div class="empty" style="grid-column:1/-1">No favorites yet. Tap ♡ on a deal to save it.</div>`;bindCards($('#favoritesGrid'))}
-function renderTrips(){const list=deals.filter(d=>state.trip.includes(d.id));$('#tripItems').innerHTML=list.length?list.map(d=>`<div class="tripCard"><b>${d.title}</b><div class="meta">${d.place} · $${d.price}</div></div>`).join(''):`<div class="empty">Your trip is empty.</div>`}
-function toggleFav(id){state.favorites.has(id)?state.favorites.delete(id):state.favorites.add(id);localStorage.setItem('dealzyFavs',JSON.stringify([...state.favorites]));toast(state.favorites.has(id)?'Saved to Favorites':'Removed from Favorites')}
-function openDeal(id){const d=deals.find(x=>x.id===id),pct=Math.round((1-d.price/d.old)*100);$('#detailHero').style.backgroundImage=`url('${d.img}')`;$('#detailBadge').textContent=`🔥 ${pct}% OFF`;$('#detailTitle').textContent=d.title;$('#detailMeta').textContent=`Miami, FL · ${d.place} · ${d.rating}`;$('#detailPrice').textContent=`$${d.price}`;$('#detailOld').textContent=`$${d.old}`;$('#detailSave').textContent=`Save ${pct}%`;$('#detailText').textContent=d.text;$('#partnerBtn').onclick=()=>toast('Demo partner link — live affiliate link will be connected after approval.');$('#detailOverlay').classList.remove('hidden')}
-function show(v){['home','explore','favorites','trips','profile'].forEach(x=>$(`#${x}View`).classList.toggle('hidden',x!==v));$$('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));window.scrollTo({top:0,behavior:'smooth'})}
-$$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view));$('#closeDetail').onclick=()=>$('#detailOverlay').classList.add('hidden');$('#detailOverlay').onclick=e=>{if(e.target===$('#detailOverlay'))$('#detailOverlay').classList.add('hidden')};
-function aiSearch(q){const t=q.toLowerCase();state.filter=t.includes('spa')?'Spa & Beauty':t.includes('dinner')||t.includes('food')||t.includes('brunch')?'Food & Drink':t.includes('family')?'Family':t.includes('hotel')||t.includes('travel')?'Travel':'All';$('#exploreQuery').value=q.replace(/date night|tonight|under \$?\d+/gi,'').trim();show('explore');renderExplore();toast('AI demo: intent interpreted locally')}
-$('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});
-$('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));renderTrips();toast('Favorites added to Miami Weekend')};
-$('#locationBtn').onclick=()=>toast('V1 demo location: Miami, Florida');
-renderAll();
-</script>
 </body></html>
