@@ -51,7 +51,24 @@ function renderAll(){
  $('#popularGrid').innerHTML=deals.slice(0,6).map(dealCard).join('');bindCards($('#popularGrid'));
  renderExplore();renderFavs();renderTrips();
 }
-function renderExplore(){const q=($('#exploreQuery')?.value||'').trim().toLowerCase();let list=deals.filter(d=>(state.filter==='All'||d.cat===state.filter)&&(!state.maxPrice||d.price<=state.maxPrice)&&(!q||(d.title+' '+d.cat+' '+d.place+' '+d.text).toLowerCase().includes(q)));list=list.sort((a,b)=>a.price-b.price);$('#resultCount').textContent=`${list.length} deals${state.maxPrice?' · under 
+function renderExplore(){
+  const q=($('#exploreQuery')?.value||'').trim().toLowerCase();
+  let list=deals.filter(d=>
+    (state.filter==='All'||d.cat===state.filter) &&
+    (!state.maxPrice||d.price<=state.maxPrice) &&
+    (!q||(d.title+' '+d.cat+' '+d.place+' '+d.text).toLowerCase().includes(q))
+  );
+  list=list.sort((a,b)=>a.price-b.price);
+  $('#resultCount').textContent=list.length+' deals'+(state.maxPrice?' · under $'+state.maxPrice:'');
+  $('#filters').innerHTML=['All',...cats.map(c=>c[1])].map(x =>
+    '<button class="'+(state.filter===x?'active':'')+'" data-filter="'+x+'">'+x+'</button>'
+  ).join('');
+  $('#filters').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore()});
+  $('#exploreGrid').innerHTML=list.length
+    ? list.map(dealCard).join('')
+    : '<div class="empty" style="grid-column:1/-1">No demo deal matches this search yet. Try another category or budget.</div>';
+  bindCards($('#exploreGrid'));
+}
 function renderFavs(){const list=deals.filter(d=>state.favorites.has(d.id));$('#favoritesGrid').innerHTML=list.length?list.map(dealCard).join(''):`<div class="empty" style="grid-column:1/-1">No favorites yet. Tap ♡ on a deal to save it.</div>`;bindCards($('#favoritesGrid'))}
 function renderTrips(){const list=deals.filter(d=>state.trip.includes(d.id));$('#tripItems').innerHTML=list.length?list.map(d=>`<div class="tripCard"><b>${d.title}</b><div class="meta">${d.place} · $${d.price}</div></div>`).join(''):`<div class="empty">Your trip is empty.</div>`}
 function toggleFav(id){state.favorites.has(id)?state.favorites.delete(id):state.favorites.add(id);localStorage.setItem('dealzyFavs',JSON.stringify([...state.favorites]));toast(state.favorites.has(id)?'Saved to Favorites':'Removed from Favorites')}
