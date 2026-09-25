@@ -136,6 +136,7 @@
         <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
         <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
         <button class="dz-tool" data-tool="planner"><span class="emoji">🧠</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
+        <button class="dz-tool" data-tool="travel"><span class="emoji">✈️</span><b>Flight Search</b><span>Search flights with Skyscanner via official click-through.</span></button>
         <button class="dz-tool" data-tool="watch"><span class="emoji">📉</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
         <button class="dz-tool" data-tool="coupons"><span class="emoji">🎟️</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
         <button class="dz-tool" data-tool="backup"><span class="emoji">💾</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
@@ -387,6 +388,38 @@
     }catch(_){return {ok:false,reason:'api-error'}}
   }
 
+  function travelTool(){
+    showPanel(`<h3>✈️ Flight Search</h3>
+      <div class="dz-form">
+        <label>From (IATA)<input id="dzFlightFrom" maxlength="3" placeholder="MIA"></label>
+        <label>To (IATA)<input id="dzFlightTo" maxlength="3" placeholder="NYC"></label>
+        <label>Depart<input id="dzFlightOut" type="date"></label>
+        <label>Return<input id="dzFlightBack" type="date"></label>
+      </div>
+      <button class="dz-action" id="dzFlightGo">Search Skyscanner</button>
+      <div class="dz-small" style="margin-top:10px">Dealzy opens an official Skyscanner search. Prices and availability are provided by Skyscanner and may change.</div>`);
+    panel.querySelector('#dzFlightGo').onclick=()=>{
+      const o=panel.querySelector('#dzFlightFrom').value.trim().toUpperCase();
+      const d=panel.querySelector('#dzFlightTo').value.trim().toUpperCase();
+      const out=panel.querySelector('#dzFlightOut').value;
+      const back=panel.querySelector('#dzFlightBack').value;
+      if(!/^[A-Z]{3}$/.test(o)||!/^[A-Z]{3}$/.test(d)||!out){
+        showPanel('<h3>✈️ Flight Search</h3><div class="dz-result">Enter valid 3-letter airport/city codes and a departure date.</div>');
+        return;
+      }
+      const p=new URLSearchParams({
+        mediaPartnerId:'2850210',
+        utm_term:'skyscanner_chatgpt_app_data',
+        origin:o,
+        destination:d,
+        outboundDate:out,
+        cabinclass:'economy'
+      });
+      if(back) p.set('inboundDate',back);
+      window.open('https://skyscanner.net/g/referrals/v1/flights/day-view?'+p.toString(),'_blank','noopener,noreferrer');
+    };
+  }
+
   function watchTool(){
     const key='dealzyPriceWatch';
     let items=JSON.parse(localStorage.getItem(key)||'[]');
@@ -562,7 +595,7 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,travel:travelTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
   // Quietly check saved watches after the app settles. This creates in-app notifications only when a signed-in user has watches.
