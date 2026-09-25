@@ -38,8 +38,8 @@
   const fab = document.createElement('button');
   fab.className = 'dz-tools-fab';
   fab.type = 'button';
-  fab.textContent = '🧰 Tools';
-  fab.setAttribute('aria-label','Open Dealzy tools');
+  fab.textContent = '⚡ Super App';
+  fab.setAttribute('aria-label','Open Dealzy Super App');
   document.body.appendChild(fab);
 
   const wrap = document.createElement('div');
@@ -47,7 +47,7 @@
   wrap.innerHTML = `
     <section class="dz-sheet" role="dialog" aria-modal="true" aria-label="Dealzy toolbox">
       <div class="dz-sheet-head">
-        <div><h2>Dealzy Toolbox</h2><div class="dz-small">Compare, plan, save and get alerts from one place.</div></div>
+        <div><h2>Dealzy Super App</h2><div class="dz-small">Discover, compare, plan, track, save and organize everything from one place.</div></div>
         <button class="dz-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="dz-tools-grid">
@@ -58,6 +58,10 @@
         <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
         <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
         <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
+        <button class="dz-tool" data-tool="planner"><span class="emoji">🧠</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
+        <button class="dz-tool" data-tool="watch"><span class="emoji">📉</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
+        <button class="dz-tool" data-tool="coupons"><span class="emoji">🎟️</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
+        <button class="dz-tool" data-tool="backup"><span class="emoji">💾</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
         <button class="dz-tool" data-tool="split"><span class="emoji">🧾</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
         <button class="dz-tool" data-tool="providers"><span class="emoji">🔌</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
         <button class="dz-tool" data-tool="app"><span class="emoji">📲</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
@@ -191,6 +195,104 @@
     };
   }
 
+  function plannerTool(){
+    const cats=['All','Food & Drink','Things to Do','Spa & Beauty','Travel','Family'];
+    showPanel(`<h3>🧠 Smart Planner</h3>
+      <div class="dz-form">
+        <label>Total budget<input id="dzPlanBudget" type="number" min="1" value="150"></label>
+        <label>People<input id="dzPlanPeople" type="number" min="1" value="2"></label>
+        <label>Category<select id="dzPlanCat">${cats.map(x=>'<option>'+x+'</option>').join('')}</select></label>
+      </div>
+      <button class="dz-action" id="dzBuildPlan">Build plan</button>
+      <div id="dzPlanResult"></div>`);
+    panel.querySelector('#dzBuildPlan').onclick=()=>{
+      const budget=Number(panel.querySelector('#dzPlanBudget').value)||150;
+      const people=Math.max(1,Number(panel.querySelector('#dzPlanPeople').value)||1);
+      const cat=panel.querySelector('#dzPlanCat').value;
+      const rows=getDeals().filter(d=>(cat==='All'||d.cat===cat)&&d.price<=budget).sort((a,b)=>(b.old-b.price)-(a.old-a.price));
+      let remaining=budget, picked=[];
+      for(const d of rows){ if(d.price<=remaining){picked.push(d); remaining-=d.price;} }
+      panel.querySelector('#dzPlanResult').innerHTML='<div class="dz-result">'+(
+        picked.length
+          ? '<b>Suggested plan for '+people+' people</b><br>'+picked.map(d=>'• '+esc(d.title)+' · '+money(d.price)).join('<br>')+'<br><br><b>Total '+money(budget-remaining)+'</b> · Remaining '+money(remaining)
+          : 'No current deal fits this plan yet.'
+      )+'</div>';
+    };
+  }
+
+  function watchTool(){
+    const key='dealzyPriceWatch';
+    let items=JSON.parse(localStorage.getItem(key)||'[]');
+    showPanel(`<h3>📉 Price Watch</h3>
+      <div class="dz-form">
+        <label>Item / deal<input id="dzWatchName" placeholder="Hotel, headphones, spa…"></label>
+        <label>Target price<input id="dzWatchPrice" type="number" min="0" placeholder="99"></label>
+      </div>
+      <button class="dz-action" id="dzWatchSave">Add watch</button>
+      <div class="dz-result"><b>${items.length} watch${items.length===1?'':'es'}</b><br>${items.length?items.map((x,i)=>'<span class="dz-chip">'+esc(x.name)+' ≤ '+money(x.target)+' <button data-del-watch="'+i+'" style="border:0;background:none;cursor:pointer">×</button></span>').join(''):'Nothing watched yet.'}</div>
+      <div class="dz-small" style="margin-top:9px">Current V1 stores watch rules locally. Automatic price checks activate when live provider feeds are connected.</div>`);
+    panel.querySelector('#dzWatchSave').onclick=()=>{
+      const name=panel.querySelector('#dzWatchName').value.trim();
+      const target=Number(panel.querySelector('#dzWatchPrice').value)||0;
+      if(!name) return;
+      items.push({name,target,createdAt:new Date().toISOString()});
+      localStorage.setItem(key,JSON.stringify(items)); watchTool();
+    };
+    panel.querySelectorAll('[data-del-watch]').forEach(b=>b.onclick=()=>{
+      items.splice(Number(b.dataset.delWatch),1); localStorage.setItem(key,JSON.stringify(items)); watchTool();
+    });
+  }
+
+  function couponsTool(){
+    const key='dealzyCoupons';
+    let items=JSON.parse(localStorage.getItem(key)||'[]');
+    showPanel(`<h3>🎟️ Coupon Vault</h3>
+      <div class="dz-form">
+        <label>Store / brand<input id="dzCouponStore" placeholder="Store name"></label>
+        <label>Code<input id="dzCouponCode" placeholder="SAVE20"></label>
+        <label>Expiry<input id="dzCouponExpiry" type="date"></label>
+      </div>
+      <button class="dz-action" id="dzCouponSave">Save coupon</button>
+      <div class="dz-result">${items.length?items.map((x,i)=>'<div style="margin:7px 0"><b>'+esc(x.store)+'</b> · <code>'+esc(x.code)+'</code>'+(x.expiry?' · expires '+esc(x.expiry):'')+' <button data-del-coupon="'+i+'" style="border:0;background:none;cursor:pointer">×</button></div>').join(''):'No saved coupons yet.'}</div>`);
+    panel.querySelector('#dzCouponSave').onclick=()=>{
+      const store=panel.querySelector('#dzCouponStore').value.trim();
+      const code=panel.querySelector('#dzCouponCode').value.trim();
+      const expiry=panel.querySelector('#dzCouponExpiry').value;
+      if(!store||!code) return;
+      items.push({store,code,expiry,createdAt:new Date().toISOString()});
+      localStorage.setItem(key,JSON.stringify(items)); couponsTool();
+    };
+    panel.querySelectorAll('[data-del-coupon]').forEach(b=>b.onclick=()=>{
+      items.splice(Number(b.dataset.delCoupon),1); localStorage.setItem(key,JSON.stringify(items)); couponsTool();
+    });
+  }
+
+  function backupTool(){
+    showPanel(`<h3>💾 Backup & Restore</h3>
+      <button class="dz-action" id="dzExport">Export my Dealzy data</button>
+      <button class="dz-action alt" id="dzImport">Restore from backup</button>
+      <input id="dzImportFile" type="file" accept="application/json" style="display:none">
+      <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
+    panel.querySelector('#dzExport').onclick=()=>{
+      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+      const data={version:1,exportedAt:new Date().toISOString(),data:{}};
+      keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='dealzy-backup.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    };
+    const file=panel.querySelector('#dzImportFile');
+    panel.querySelector('#dzImport').onclick=()=>file.click();
+    file.onchange=async()=>{
+      const f=file.files&&file.files[0]; if(!f) return;
+      try{
+        const parsed=JSON.parse(await f.text());
+        if(!parsed||!parsed.data) throw new Error('bad');
+        Object.entries(parsed.data).forEach(([k,v])=>localStorage.setItem(k,String(v)));
+        showPanel('<h3>💾 Backup & Restore</h3><div class="dz-result"><b>Backup restored.</b><br>Reload Dealzy to apply the restored data.</div>');
+      }catch(_){showPanel('<h3>💾 Backup & Restore</h3><div class="dz-result">This file is not a valid Dealzy backup.</div>')}
+    };
+  }
+
   function splitTool(){
     showPanel(`<h3>🧾 Split & Tip</h3>
       <div class="dz-form">
@@ -271,7 +373,7 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
   // PWA shell registration.
