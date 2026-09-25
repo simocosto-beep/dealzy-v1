@@ -59,6 +59,49 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+  let cloudTimer=null;
+
+  async function getCloudSession(){
+    let session=null;
+    try{session=JSON.parse(localStorage.getItem('dealzyCloudSession')||'null')}catch(_){}
+    if(!session) return null;
+    if(session.expires_at && Date.now()/1000 < Number(session.expires_at)-60) return session;
+    if(session.refresh_token){
+      try{
+        const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refresh',refresh_token:session.refresh_token})});
+        const fresh=await r.json();
+        if(r.ok && fresh.access_token){
+          fresh.expires_at=Math.floor(Date.now()/1000)+Number(fresh.expires_in||3600);
+          localStorage.setItem('dealzyCloudSession',JSON.stringify(fresh));
+          return fresh;
+        }
+      }catch(_){}
+    }
+    return session.access_token?session:null;
+  }
+
+  function cloudBundle(){
+    const out={};
+    CLOUD_KEYS.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;});
+    return out;
+  }
+
+  async function pushCloudNow(){
+    const session=await getCloudSession();
+    if(!session||!session.access_token) return false;
+    try{
+      const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:cloudBundle()})});
+      return r.ok;
+    }catch(_){return false}
+  }
+
+  function queueCloudSync(){
+    clearTimeout(cloudTimer);
+    cloudTimer=setTimeout(()=>pushCloudNow(),900);
+  }
+  window.DealzyCloud={queueSync:queueCloudSync,pushNow:pushCloudNow,getSession:getCloudSession};
+
   const stateKey = 'dealzyToolPrefs';
   const prefs = JSON.parse(localStorage.getItem(stateKey) || '{"budget":100,"radius":10,"category":"All"}');
   const alertsKey = 'dealzyAlerts';
@@ -150,7 +193,7 @@
       prefs.budget=Number(panel.querySelector('#dzBudget').value)||100;
       prefs.category=panel.querySelector('#dzCategory').value;
       prefs.radius=Number(panel.querySelector('#dzRadius').value)||10;
-      localStorage.setItem(stateKey,JSON.stringify(prefs));
+      localStorage.setItem(stateKey,JSON.stringify(prefs)); queueCloudSync();
       const list=getDeals().filter(d=>(prefs.category==='All'||d.cat===prefs.category)&&d.price<=prefs.budget).sort((a,b)=>a.price-b.price);
       panel.querySelector('#dzBudgetResult').innerHTML='<div class="dz-result">'+(list.length?list.map(d=>'<div style="margin:6px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place)+'</div>').join(''):'No current demo deal matches this budget.')+'</div>';
     };
@@ -185,7 +228,7 @@
       const q=panel.querySelector('#dzAlertQ').value.trim(), max=Number(panel.querySelector('#dzAlertPrice').value)||75;
       if(!q) return;
       alerts.push({q,max,createdAt:new Date().toISOString()});
-      localStorage.setItem(alertsKey,JSON.stringify(alerts));
+      localStorage.setItem(alertsKey,JSON.stringify(alerts)); queueCloudSync();
       alertsTool();
     };
   }
@@ -338,10 +381,10 @@
       const target=Number(panel.querySelector('#dzWatchPrice').value)||0;
       if(!name) return;
       items.push({name,target,createdAt:new Date().toISOString()});
-      localStorage.setItem(key,JSON.stringify(items)); watchTool();
+      localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); watchTool();
     };
     panel.querySelectorAll('[data-del-watch]').forEach(b=>b.onclick=()=>{
-      items.splice(Number(b.dataset.delWatch),1); localStorage.setItem(key,JSON.stringify(items)); watchTool();
+      items.splice(Number(b.dataset.delWatch),1); localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); watchTool();
     });
   }
 
@@ -362,10 +405,10 @@
       const expiry=panel.querySelector('#dzCouponExpiry').value;
       if(!store||!code) return;
       items.push({store,code,expiry,createdAt:new Date().toISOString()});
-      localStorage.setItem(key,JSON.stringify(items)); couponsTool();
+      localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); couponsTool();
     };
     panel.querySelectorAll('[data-del-coupon]').forEach(b=>b.onclick=()=>{
-      items.splice(Number(b.dataset.delCoupon),1); localStorage.setItem(key,JSON.stringify(items)); couponsTool();
+      items.splice(Number(b.dataset.delCoupon),1); localStorage.setItem(key,JSON.stringify(items)); queueCloudSync(); couponsTool();
     });
   }
 
