@@ -64,3 +64,9 @@ Display source, current price, original price when verified, partner terms and a
 
 ## Super App direction
 Dealzy V1.4 groups discovery, local search, comparison, planning, savings tools, price watches, coupon storage, nearby mapping, profile preparation and backup/restore in one interface. Live commerce data remains gated behind approved provider credentials.
+
+## Cloud backend
+- Supabase project connected for Dealzy Auth + Cloud Sync.
+- RLS-protected tables for profiles, saved deals, trips, trip items, alerts, price watches and coupons.
+- Legacy JSON sync table retained for compatibility while features migrate to normalized tables.
+- Security advisor currently reports no issues.
