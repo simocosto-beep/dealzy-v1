@@ -99,13 +99,80 @@ module.exports = async function handler(req,res){
   const headers={'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+jwt};
 
   if(req.method==='GET'){
-    const r=await fetch(base+'/rest/v1/dealzy_user_data?user_id=eq.'+encodeURIComponent(user.id)+'&select=data,updated_at',{headers});
-    const rows=await r.json();
-    return res.status(r.status).json({
-      ok:r.ok,
-      data:Array.isArray(rows)&&rows[0]?rows[0].data:null,
-      updated_at:Array.isArray(rows)&&rows[0]?rows[0].updated_at:null,
-      storage:'legacy-compatible'
+    const legacyReq=fetch(base+'/rest/v1/dealzy_user_data?user_id=eq.'+encodeURIComponent(user.id)+'&select=data,updated_at',{headers});
+    const q=t=>fetch(base+'/rest/v1/'+t+'?user_id=eq.'+encodeURIComponent(user.id)+'&select=*',{headers}).then(async r=>({ok:r.ok,rows:await r.json()})).catch(()=>({ok:false,rows:[]}));
+    const [legacy,favs,alerts,watches,coupons,travel,profile]=await Promise.all([
+      legacyReq,
+      q('dealzy_saved_deals'),
+      q('dealzy_alerts'),
+      q('dealzy_price_watches'),
+      q('dealzy_coupons'),
+      q('dealzy_travel_searches'),
+      q('dealzy_profiles')
+    ]);
+    const legacyRows=await legacy.json();
+    const legacyData=Array.isArray(legacyRows)&&legacyRows[0]&&legacyRows[0].data?legacyRows[0].data:{};
+    const data={...legacyData};
+
+    if(favs.ok && Array.isArray(favs.rows) && favs.rows.length){
+      data.dealzyFavs=JSON.stringify(favs.rows.map(x=>{
+        const n=Number(x.deal_key);
+        return Number.isFinite(n)?n:x.deal_key;
+      }));
+    }
+    if(alerts.ok && Array.isArray(alerts.rows) && alerts.rows.length){
+      data.dealzyAlerts=JSON.stringify(alerts.rows.map(x=>({
+        q:x.query,
+        max:x.max_price==null?null:Number(x.max_price),
+        createdAt:x.created_at
+      })));
+    }
+    if(watches.ok && Array.isArray(watches.rows) && watches.rows.length){
+      data.dealzyPriceWatch=JSON.stringify(watches.rows.map(x=>({
+        name:x.title,
+        target:x.target_price==null?0:Number(x.target_price),
+        sourceUrl:x.source_url||null,
+        createdAt:x.created_at
+      })));
+    }
+    if(coupons.ok && Array.isArray(coupons.rows) && coupons.rows.length){
+      data.dealzyCoupons=JSON.stringify(coupons.rows.map(x=>({
+        store:x.merchant,
+        code:x.code,
+        expiry:x.expires_on||'',
+        createdAt:x.created_at
+      })));
+    }
+    if(travel.ok && Array.isArray(travel.rows) && travel.rows.length){
+      data.dealzyTravelSearches=JSON.stringify(travel.rows.map(x=>({
+        kind:x.kind,
+        data:x.search_data||{},
+        summary:x.search_data&&x.search_data.summary||null,
+        createdAt:x.search_data&&x.search_data.createdAt||x.created_at
+      })));
+    }
+    if(profile.ok && Array.isArray(profile.rows) && profile.rows[0]){
+      let oldProfile={};
+      try{oldProfile=JSON.parse(data.dealzyLocalProfile||'{}')}catch(_){}
+      data.dealzyLocalProfile=JSON.stringify({
+        ...oldProfile,
+        name:profile.rows[0].display_name||oldProfile.name||'',
+        updatedAt:profile.rows[0].updated_at||oldProfile.updatedAt||null
+      });
+    }
+
+    return res.status(legacy.status).json({
+      ok:legacy.ok,
+      data,
+      updated_at:Array.isArray(legacyRows)&&legacyRows[0]?legacyRows[0].updated_at:null,
+      storage:'hybrid-normalized',
+      structured:{
+        favorites:favs.rows?.length||0,
+        alerts:alerts.rows?.length||0,
+        priceWatches:watches.rows?.length||0,
+        coupons:coupons.rows?.length||0,
+        travelSearches:travel.rows?.length||0
+      }
     });
   }
 
