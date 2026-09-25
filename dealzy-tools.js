@@ -256,7 +256,7 @@
           localStorage.setItem(profileKey,JSON.stringify({...profile,email,updatedAt:new Date().toISOString()}));
           accountTool();
         }else{
-          out.textContent='Account created. Check your email if confirmation is required, then sign in.';
+          out.textContent='Account created. Confirm the email, then return to Dealzy and tap Sign in. If the confirmation page shows localhost, the account can still be confirmed.';
         }
       }catch(e){out.textContent=e.message||'Authentication failed'}
     };
