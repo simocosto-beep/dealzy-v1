@@ -59,7 +59,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
   let cloudTimer=null;
 
   async function getCloudSession(){
@@ -136,7 +136,7 @@
         <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
         <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
         <button class="dz-tool" data-tool="planner"><span class="emoji">🧠</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
-        <button class="dz-tool" data-tool="travel"><span class="emoji">✈️</span><b>Flight Search</b><span>Search flights with Skyscanner via official click-through.</span></button>
+        <button class="dz-tool" data-tool="travel"><span class="emoji">🧳</span><b>Travel Hub</b><span>Hotels, flights, cars and things to do in one place.</span></button>
         <button class="dz-tool" data-tool="watch"><span class="emoji">📉</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
         <button class="dz-tool" data-tool="coupons"><span class="emoji">🎟️</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
         <button class="dz-tool" data-tool="backup"><span class="emoji">💾</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
@@ -288,7 +288,7 @@
         <div id="dzSyncStatus"></div>`);
       const status=panel.querySelector('#dzSyncStatus');
       const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
       };
       panel.querySelector('#dzSyncUp').onclick=async()=>{
@@ -389,35 +389,123 @@
   }
 
   function travelTool(){
-    showPanel(`<h3>✈️ Flight Search</h3>
-      <div class="dz-form">
-        <label>From (IATA)<input id="dzFlightFrom" maxlength="3" placeholder="MIA"></label>
-        <label>To (IATA)<input id="dzFlightTo" maxlength="3" placeholder="NYC"></label>
-        <label>Depart<input id="dzFlightOut" type="date"></label>
-        <label>Return<input id="dzFlightBack" type="date"></label>
+    const key='dealzyTravelSearches';
+    let saved=[];
+    try{saved=JSON.parse(localStorage.getItem(key)||'[]')}catch(_){}
+    const recent=saved.slice(-5).reverse();
+
+    showPanel(`<h3>🧳 Travel Hub</h3>
+      <div class="dz-small">Plan hotels, flights, cars and things to do. Dealzy saves your search details privately and opens the official provider when public API access is not yet available.</div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+        <button class="dz-action alt" data-travel-tab="hotel">🏨 Hotels</button>
+        <button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>
+        <button class="dz-action alt" data-travel-tab="car">🚗 Cars</button>
+        <button class="dz-action alt" data-travel-tab="activity">🎟️ Things to do</button>
       </div>
-      <button class="dz-action" id="dzFlightGo">Search Skyscanner</button>
-      <div class="dz-small" style="margin-top:10px">Dealzy opens an official Skyscanner search. Prices and availability are provided by Skyscanner and may change.</div>`);
-    panel.querySelector('#dzFlightGo').onclick=()=>{
-      const o=panel.querySelector('#dzFlightFrom').value.trim().toUpperCase();
-      const d=panel.querySelector('#dzFlightTo').value.trim().toUpperCase();
-      const out=panel.querySelector('#dzFlightOut').value;
-      const back=panel.querySelector('#dzFlightBack').value;
-      if(!/^[A-Z]{3}$/.test(o)||!/^[A-Z]{3}$/.test(d)||!out){
-        showPanel('<h3>✈️ Flight Search</h3><div class="dz-result">Enter valid 3-letter airport/city codes and a departure date.</div>');
-        return;
-      }
-      const p=new URLSearchParams({
-        mediaPartnerId:'2850210',
-        utm_term:'skyscanner_chatgpt_app_data',
-        origin:o,
-        destination:d,
-        outboundDate:out,
-        cabinclass:'economy'
-      });
-      if(back) p.set('inboundDate',back);
-      window.open('https://skyscanner.net/g/referrals/v1/flights/day-view?'+p.toString(),'_blank','noopener,noreferrer');
+
+      <div id="dzTravelForm"></div>
+
+      <div class="dz-result">
+        <b>Recent travel searches</b><br>
+        ${recent.length?recent.map(x=>'<div style="margin:7px 0">'+esc((x.kind||'travel').toUpperCase())+' · '+esc(x.summary||'Saved search')+'</div>').join(''):'No saved travel searches yet.'}
+      </div>
+
+      <div class="dz-small" style="margin-top:10px">
+        Booking.com accommodation data and Skyscanner flight data have been validated through connected providers in ChatGPT. Dealzy's public website still waits for its own official API/affiliate credentials, so external prices are never presented as native Dealzy live inventory yet.
+      </div>`);
+
+    const form=panel.querySelector('#dzTravelForm');
+
+    const saveSearch=(kind,data,summary)=>{
+      saved.push({kind,data,summary,createdAt:new Date().toISOString()});
+      localStorage.setItem(key,JSON.stringify(saved.slice(-30)));
+      queueCloudSync();
     };
+
+    const renderHotel=()=>{
+      form.innerHTML=`
+        <div class="dz-form">
+          <label>Destination<input id="dzHotelDest" placeholder="Miami"></label>
+          <label>Adults<input id="dzHotelAdults" type="number" min="1" value="2"></label>
+          <label>Check-in<input id="dzHotelIn" type="date"></label>
+          <label>Check-out<input id="dzHotelOut" type="date"></label>
+        </div>
+        <button class="dz-action" id="dzHotelGo">Open Booking.com</button>`;
+      form.querySelector('#dzHotelGo').onclick=()=>{
+        const dest=form.querySelector('#dzHotelDest').value.trim();
+        const adults=Math.max(1,Number(form.querySelector('#dzHotelAdults').value)||2);
+        const cin=form.querySelector('#dzHotelIn').value;
+        const cout=form.querySelector('#dzHotelOut').value;
+        if(!dest||!cin||!cout){showPanel('<h3>🏨 Hotels</h3><div class="dz-result">Enter destination, check-in and check-out dates.</div>');return}
+        saveSearch('hotel',{dest,adults,cin,cout},dest+' · '+cin+' → '+cout);
+        const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:'1'});
+        window.open('https://www.booking.com/searchresults.html?'+p.toString(),'_blank','noopener,noreferrer');
+      };
+    };
+
+    const renderFlight=()=>{
+      form.innerHTML=`
+        <div class="dz-form">
+          <label>From (IATA)<input id="dzFlightFrom" maxlength="3" placeholder="MIA"></label>
+          <label>To (IATA)<input id="dzFlightTo" maxlength="3" placeholder="NYC"></label>
+          <label>Depart<input id="dzFlightOut" type="date"></label>
+          <label>Return<input id="dzFlightBack" type="date"></label>
+        </div>
+        <button class="dz-action" id="dzFlightGo">Open Skyscanner</button>`;
+      form.querySelector('#dzFlightGo').onclick=()=>{
+        const o=form.querySelector('#dzFlightFrom').value.trim().toUpperCase();
+        const d=form.querySelector('#dzFlightTo').value.trim().toUpperCase();
+        const out=form.querySelector('#dzFlightOut').value;
+        const back=form.querySelector('#dzFlightBack').value;
+        if(!/^[A-Z]{3}$/.test(o)||!/^[A-Z]{3}$/.test(d)||!out){showPanel('<h3>✈️ Flights</h3><div class="dz-result">Enter valid 3-letter airport/city codes and a departure date.</div>');return}
+        saveSearch('flight',{origin:o,destination:d,out,back},o+' → '+d+' · '+out+(back?' → '+back:''));
+        const p=new URLSearchParams({mediaPartnerId:'2850210',utm_term:'skyscanner_chatgpt_app_data',origin:o,destination:d,outboundDate:out,cabinclass:'economy'});
+        if(back) p.set('inboundDate',back);
+        window.open('https://skyscanner.net/g/referrals/v1/flights/day-view?'+p.toString(),'_blank','noopener,noreferrer');
+      };
+    };
+
+    const renderCar=()=>{
+      form.innerHTML=`
+        <div class="dz-form">
+          <label>Pick-up location<input id="dzCarPlace" placeholder="Miami Airport"></label>
+          <label>Pick-up date<input id="dzCarIn" type="date"></label>
+          <label>Drop-off date<input id="dzCarOut" type="date"></label>
+          <label>Driver age<input id="dzCarAge" type="number" min="19" max="99" value="30"></label>
+        </div>
+        <button class="dz-action" id="dzCarGo">Open Booking.com Cars</button>`;
+      form.querySelector('#dzCarGo').onclick=()=>{
+        const place=form.querySelector('#dzCarPlace').value.trim();
+        const cin=form.querySelector('#dzCarIn').value;
+        const cout=form.querySelector('#dzCarOut').value;
+        const age=Math.max(19,Number(form.querySelector('#dzCarAge').value)||30);
+        if(!place||!cin||!cout){showPanel('<h3>🚗 Cars</h3><div class="dz-result">Enter pick-up location and rental dates.</div>');return}
+        saveSearch('car',{place,cin,cout,age},place+' · '+cin+' → '+cout);
+        window.open('https://www.booking.com/cars/','_blank','noopener,noreferrer');
+      };
+    };
+
+    const renderActivity=()=>{
+      form.innerHTML=`
+        <div class="dz-form">
+          <label>Destination<input id="dzActDest" placeholder="Miami"></label>
+          <label>Date<input id="dzActDate" type="date"></label>
+        </div>
+        <button class="dz-action" id="dzActGo">Open Booking.com Attractions</button>`;
+      form.querySelector('#dzActGo').onclick=()=>{
+        const dest=form.querySelector('#dzActDest').value.trim();
+        const date=form.querySelector('#dzActDate').value;
+        if(!dest||!date){showPanel('<h3>🎟️ Things to do</h3><div class="dz-result">Enter destination and date.</div>');return}
+        saveSearch('activity',{dest,date},dest+' · '+date);
+        window.open('https://www.booking.com/attractions/','_blank','noopener,noreferrer');
+      };
+    };
+
+    panel.querySelectorAll('[data-travel-tab]').forEach(b=>b.onclick=()=>{
+      ({hotel:renderHotel,flight:renderFlight,car:renderCar,activity:renderActivity}[b.dataset.travelTab]||renderHotel)();
+    });
+    renderHotel();
   }
 
   function watchTool(){
@@ -496,7 +584,7 @@
       <input id="dzImportFile" type="file" accept="application/json" style="display:none">
       <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
     panel.querySelector('#dzExport').onclick=()=>{
-      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons'];
+      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
       const data={version:1,exportedAt:new Date().toISOString(),data:{}};
       keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
