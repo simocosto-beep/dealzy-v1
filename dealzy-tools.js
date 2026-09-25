@@ -4,6 +4,39 @@
 (() => {
   'use strict';
 
+  async function bootstrapSupabaseSession(){
+    try{
+      const hash=location.hash||'';
+      if(!hash.includes('access_token=')) return;
+      const p=new URLSearchParams(hash.replace(/^#/,''));
+      const access_token=p.get('access_token');
+      const refresh_token=p.get('refresh_token');
+      const expires_in=Number(p.get('expires_in')||3600);
+      const token_type=p.get('token_type')||'bearer';
+      if(!access_token) return;
+      let user=null;
+      try{
+        const r=await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/auth/v1/user',{
+          headers:{
+            'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+            'Authorization':'Bearer '+access_token
+          }
+        });
+        if(r.ok) user=await r.json();
+      }catch(_){}
+      localStorage.setItem('dealzyCloudSession',JSON.stringify({
+        access_token,refresh_token,expires_in,token_type,user,
+        confirmedAt:new Date().toISOString()
+      }));
+      history.replaceState(null,'',location.pathname+location.search);
+      setTimeout(()=>{
+        const t=document.getElementById('toast');
+        if(t){t.textContent='Email confirmed · My Dealzy is connected';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2800);}
+      },400);
+    }catch(_){}
+  }
+  bootstrapSupabaseSession();
+
   const TOOL_CSS = `
   .dz-tools-fab{position:fixed;right:18px;bottom:92px;z-index:60;border:0;border-radius:999px;padding:12px 16px;background:linear-gradient(135deg,#6d5dfc,#3d8bfd);color:#fff;font-weight:850;box-shadow:0 14px 34px rgba(75,71,224,.32);cursor:pointer}
   .dz-sheet-wrap{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:120;display:none;align-items:flex-end;justify-content:center}
