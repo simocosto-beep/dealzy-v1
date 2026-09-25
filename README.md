@@ -4,7 +4,7 @@
 
 Dealzy is evolving into an AI-powered deals super-app: one search experience for local experiences, food, wellness, travel, shopping, comparison, savings, alerts, favorites and trip planning.
 
-## Current V1.3
+## Current V1.4 — Super App
 - Responsive mobile-first web app
 - Dealzy AI local intent parsing
 - Browser geolocation (permission based)
@@ -16,11 +16,17 @@ Dealzy is evolving into an AI-powered deals super-app: one search experience for
   - Savings Calculator
   - Local alert rules
   - Provider search
+  - Smart Planner
+  - Price Watch
+  - Coupon Vault
+  - Backup & Restore
   - Split & Tip
   - Provider status
   - Install/share
 - PWA manifest + service worker app shell
 - Server-side `/api/search` provider gateway with demo fallback
+- `/api/recommend` intent-aware recommendation endpoint
+- `/api/providers` source-status endpoint
 - `/api/health` service health endpoint
 - Security headers via `vercel.json`
 - SEO basics: sitemap, robots, Open Graph metadata
@@ -55,3 +61,6 @@ Display source, current price, original price when verified, partner terms and a
 3. Add user accounts before cloud-synced favorites and server alerts.
 4. Add push/email alert delivery after explicit user opt-in.
 5. Expand Canada only after currency, localization and partner coverage are verified.
+
+## Super App direction
+Dealzy V1.4 groups discovery, local search, comparison, planning, savings tools, price watches, coupon storage, nearby mapping, profile preparation and backup/restore in one interface. Live commerce data remains gated behind approved provider credentials.
