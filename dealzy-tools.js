@@ -56,6 +56,8 @@
         <button class="dz-tool" data-tool="savings"><span class="emoji">💸</span><b>Savings Calculator</b><span>See discount percentage and money saved.</span></button>
         <button class="dz-tool" data-tool="alerts"><span class="emoji">🔔</span><b>Deal Alerts</b><span>Save a watch rule for future matching deals.</span></button>
         <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
+        <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
+        <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
         <button class="dz-tool" data-tool="split"><span class="emoji">🧾</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
         <button class="dz-tool" data-tool="providers"><span class="emoji">🔌</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
         <button class="dz-tool" data-tool="app"><span class="emoji">📲</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
@@ -151,6 +153,44 @@
     };
   }
 
+  function getCoords(){
+    try{
+      if(typeof state!=='undefined' && state.coords) return state.coords;
+      return JSON.parse(localStorage.getItem('dealzyCoords')||'null');
+    }catch(_){ return null; }
+  }
+
+  function nearbyTool(){
+    const coords=getCoords();
+    if(!coords){
+      showPanel('<h3>🗺️ Nearby Map</h3><div class="dz-result">Location is not enabled yet. Close the toolbox and tap “Use my location” on Home first.</div>');
+      return;
+    }
+    const lat=Number(coords.lat), lng=Number(coords.lng);
+    const delta=.03;
+    const bbox=[lng-delta,lat-delta,lng+delta,lat+delta].join(',');
+    const src='https://www.openstreetmap.org/export/embed.html?bbox='+encodeURIComponent(bbox)+'&layer=mapnik&marker='+encodeURIComponent(lat+','+lng);
+    showPanel('<h3>🗺️ Nearby Map</h3><div class="dz-small">Centered on your current location. Live deal pins will appear here when provider coordinates are available.</div><iframe title="Dealzy nearby map" src="'+src+'" style="width:100%;height:340px;border:0;border-radius:16px;margin-top:12px" loading="lazy"></iframe><div class="dz-result"><b>Radius preference:</b> '+esc(prefs.radius||10)+' miles<br><span class="dz-small">Dealzy stores only the optional browser coordinate locally in this build.</span></div>');
+  }
+
+  function accountTool(){
+    const key='dealzyLocalProfile';
+    const profile=JSON.parse(localStorage.getItem(key)||'{"name":"","email":""}');
+    showPanel(`<h3>👤 My Dealzy</h3>
+      <div class="dz-form">
+        <label>Display name<input id="dzName" value="${esc(profile.name||'')}" placeholder="Your name"></label>
+        <label>Email<input id="dzEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
+      </div>
+      <button class="dz-action" id="dzSaveProfile">Save on this device</button>
+      <div class="dz-result"><b>Cloud sync: not connected yet</b><br><span class="dz-small">Favorites, trips and alerts currently stay on this browser. This profile is a local foundation only; no fake cloud account is created.</span></div>`);
+    panel.querySelector('#dzSaveProfile').onclick=()=>{
+      const name=panel.querySelector('#dzName').value.trim();
+      const email=panel.querySelector('#dzEmail').value.trim();
+      localStorage.setItem(key,JSON.stringify({name,email,updatedAt:new Date().toISOString()}));
+      showPanel('<h3>👤 My Dealzy</h3><div class="dz-result"><b>Saved locally.</b><br>Your profile foundation is ready. Cloud authentication will be connected as a separate backend step.</div>');
+    };
+  }
+
   function splitTool(){
     showPanel(`<h3>🧾 Split & Tip</h3>
       <div class="dz-form">
@@ -229,7 +269,7 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
   // PWA shell registration.
