@@ -226,11 +226,13 @@
       try{
         const p=new URLSearchParams({q});
         if(max) p.set('maxPrice',String(max));
+        const coords=getCoords();
+        if(coords){p.set('lat',String(coords.lat));p.set('lng',String(coords.lng));p.set('radius',String(prefs.radius||10));}
         const r=await fetch('/api/search?'+p.toString(),{headers:{'Accept':'application/json'}});
         if(!r.ok) throw new Error('search failed');
         const data=await r.json();
         out.innerHTML='<div class="dz-result">'+(data.results&&data.results.length
-          ? data.results.map(d=>'<div style="margin:8px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place||'')+'<br><span class="dz-small">Save '+money(d.savings||0)+' · '+(d.discountPct||0)+'% off · '+esc(d.source||data.mode||'Dealzy')+'</span></div>').join('')
+          ? data.results.map(d=>'<div style="margin:8px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place||'')+(d.distanceMiles!=null?' · '+d.distanceMiles.toFixed(1)+' mi away':'')+'<br><span class="dz-small">Save '+money(d.savings||0)+' · '+(d.discountPct||0)+'% off · '+esc(d.source||data.mode||'Dealzy')+'</span></div>').join('')
           : 'No matching deal found.')+'</div>';
       }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. The main app still works with local fallback data.</div>'}
     };
