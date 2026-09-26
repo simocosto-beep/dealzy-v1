@@ -282,11 +282,23 @@
     if(session&&session.access_token){
       showPanel(`<h3>👤 My Dealzy</h3>
         <div class="dz-result"><b>Cloud account connected</b><br><span class="dz-small">${esc(session.user&&session.user.email?session.user.email:(profile.email||'Signed in'))}</span></div>
+        <div id="dzCloudV2Status" class="dz-small" style="margin:10px 0">Checking Dealzy Cloud V2…</div>
         <button class="dz-action" id="dzSyncUp">Sync this device → Cloud</button>
         <button class="dz-action alt" id="dzSyncDown">Restore Cloud → this device</button>
         <button class="dz-action alt" id="dzLogout">Sign out</button>
         <div id="dzSyncStatus"></div>`);
       const status=panel.querySelector('#dzSyncStatus');
+      const cloudV2=panel.querySelector('#dzCloudV2Status');
+      fetch('/api/bootstrap',{headers:{'Authorization':'Bearer '+session.access_token},cache:'no-store'})
+        .then(async r=>({ok:r.ok,data:await r.json()}))
+        .then(({ok,data})=>{
+          if(!cloudV2) return;
+          if(!ok||!data||!data.ok){cloudV2.textContent='Cloud sync connected · advanced backend temporarily unavailable';return}
+          const unread=Number(data.bootstrap&&data.bootstrap.notifications&&data.bootstrap.notifications.unread_count||0);
+          const onboard=!!(data.bootstrap&&data.bootstrap.onboarding&&data.bootstrap.onboarding.completed);
+          cloudV2.innerHTML='<b>Dealzy Cloud V2 active</b> · '+unread+' unread · '+(onboard?'profile ready':'setup available');
+        })
+        .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
       const bundle=()=>{
         const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;

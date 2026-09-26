@@ -3,10 +3,11 @@ module.exports = async function handler(req,res){
   res.status(200).json({
     ok:true,
     service:'dealzy-api',
-    version:'1.3',
-    mode:'demo-fallback',
+    version:'2.0',
+    mode:'cloud-v2-demo-fallback',
     liveProviders:[],
-    readyFor:['affiliate-adapters','accounts','server-alerts'],
+    backend:['supabase-auth','cloud-sync','rpc-v2'],
+    readyFor:['affiliate-adapters','approved-live-providers'],
     timestamp:new Date().toISOString()
   });
 };
