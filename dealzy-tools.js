@@ -636,43 +636,81 @@
   function providerSearchTool(){
     showPanel(`<h3>✨ Provider Search</h3>
       <div class="dz-form">
-        <label>What are you looking for?<input id="dzProviderQ" placeholder="dinner, spa, cruise"></label>
-        <label>Maximum price<input id="dzProviderMax" type="number" min="1" value="100"></label>
+        <label>What are you looking for?<input id="dzProviderQ" placeholder="restaurant, spa, concert, cruise"></label>
+        <label>Category
+          <select id="dzProviderCategory">
+            <option value="All">All live sources</option>
+            <option value="Food & Drink">Food & Drink · Yelp</option>
+            <option value="Spa & Beauty">Spa & Beauty · Yelp</option>
+            <option value="Things to Do">Things to Do · Ticketmaster / Viator</option>
+            <option value="Travel">Travel & experiences · Viator</option>
+          </select>
+        </label>
+        <label>Maximum price<input id="dzProviderMax" type="number" min="1" placeholder="Optional"></label>
       </div>
       <button class="dz-action" id="dzProviderGo">Search Dealzy</button>
       <div id="dzProviderResult"></div>
-      <div class="dz-small" style="margin-top:9px">This uses Dealzy's provider gateway. It currently returns the verified demo fallback until approved live sources are connected.</div>`);
+      <div class="dz-small" style="margin-top:9px">Dealzy combines verified live sources when available. Yelp places without an exact price are shown as places, not fake deals. Demo inventory is clearly labeled when used as fallback.</div>`);
     panel.querySelector('#dzProviderGo').onclick=async()=>{
       const q=panel.querySelector('#dzProviderQ').value.trim();
+      const category=panel.querySelector('#dzProviderCategory').value;
       const max=Number(panel.querySelector('#dzProviderMax').value)||0;
       const out=panel.querySelector('#dzProviderResult');
-      out.innerHTML='<div class="dz-result">Searching…</div>';
+      out.innerHTML='<div class="dz-result">Searching live sources…</div>';
       try{
-        const p=new URLSearchParams({q});
+        const p=new URLSearchParams({q,category});
         if(max) p.set('maxPrice',String(max));
         const coords=getCoords();
         if(coords){p.set('lat',String(coords.lat));p.set('lng',String(coords.lng));p.set('radius',String(prefs.radius||10));}
         const r=await fetch('/api/search?'+p.toString(),{headers:{'Accept':'application/json'}});
         if(!r.ok) throw new Error('search failed');
         const data=await r.json();
-        out.innerHTML='<div class="dz-result">'+(data.results&&data.results.length
-          ? data.results.map(d=>'<div style="margin:8px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place||'')+(d.distanceMiles!=null?' · '+d.distanceMiles.toFixed(1)+' mi away':'')+'<br><span class="dz-small">Save '+money(d.savings||0)+' · '+(d.discountPct||0)+'% off · '+esc(d.source||data.mode||'Dealzy')+'</span></div>').join('')
-          : 'No matching deal found.')+'</div>';
+        const providerNames=(data.providers||[]).filter(x=>x.status==='live').map(x=>x.name);
+        const modeLabel=data.mode==='demo-fallback'?'Demo fallback':(providerNames.length?'Live · '+providerNames.join(' + '):'Live source');
+        const rows=(data.results||[]).map(d=>{
+          const hasPrice=Number(d.price)>0;
+          const priceText=hasPrice?money(d.price):(d.priceLabel?esc(d.priceLabel):'Price on provider');
+          const rating=d.rating?('⭐ '+esc(d.rating)+(d.reviewCount?' ('+esc(d.reviewCount)+')':'')):'';
+          const meta=[priceText,esc(d.place||''),rating].filter(Boolean).join(' · ');
+          const dealBits=[];
+          if(Number(d.savings)>0) dealBits.push('Save '+money(d.savings));
+          if(Number(d.discountPct)>0) dealBits.push(d.discountPct+'% off');
+          const source=esc(d.source||d.provider||data.mode||'Dealzy');
+          const action=d.partnerUrl?'<a href="'+esc(d.partnerUrl)+'" target="_blank" rel="noopener noreferrer" class="dz-action alt" style="display:inline-block;margin-top:8px;text-decoration:none">Open on '+source+'</a>':'';
+          return '<div class="dz-result" style="margin:8px 0"><b>'+esc(d.title)+'</b><br><span class="dz-small">'+meta+'</span><br><span class="dz-small"><b>'+source+'</b>'+(dealBits.length?' · '+dealBits.join(' · '):'')+'</span>'+action+'</div>';
+        }).join('');
+        out.innerHTML='<div class="dz-small" style="margin:10px 0"><b>'+esc(modeLabel)+'</b> · '+(data.count||0)+' result'+((data.count||0)===1?'':'s')+'</div>'+
+          (rows||'<div class="dz-result">No matching result found.</div>');
       }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. The main app still works with local fallback data.</div>'}
     };
   }
 
   async function providersTool(){
-    let api='CHECKING';
-    try{const r=await fetch('/api/health',{cache:'no-store'}); const h=await r.json(); api=h&&h.ok?'ACTIVE':'OFFLINE';}catch(_){api='OFFLINE'}
-    showPanel(`<h3>🔌 Deal Sources</h3>
-      <div class="dz-provider"><div><b>Dealzy Demo Inventory</b><div class="dz-small">Current fallback dataset</div></div><span class="dz-status live">ACTIVE</span></div>
-      <div class="dz-provider"><div><b>Dealzy Search API</b><div class="dz-small">Server-side provider gateway</div></div><span class="dz-status ${api==='ACTIVE'?'live':''}">${api}</span></div>
-      <div class="dz-provider"><div><b>Browser Location</b><div class="dz-small">Used with user permission</div></div><span class="dz-status live">ACTIVE</span></div>
-      <div class="dz-provider"><div><b>Groupon / Affiliate feed</b><div class="dz-small">Adapter ready; credentials required</div></div><span class="dz-status">PENDING</span></div>
-      <div class="dz-provider"><div><b>CJ Affiliate</b><div class="dz-small">Adapter slot prepared</div></div><span class="dz-status">PENDING</span></div>
-      <div class="dz-provider"><div><b>Travel / Tickets providers</b><div class="dz-small">Planned provider modules</div></div><span class="dz-status">NEXT</span></div>
-      <div class="dz-small" style="margin-top:10px">Dealzy will keep a unified result model so new providers can be added without redesigning the app.</div>`);
+    showPanel('<h3>🔌 Deal Sources</h3><div id="dzSources"><div class="dz-result">Checking sources…</div></div>');
+    const box=panel.querySelector('#dzSources');
+    try{
+      const r=await fetch('/api/providers',{cache:'no-store'});
+      if(!r.ok) throw new Error('providers unavailable');
+      const data=await r.json();
+      const rows=(data.providers||[]).map(x=>{
+        const status=String(x.status||'unknown');
+        const isLive=/active|configured|live/i.test(status)&&!/pending/i.test(status);
+        const label=status.replace(/-/g,' ').toUpperCase();
+        const note={
+          'affiliate-api':'Experiences / activities API',
+          'events-api':'Concerts, sports & events API',
+          'local-places-api':'Restaurants, spa & local places API',
+          'travel':'Travel source / clickout',
+          'fallback':'Safe demo fallback',
+          'cloud':'Dealzy cloud engine',
+          'device':'Device capability'
+        }[x.kind]||String(x.kind||'Provider');
+        return '<div class="dz-provider"><div><b>'+esc(x.name)+'</b><div class="dz-small">'+esc(note)+'</div></div><span class="dz-status '+(isLive?'live':'')+'">'+esc(label)+'</span></div>';
+      }).join('');
+      box.innerHTML=rows+'<div class="dz-small" style="margin-top:10px">'+esc(data.note||'Dealzy only marks live upstream results as live.')+'</div>';
+    }catch(_){
+      box.innerHTML='<div class="dz-result">Source status is temporarily unavailable.</div>';
+    }
   }
 
   let deferredInstall = null;
