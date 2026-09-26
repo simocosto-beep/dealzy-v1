@@ -142,6 +142,74 @@ async function searchTicketmaster({q,maxPrice,limit}){
   return {...live,results:rows.slice(0,limit)};
 }
 
+
+function yelpCategory(category){
+  if(category==='Food & Drink') return 'restaurants,food,coffee';
+  if(category==='Spa & Beauty') return 'spas,beautysvc';
+  return '';
+}
+
+function normalizeYelp(row,category){
+  const loc=row.location||{};
+  const coords=row.coordinates||{};
+  return {
+    id:'yelp-'+String(row.id||Math.random().toString(36).slice(2)),
+    title:row.name||'Yelp place',
+    category:category||'Local',
+    place:[loc.address1,loc.city,loc.state].filter(Boolean).join(' • '),
+    lat:Number(coords.latitude)||null,
+    lng:Number(coords.longitude)||null,
+    price:null,
+    old:null,
+    priceLabel:row.price||null,
+    rating:Number(row.rating||0)||'',
+    reviewCount:Number(row.review_count||0),
+    image:row.image_url||'',
+    text:Array.isArray(row.categories)?row.categories.map(x=>x.title).filter(Boolean).join(' · '):'',
+    partnerUrl:row.url||null,
+    source:'Yelp',
+    provider:'yelp',
+    currency:'USD',
+    savings:0,
+    discountPct:0,
+    phone:row.display_phone||null,
+    isClosed:!!row.is_closed
+  };
+}
+
+async function searchYelp({q,category,limit,lat,lng}){
+  const key=process.env.YELP_API_KEY;
+  if(!key) return {ok:false,reason:'not-configured',results:[]};
+  const categories=yelpCategory(category);
+  if(!categories) return {ok:false,reason:'unsupported-category',results:[]};
+
+  const params=new URLSearchParams({
+    limit:String(Math.min(50,Math.max(1,limit))),
+    categories,
+    sort_by:'best_match'
+  });
+  if(q) params.set('term',q);
+  if(Number.isFinite(lat)&&Number.isFinite(lng)){
+    params.set('latitude',String(lat));
+    params.set('longitude',String(lng));
+    params.set('radius','16000');
+  }else{
+    params.set('location','Miami, FL');
+  }
+
+  const r=await fetch('https://api.yelp.com/v3/businesses/search?'+params.toString(),{
+    headers:{'Accept':'application/json','Authorization':'Bearer '+key}
+  });
+  if(!r.ok){
+    let msg='';
+    try{msg=await r.text()}catch(_){}
+    return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
+  }
+  const data=await r.json();
+  const rows=Array.isArray(data.businesses)?data.businesses.map(x=>normalizeYelp(x,category)):[];
+  return {ok:true,results:rows,total:Number(data.total||rows.length)};
+}
+
 function demoSearch(req){
   const q=String(req.query.q||'').trim().toLowerCase();
   const category=String(req.query.category||'All');
@@ -179,8 +247,25 @@ module.exports = async function handler(req,res){
 
   const demo=demoSearch(req);
   const wantsLive=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
+  const wantsYelp=demo.category==='Food & Drink'||demo.category==='Spa & Beauty';
   const liveRows=[];
   const liveProviders=[];
+
+  if(wantsYelp){
+    try{
+      const yelp=await searchYelp({
+        q:demo.q,
+        category:demo.category,
+        limit:demo.limit,
+        lat:demo.hasCoords?demo.lat:null,
+        lng:demo.hasCoords?demo.lng:null
+      });
+      if(yelp.ok && yelp.results.length){
+        liveRows.push(...yelp.results);
+        liveProviders.push({name:'yelp',status:'live'});
+      }
+    }catch(_){}
+  }
 
   if(wantsLive){
     try{
@@ -220,7 +305,8 @@ module.exports = async function handler(req,res){
     providers:[
       {name:'demo',status:'active'},
       {name:'ticketmaster',status:process.env.TICKETMASTER_API_KEY?'configured':'not-configured'},
-      {name:'viator',status:process.env.VIATOR_API_KEY?'configured':'not-configured'}
+      {name:'viator',status:process.env.VIATOR_API_KEY?'configured':'not-configured'},
+      {name:'yelp',status:process.env.YELP_API_KEY?'configured':'not-configured'}
     ],
     results:demo.rows,
     generatedAt:new Date().toISOString()
