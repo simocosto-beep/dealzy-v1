@@ -73,6 +73,75 @@ async function searchViator({q,maxPrice,limit}){
   return {ok:true,results:rows,total:Number(data.totalCount||rows.length)};
 }
 
+
+function bestTicketmasterImage(images){
+  if(!Array.isArray(images)||!images.length) return '';
+  return [...images].sort((a,b)=>(Number(b.width||0)*Number(b.height||0))-(Number(a.width||0)*Number(a.height||0)))[0]?.url||'';
+}
+
+function normalizeTicketmaster(row){
+  const venue=row?._embedded?.venues?.[0]||{};
+  const pr=Array.isArray(row.priceRanges)&&row.priceRanges.length?row.priceRanges[0]:{};
+  const min=Number(pr.min||0), max=Number(pr.max||min||0);
+  const localDate=row?.dates?.start?.localDate||'';
+  const localTime=row?.dates?.start?.localTime||'';
+  const classification=row?.classifications?.[0]?.segment?.name||'Event';
+  return {
+    id:'ticketmaster-'+String(row.id||Math.random().toString(36).slice(2)),
+    title:row.name||'Ticketmaster event',
+    category:'Things to Do',
+    place:[venue.name,venue.city?.name,venue.state?.stateCode].filter(Boolean).join(' • '),
+    lat:Number(venue.location?.latitude)||null,
+    lng:Number(venue.location?.longitude)||null,
+    price:min,
+    old:max||min,
+    rating:'',
+    image:bestTicketmasterImage(row.images),
+    text:[classification,localDate,localTime].filter(Boolean).join(' · '),
+    partnerUrl:row.url||null,
+    source:'Ticketmaster',
+    provider:'ticketmaster',
+    currency:pr.currency||'USD',
+    savings:0,
+    discountPct:0,
+    eventDate:localDate||null,
+    eventTime:localTime||null
+  };
+}
+
+async function ticketmasterRequest({q,limit}){
+  const key=process.env.TICKETMASTER_API_KEY;
+  if(!key) return {ok:false,reason:'not-configured',results:[]};
+  const p=new URLSearchParams({
+    apikey:key,
+    countryCode:'US',
+    city:'Miami',
+    size:String(Math.min(20,Math.max(1,limit))),
+    sort:'date,asc'
+  });
+  if(q) p.set('keyword',q);
+  const r=await fetch('https://app.ticketmaster.com/discovery/v2/events.json?'+p.toString(),{
+    headers:{'Accept':'application/json'}
+  });
+  if(!r.ok){
+    let msg='';
+    try{msg=await r.text()}catch(_){}
+    return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
+  }
+  const data=await r.json();
+  const events=data?._embedded?.events||[];
+  return {ok:true,results:events.map(normalizeTicketmaster),total:Number(data?.page?.totalElements||events.length)};
+}
+
+async function searchTicketmaster({q,maxPrice,limit}){
+  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10)});
+  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10)});
+  if(!live.ok) return live;
+  let rows=live.results;
+  if(maxPrice) rows=rows.filter(d=>!d.price||d.price<=maxPrice);
+  return {...live,results:rows.slice(0,limit)};
+}
+
 function demoSearch(req){
   const q=String(req.query.q||'').trim().toLowerCase();
   const category=String(req.query.category||'All');
@@ -109,23 +178,38 @@ module.exports = async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({ok:false,error:'Method not allowed'});
 
   const demo=demoSearch(req);
-  const wantsViator=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
+  const wantsLive=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
+  const liveRows=[];
+  const liveProviders=[];
 
-  if(wantsViator){
+  if(wantsLive){
     try{
-      const live=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
-      if(live.ok && live.results.length){
-        return res.status(200).json({
-          ok:true,
-          mode:'live-viator',
-          query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:'Miami'},
-          count:live.results.length,
-          providers:[{name:'viator',status:'live'}],
-          results:live.results,
-          generatedAt:new Date().toISOString()
-        });
+      const tm=await searchTicketmaster({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
+      if(tm.ok && tm.results.length){
+        liveRows.push(...tm.results);
+        liveProviders.push({name:'ticketmaster',status:'live'});
       }
     }catch(_){}
+    try{
+      const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
+      if(viator.ok && viator.results.length){
+        liveRows.push(...viator.results);
+        liveProviders.push({name:'viator',status:'live'});
+      }
+    }catch(_){}
+  }
+
+  if(liveRows.length){
+    const results=liveRows.slice(0,demo.limit);
+    return res.status(200).json({
+      ok:true,
+      mode:liveProviders.length>1?'live-multi-provider':'live-'+liveProviders[0].name,
+      query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:'Miami'},
+      count:results.length,
+      providers:liveProviders,
+      results,
+      generatedAt:new Date().toISOString()
+    });
   }
 
   return res.status(200).json({
@@ -133,7 +217,11 @@ module.exports = async function handler(req,res){
     mode:'demo-fallback',
     query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,lat:demo.hasCoords?demo.lat:null,lng:demo.hasCoords?demo.lng:null,radius:demo.radius||null},
     count:demo.rows.length,
-    providers:[{name:'demo',status:'active'},{name:'viator',status:process.env.VIATOR_API_KEY?'configured':'not-configured'}],
+    providers:[
+      {name:'demo',status:'active'},
+      {name:'ticketmaster',status:process.env.TICKETMASTER_API_KEY?'configured':'not-configured'},
+      {name:'viator',status:process.env.VIATOR_API_KEY?'configured':'not-configured'}
+    ],
     results:demo.rows,
     generatedAt:new Date().toISOString()
   });
