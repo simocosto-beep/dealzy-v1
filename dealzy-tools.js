@@ -407,7 +407,13 @@
     const recent=saved.slice(-5).reverse();
 
     showPanel(`<h3>🧳 Travel Hub</h3>
-      <div class="dz-small">Plan hotels, flights, cars and things to do. Dealzy saves your search details privately and opens the official provider when public API access is not yet available.</div>
+      <div class="dz-small">Plan hotels, flights, cars and things to do. Dealzy saves your search details privately and opens official providers when public API access is not yet available.</div>
+
+      <div class="dz-result" style="margin:12px 0">
+        <b>Expedia · Dealzy AI Travel Shop</b><br>
+        <span class="dz-small">Hotels, packages and travel inspiration through Dealzy's official Expedia creator shop.</span><br>
+        <a class="dz-action" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a>
+      </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
         <button class="dz-action alt" data-travel-tab="hotel">🏨 Hotels</button>
@@ -424,7 +430,7 @@
       </div>
 
       <div class="dz-small" style="margin-top:10px">
-        Booking.com accommodation data and Skyscanner flight data have been validated through connected providers in ChatGPT. Dealzy's public website still waits for its own official API/affiliate credentials, so external prices are never presented as native Dealzy live inventory yet.
+        Expedia is connected through Dealzy's official Travel Creator Shop. Booking.com and Skyscanner remain provider clickouts. External prices are never presented as native Dealzy inventory unless returned by an approved live API.
       </div>`);
 
     const form=panel.querySelector('#dzTravelForm');

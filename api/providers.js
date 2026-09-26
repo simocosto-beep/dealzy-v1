@@ -17,6 +17,7 @@ module.exports = async function handler(req,res){
       {name:'CJ Affiliate',status:'pending',kind:'affiliate'},
       {name:'Skyscanner Flight Search',status:'active-clickout',kind:'travel'},
       {name:'Booking.com Travel Search',status:'active-clickout',kind:'travel'},
+      {name:'Expedia Dealzy Travel Shop',status:'active-affiliate-clickout',kind:'travel'},
       {name:'Dealzy Travel API',status:'pending-credentials',kind:'travel'}
     ],
     liveExternalProviders:(viatorProductionConfigured?1:0)+(ticketmasterConfigured?1:0)+(yelpConfigured?1:0),
