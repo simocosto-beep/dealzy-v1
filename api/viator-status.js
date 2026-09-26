@@ -1,9 +1,9 @@
-const BASE='https://api.viator.com/partner';
+const BASE='https://api.sandbox.viator.com/partner';
 
 module.exports=async function handler(req,res){
   res.setHeader('Cache-Control','no-store');
   const key=process.env.VIATOR_API_KEY;
-  if(!key) return res.status(200).json({ok:false,configured:false,reason:'missing-key'});
+  if(!key) return res.status(200).json({ok:false,configured:false,environment:'sandbox',productionReady:false,reason:'missing-key'});
   try{
     const r=await fetch(BASE+'/products/search',{
       method:'POST',
@@ -27,12 +27,14 @@ module.exports=async function handler(req,res){
     return res.status(200).json({
       ok:r.ok&&count>0,
       configured:true,
+      environment:'sandbox',
+      productionReady:false,
       upstreamStatus:r.status,
       productCount:count,
       responseType:payload?Object.keys(payload).slice(0,8):[],
       message:message?String(message).slice(0,220):null
     });
   }catch(e){
-    return res.status(200).json({ok:false,configured:true,upstreamStatus:null,message:String(e&&e.message||'network-error').slice(0,220)});
+    return res.status(200).json({ok:false,configured:true,environment:'sandbox',productionReady:false,upstreamStatus:null,message:String(e&&e.message||'network-error').slice(0,220)});
   }
 };

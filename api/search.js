@@ -35,8 +35,8 @@ function normalizeViator(row){
 }
 
 async function searchViator({q,maxPrice,limit}){
-  const key=process.env.VIATOR_API_KEY;
-  if(!key) return {ok:false,reason:'not-configured',results:[]};
+  const key=process.env.VIATOR_PRODUCTION_API_KEY;
+  if(!key) return {ok:false,reason:'production-key-not-configured',results:[]};
 
   const body={
     filtering:{destination:VIATOR_MIAMI_DESTINATION},
@@ -305,7 +305,7 @@ module.exports = async function handler(req,res){
     providers:[
       {name:'demo',status:'active'},
       {name:'ticketmaster',status:process.env.TICKETMASTER_API_KEY?'configured':'not-configured'},
-      {name:'viator',status:process.env.VIATOR_API_KEY?'configured':'not-configured'},
+      {name:'viator',status:process.env.VIATOR_PRODUCTION_API_KEY?'configured-production':'sandbox-only'},
       {name:'yelp',status:process.env.YELP_API_KEY?'configured':'not-configured'}
     ],
     results:demo.rows,
