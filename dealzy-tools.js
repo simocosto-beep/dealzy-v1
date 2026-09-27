@@ -91,7 +91,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
   let cloudTimer=null;
 
   async function getCloudSession(){
@@ -137,7 +137,7 @@
   const stateKey = 'dealzyToolPrefs';
   const prefs = JSON.parse(localStorage.getItem(stateKey) || '{"budget":100,"radius":10,"category":"All"}');
   const alertsKey = 'dealzyAlerts';
-  const alerts = JSON.parse(localStorage.getItem(alertsKey) || '[]');
+  let alerts = JSON.parse(localStorage.getItem(alertsKey) || '[]');
 
   const style = document.createElement('style');
   style.textContent = TOOL_CSS;
@@ -187,6 +187,8 @@
   wrap.querySelector('.dz-close').onclick = close;
   wrap.onclick = e => { if (e.target === wrap) close(); };
   document.addEventListener('dealzy:localechange',()=>{if(window.DealzyI18n) window.DealzyI18n.apply(wrap);});
+  setTimeout(()=>{if((JSON.parse(localStorage.getItem(alertsKey)||'[]')||[]).length) checkDealAlerts(false);},4500);
+  setInterval(()=>{if((JSON.parse(localStorage.getItem(alertsKey)||'[]')||[]).length) checkDealAlerts(false);},30*60*1000);
 
   function getDeals(){
     try {
@@ -298,22 +300,304 @@
     };
   }
 
-  function alertsTool(){
-    showPanel(`<h3>🔔 Deal Alerts</h3>
-      <div class="dz-form">
+  function currentMarket(){
+    try{
+      const m=JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{};
+      const country=m.country==='CA'?'CA':'US';
+      return {country,city:m.city||(country==='CA'?'Toronto':'Miami'),currency:country==='CA'?'CAD':'USD'};
+    }catch(_){return {country:'US',city:'Miami',currency:'USD'}}
+  }
+
+  function inferAlertCategory(q){
+    const s=String(q||'').toLowerCase();
+    if(/spa|massage|beauty|beauté|wellness|bien[- ]?être/.test(s)) return 'Spa & Beauty';
+    if(/restaurant|dinner|dîner|diner|food|brunch|café|cafe|repas/.test(s)) return 'Food & Drink';
+    if(/hotel|hôtel|travel|trip|voyage|stay/.test(s)) return 'Travel';
+    if(/concert|event|événement|activity|activité|tour|museum|musée|cruise|boat/.test(s)) return 'Things to Do';
+    return 'All';
+  }
+
+  function alertSignature(deal){
+    const provider=String(deal.provider||deal.source||'partner').toLowerCase();
+    const id=String(deal.id||deal.externalId||deal.title||'result');
+    const price=Number(deal.price)>0?Number(deal.price).toFixed(2):'na';
+    return provider+':'+id+':'+price;
+  }
+
+  function localNotifications(){
+    try{return JSON.parse(localStorage.getItem('dealzyLocalNotifications')||'[]')||[]}catch(_){return []}
+  }
+
+  function saveLocalNotifications(rows){
+    localStorage.setItem('dealzyLocalNotifications',JSON.stringify((rows||[]).slice(-100)));
+    queueCloudSync();
+  }
+
+  function pushLocalNotification(item){
+    const rows=localNotifications();
+    if(rows.some(x=>x.key===item.key)) return false;
+    rows.push({
+      id:item.key,
+      key:item.key,
+      kind:item.kind||'deal_alert',
+      title:item.title||'Dealzy alert',
+      body:item.body||'',
+      payload:item.payload||{},
+      read:false,
+      createdAt:new Date().toISOString()
+    });
+    saveLocalNotifications(rows);
+    return true;
+  }
+
+  async function showBrowserNotification(item){
+    try{
+      const prefs=JSON.parse(localStorage.getItem('dealzyNotificationPrefs')||'{}');
+      if(!prefs.enabled||typeof Notification==='undefined'||Notification.permission!=='granted') return false;
+      const options={body:item.body||'',icon:'/icon.svg',badge:'/icon.svg',tag:item.key||'dealzy-alert',data:{url:'/',payload:item.payload||{}}};
+      if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+        const reg=await navigator.serviceWorker.ready;
+        await reg.showNotification(item.title||'Dealzy AI',options);
+      }else{
+        new Notification(item.title||'Dealzy AI',options);
+      }
+      return true;
+    }catch(_){return false}
+  }
+
+  async function enableBrowserAlerts(){
+    if(typeof Notification==='undefined') return {ok:false,reason:'unsupported'};
+    try{
+      const permission=await Notification.requestPermission();
+      localStorage.setItem('dealzyNotificationPrefs',JSON.stringify({enabled:permission==='granted',permission,updatedAt:new Date().toISOString()}));
+      queueCloudSync();
+      return {ok:permission==='granted',permission};
+    }catch(_){return {ok:false,reason:'error'}}
+  }
+
+  async function searchAlertLocally(alert){
+    const p=new URLSearchParams({
+      q:String(alert.q||''),
+      category:String(alert.category||'All'),
+      country:String(alert.country||'US'),
+      city:String(alert.city||'Miami'),
+      limit:'20'
+    });
+    if(Number(alert.max)>0) p.set('maxPrice',String(alert.max));
+    const coords=getCoords();
+    if(coords&&Number.isFinite(Number(coords.lat))&&Number.isFinite(Number(coords.lng))){
+      p.set('lat',String(coords.lat));
+      p.set('lng',String(coords.lng));
+      p.set('radius','25');
+    }
+    const r=await fetch('/api/search?'+p.toString(),{cache:'no-store',headers:{Accept:'application/json'}});
+    if(!r.ok) return {ok:false,results:[],mode:'unavailable'};
+    const d=await r.json();
+    if(!d||d.mode==='demo-fallback') return {ok:false,results:[],mode:d&&d.mode||'unavailable'};
+    const rows=(d.results||[]).filter(x=>{
+      if(Number(alert.max)>0 && !(Number(x.price)>0&&Number(x.price)<=Number(alert.max))) return false;
+      if(Number(alert.minRating)>0 && Number(x.rating||0)<Number(alert.minRating)) return false;
+      if(alert.openNow && x.isClosed!==false) return false;
+      return true;
+    });
+    return {ok:true,results:rows,mode:d.mode||'live'};
+  }
+
+  function mergeAlertStates(states){
+    const byId=new Map((states||[]).map(x=>[String(x.id),x]));
+    alerts=alerts.map(a=>{
+      const s=byId.get(String(a.id));
+      if(!s) return a;
+      return {
+        ...a,
+        hasBaseline:!!s.hasBaseline,
+        seenSignatures:Array.isArray(s.seenSignatures)?s.seenSignatures.slice(-250):(a.seenSignatures||[]),
+        lastCheckedAt:s.lastCheckedAt||new Date().toISOString(),
+        lastMatchCount:Number(s.lastMatchCount||0),
+        lastMode:s.lastMode||a.lastMode||'live',
+        providerLive:!!s.providerLive
+      };
+    });
+    localStorage.setItem(alertsKey,JSON.stringify(alerts));
+    queueCloudSync();
+  }
+
+  async function checkDealAlerts(showResult=true){
+    alerts=JSON.parse(localStorage.getItem(alertsKey)||'[]');
+    if(!alerts.length) return {ok:false,reason:'no-alerts',newMatches:[],currentMatches:[]};
+
+    const session=await getCloudSession();
+    const market=currentMarket();
+    const coords=getCoords();
+
+    if(session&&session.access_token){
+      try{
+        const r=await fetch('/api/watch-check',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+          body:JSON.stringify({alerts,market,coords})
+        });
+        const d=await r.json();
+        if(!r.ok) throw new Error(d.error||'Alert check failed');
+        mergeAlertStates(d.alertStates||[]);
+        const newMatches=d.newAlertMatches||[];
+        for(const m of newMatches){
+          const deal=m.deal||{};
+          await showBrowserNotification({
+            key:'alert:'+m.alertId+':'+alertSignature(deal),
+            title:'Dealzy AI · '+String(m.alert||'Alert'),
+            body:String(deal.title||'New match')+(Number(deal.price)>0?' · '+money(deal.price,deal.currency):''),
+            payload:deal
+          });
+        }
+        if(showResult) alertsTool({checkResult:d});
+        return {ok:true,newMatches,currentMatches:d.alertMatches||[],source:'cloud'};
+      }catch(_){}
+    }
+
+    const states=[],currentMatches=[],newMatches=[];
+    for(const alert of alerts){
+      try{
+        const result=await searchAlertLocally(alert);
+        const seen=new Set(Array.isArray(alert.seenSignatures)?alert.seenSignatures.map(String):[]);
+        const current=result.ok?result.results:[];
+        const fresh=alert.hasBaseline?current.filter(x=>!seen.has(alertSignature(x))):[];
+        current.forEach(x=>seen.add(alertSignature(x)));
+
+        for(const deal of current){
+          currentMatches.push({alertId:alert.id,alert:alert.q,isNew:fresh.includes(deal),deal});
+        }
+        for(const deal of fresh){
+          const key='alert:'+alert.id+':'+alertSignature(deal);
+          const item={
+            key,
+            kind:'deal_alert',
+            title:'Dealzy AI · '+alert.q,
+            body:String(deal.title||'New match')+(Number(deal.price)>0?' · '+money(deal.price,deal.currency):''),
+            payload:{...deal,alertId:alert.id,query:alert.q}
+          };
+          if(pushLocalNotification(item)){
+            newMatches.push({alertId:alert.id,alert:alert.q,deal});
+            await showBrowserNotification(item);
+          }
+        }
+        states.push({
+          id:alert.id,
+          hasBaseline:true,
+          seenSignatures:[...seen].slice(-250),
+          lastCheckedAt:new Date().toISOString(),
+          lastMatchCount:current.length,
+          lastMode:result.mode,
+          providerLive:result.ok
+        });
+      }catch(_){}
+    }
+
+    mergeAlertStates(states);
+    const output={ok:true,newMatches,currentMatches,source:'local'};
+    if(showResult) alertsTool({checkResult:output});
+    return output;
+  }
+
+  function alertsTool(options={}){
+    alerts=JSON.parse(localStorage.getItem(alertsKey)||'[]');
+    const market=currentMarket();
+    let notifPrefs={};
+    try{notifPrefs=JSON.parse(localStorage.getItem('dealzyNotificationPrefs')||'{}')}catch(_){}
+    const checkResult=options.checkResult||null;
+    const currentCount=checkResult?(checkResult.alertMatches||checkResult.currentMatches||[]).length:null;
+    const newCount=checkResult?(checkResult.newAlertMatches||checkResult.newMatches||[]).length:null;
+
+    showPanel(`<h3>🔔 Deal Alerts V2</h3>
+      <div class="dz-small">Live alerts for <b>${esc(market.city)}</b> · ${esc(market.currency)}. The first check creates a baseline so existing results do not spam you as “new”.</div>
+      <div class="dz-form" style="margin-top:12px">
         <label>Keywords<input id="dzAlertQ" placeholder="spa, dinner, cruise"></label>
-        <label>Max price<input id="dzAlertPrice" type="number" min="1" value="75"></label>
+        <label>Category<select id="dzAlertCategory">
+          <option value="All">All</option>
+          <option value="Food & Drink">Food & Drink</option>
+          <option value="Spa & Beauty">Spa & Beauty</option>
+          <option value="Things to Do">Things to Do</option>
+          <option value="Travel">Travel</option>
+        </select></label>
+        <label>Max price<input id="dzAlertPrice" type="number" min="1" placeholder="Optional"></label>
+        <label>Minimum rating<select id="dzAlertRating">
+          <option value="0">Any</option><option value="4">4.0+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option>
+        </select></label>
       </div>
-      <button class="dz-action" id="dzSaveAlert">Save alert</button>
-      <div class="dz-result"><b>${alerts.length} saved alert${alerts.length===1?'':'s'}</b><br>${alerts.length?alerts.map(a=>'<span class="dz-chip">'+esc(a.q)+' ≤ '+money(a.max)+'</span>').join(''):'No alerts yet.'}</div>
-      <div class="dz-small" style="margin-top:9px">V1.2 stores alert rules on this device. Server notifications will activate when live providers and user accounts are connected.</div>`);
-    panel.querySelector('#dzSaveAlert').onclick=()=>{
-      const q=panel.querySelector('#dzAlertQ').value.trim(), max=Number(panel.querySelector('#dzAlertPrice').value)||75;
+      <label class="dz-small" style="display:flex;gap:7px;align-items:center;margin:10px 0"><input id="dzAlertOpen" type="checkbox"> Open now only <span style="opacity:.7">(when provider supplies status)</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="dz-action" id="dzSaveAlert">Save alert</button>
+        <button class="dz-action alt" id="dzCheckAlerts">Check now</button>
+        <button class="dz-action alt" id="dzEnableAlerts">${notifPrefs.enabled?'✓ Browser notifications enabled':'Enable browser notifications'}</button>
+      </div>
+      ${checkResult?`<div class="dz-result"><b>${newCount||0} new match${newCount===1?'':'es'}</b> · ${currentCount||0} current match${currentCount===1?'':'es'}<br><span class="dz-small">Checked against verified live provider results.</span></div>`:''}
+      <div class="dz-result"><b>${alerts.length} saved alert${alerts.length===1?'':'s'}</b><br>
+        ${alerts.length?alerts.map((a,i)=>{
+          const conditions=[
+            a.category&&a.category!=='All'?a.category:null,
+            Number(a.max)>0?'≤ '+money(a.max,a.currency):null,
+            Number(a.minRating)>0?'★ '+a.minRating+'+':null,
+            a.openNow?'Open now':null
+          ].filter(Boolean).join(' · ');
+          const status=a.lastCheckedAt
+            ? (a.providerLive?'✓ '+Number(a.lastMatchCount||0)+' current':'Provider unavailable')
+            : 'Not checked yet';
+          return '<div style="padding:9px 0;border-bottom:1px solid #eef0f4">'+
+            '<b>'+esc(a.q)+'</b> · '+esc(a.city||market.city)+'<br>'+
+            '<span class="dz-small">'+esc(conditions||'Any price')+' · '+esc(status)+'</span>'+
+            ' <button data-del-alert="'+i+'" style="border:0;background:none;cursor:pointer;font-size:16px" aria-label="Delete">×</button>'+
+          '</div>';
+        }).join(''):'No alerts yet.'}
+      </div>
+      <div class="dz-small" style="margin-top:9px">Dealzy checks only verified live results. Browser notifications work while Dealzy is active; signed-in users also get matches saved in their private Dealzy notification center.</div>`);
+
+    const qInput=panel.querySelector('#dzAlertQ');
+    const catInput=panel.querySelector('#dzAlertCategory');
+    qInput.addEventListener('input',()=>{
+      if(catInput.dataset.manual!=='1') catInput.value=inferAlertCategory(qInput.value);
+    });
+    catInput.addEventListener('change',()=>catInput.dataset.manual='1');
+
+    panel.querySelector('#dzSaveAlert').onclick=async()=>{
+      const q=qInput.value.trim();
       if(!q) return;
-      alerts.push({q,max,createdAt:new Date().toISOString()});
-      localStorage.setItem(alertsKey,JSON.stringify(alerts)); queueCloudSync();
-      alertsTool();
+      const max=Number(panel.querySelector('#dzAlertPrice').value)||null;
+      const minRating=Number(panel.querySelector('#dzAlertRating').value)||0;
+      const category=catInput.value||inferAlertCategory(q);
+      const openNow=panel.querySelector('#dzAlertOpen').checked;
+      const now=new Date().toISOString();
+      alerts.push({
+        id:'a-'+Date.now().toString(36),
+        q,max,minRating,category,openNow,
+        country:market.country,city:market.city,currency:market.currency,
+        hasBaseline:false,seenSignatures:[],
+        createdAt:now,lastCheckedAt:null,lastMatchCount:0,providerLive:false
+      });
+      localStorage.setItem(alertsKey,JSON.stringify(alerts));
+      queueCloudSync();
+      await checkDealAlerts(true);
     };
+
+    panel.querySelector('#dzCheckAlerts').onclick=async()=>{
+      panel.querySelector('#dzCheckAlerts').disabled=true;
+      panel.querySelector('#dzCheckAlerts').textContent='Checking…';
+      await checkDealAlerts(true);
+    };
+
+    panel.querySelector('#dzEnableAlerts').onclick=async()=>{
+      const result=await enableBrowserAlerts();
+      if(result.ok) alertsTool();
+      else{
+        panel.querySelector('#dzEnableAlerts').textContent=result.reason==='unsupported'?'Notifications unsupported':'Permission not granted';
+      }
+    };
+
+    panel.querySelectorAll('[data-del-alert]').forEach(b=>b.onclick=()=>{
+      alerts.splice(Number(b.dataset.delAlert),1);
+      localStorage.setItem(alertsKey,JSON.stringify(alerts));
+      queueCloudSync();
+      alertsTool();
+    });
   }
 
   function getCoords(){
@@ -381,7 +665,7 @@
         })
         .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
       const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+        const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
       };
       panel.querySelector('#dzSyncUp').onclick=async()=>{
@@ -469,12 +753,12 @@
       const r=await fetch('/api/watch-check',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({watches})
+        body:JSON.stringify({watches,market:currentMarket(),coords:getCoords()})
       });
       const d=await r.json();
       if(showResult){
         showPanel('<h3>📉 Price Watch</h3><div class="dz-result"><b>'+((d.matches||[]).length)+' match'+((d.matches||[]).length===1?'':'es')+'</b><br>'+
-          ((d.matches||[]).length?(d.matches||[]).map(x=>esc(x.deal.title)+' · '+money(x.deal.price)+' ≤ '+money(x.target)).join('<br>'):'No watched price target matched the current provider inventory.')+
+          ((d.matches||[]).length?(d.matches||[]).map(x=>esc(x.deal.title)+' · '+money(x.deal.price,x.deal.currency)+' ≤ '+money(x.target,x.deal.currency)).join('<br>'):'No watched price target matched the current provider inventory.')+
           '</div><div class="dz-small" style="margin-top:9px">Current check mode: '+esc(d.mode||'unknown')+'. Only verified provider results are presented as live partner offers.</div>');
       }
       return d;
@@ -639,23 +923,100 @@
   }
 
   async function notificationsTool(){
-    const session=await getCloudSession();
-    if(!session||!session.access_token){
-      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Sign in to My Dealzy to use your private notification center.</div>');
-      return;
-    }
     showPanel('<h3>📬 Notifications</h3><div class="dz-result">Loading…</div>');
-    try{
-      const r=await fetch('/api/notifications',{headers:{'Authorization':'Bearer '+session.access_token}});
-      const d=await r.json();
-      const rows=d.notifications||[];
-      showPanel('<h3>📬 Notifications</h3><div class="dz-result">'+
-        (rows.length?rows.map(n=>'<div style="padding:8px 0;border-bottom:1px solid #e9ecf2"><b>'+esc(n.title)+'</b><br>'+esc(n.body)+'<br><span class="dz-small">'+new Date(n.created_at).toLocaleString()+'</span></div>').join(''):'No notifications yet.')+
-        '</div><button class="dz-action alt" id="dzNotifRefresh">Refresh</button>');
-      const b=panel.querySelector('#dzNotifRefresh'); if(b) b.onclick=notificationsTool;
-    }catch(_){
-      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Notification service is temporarily unavailable.</div>');
+    const localRows=localNotifications();
+    const session=await getCloudSession();
+    let cloudRows=[];
+
+    if(session&&session.access_token){
+      try{
+        const r=await fetch('/api/notifications',{headers:{'Authorization':'Bearer '+session.access_token},cache:'no-store'});
+        const d=await r.json();
+        if(r.ok) cloudRows=Array.isArray(d.notifications)?d.notifications:[];
+      }catch(_){}
     }
+
+    const normalizedLocal=localRows.map(n=>({
+      source:'local',id:n.id,key:n.key,title:n.title,body:n.body,payload:n.payload||{},
+      read:!!n.read,createdAt:n.createdAt||new Date().toISOString()
+    }));
+    const normalizedCloud=cloudRows.map(n=>{
+      const p=n.payload||{};
+      const provider=String(p.provider||'partner').toLowerCase();
+      const dealId=String(p.dealId||p.id||n.id||'result');
+      const price=Number(p.price)>0?Number(p.price).toFixed(2):'na';
+      return {
+        source:'cloud',id:n.id,key:(p.alertId?'alert:'+p.alertId+':'+provider+':'+dealId+':'+price:'cloud:'+n.id),
+        title:n.title,body:n.body,payload:p,read:!!n.read_at,createdAt:n.created_at
+      };
+    });
+
+    const byKey=new Map();
+    [...normalizedLocal,...normalizedCloud].forEach(n=>{
+      const existing=byKey.get(n.key);
+      if(!existing||new Date(n.createdAt)>new Date(existing.createdAt)) byKey.set(n.key,n);
+    });
+    const rows=[...byKey.values()].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,75);
+    const unread=rows.filter(x=>!x.read).length;
+
+    showPanel('<h3>📬 Notifications</h3>'+
+      '<div class="dz-small"><b>'+unread+' unread</b> · '+rows.length+' total'+(session&&session.access_token?' · Cloud connected':' · Local device')+'</div>'+
+      '<div class="dz-result" id="dzNotifList">'+
+        (rows.length?rows.map(n=>{
+          const partner=n.payload&&n.payload.partnerUrl?'<a href="'+esc(n.payload.partnerUrl)+'" target="_blank" rel="noopener noreferrer sponsored" style="font-weight:800;color:#5145cd;text-decoration:none">Open provider ↗</a>':'';
+          return '<div style="padding:10px 0;border-bottom:1px solid #e9ecf2;opacity:'+(n.read?'.68':'1')+'" data-notif-key="'+esc(n.key)+'">'+
+            '<b>'+(n.read?'':'● ')+esc(n.title||'Dealzy')+'</b><br>'+esc(n.body||'')+'<br>'+
+            '<span class="dz-small">'+new Date(n.createdAt).toLocaleString()+'</span>'+
+            (partner?'<br>'+partner:'')+
+            (!n.read?' <button data-read-source="'+n.source+'" data-read-id="'+esc(n.id)+'" data-read-key="'+esc(n.key)+'" style="border:0;background:none;color:#5145cd;font-weight:800;cursor:pointer">Mark read</button>':'')+
+          '</div>';
+        }).join(''):'No notifications yet.')+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="dz-action alt" id="dzNotifRefresh">Refresh</button>'+
+      (unread?'<button class="dz-action alt" id="dzNotifReadAll">Mark all read</button>':'')+
+      '</div>'+
+      (!session||!session.access_token?'<div class="dz-small" style="margin-top:9px">Sign in to My Dealzy to keep alert notifications in your private cloud center across devices.</div>':''));
+
+    const markLocal=(key)=>{
+      const list=localNotifications();
+      const next=list.map(x=>x.key===key?{...x,read:true}:x);
+      saveLocalNotifications(next);
+    };
+
+    panel.querySelectorAll('[data-read-source]').forEach(btn=>btn.onclick=async()=>{
+      const source=btn.dataset.readSource;
+      if(source==='local') markLocal(btn.dataset.readKey);
+      else if(session&&session.access_token){
+        try{
+          await fetch('/api/notifications',{
+            method:'PATCH',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+            body:JSON.stringify({id:btn.dataset.readId})
+          });
+        }catch(_){}
+      }
+      notificationsTool();
+    });
+
+    const refresh=panel.querySelector('#dzNotifRefresh');
+    if(refresh) refresh.onclick=notificationsTool;
+
+    const readAll=panel.querySelector('#dzNotifReadAll');
+    if(readAll) readAll.onclick=async()=>{
+      saveLocalNotifications(localNotifications().map(x=>({...x,read:true})));
+      if(session&&session.access_token){
+        for(const n of cloudRows.filter(x=>!x.read_at)){
+          try{
+            await fetch('/api/notifications',{
+              method:'PATCH',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+              body:JSON.stringify({id:n.id})
+            });
+          }catch(_){}
+        }
+      }
+      notificationsTool();
+    };
   }
 
   function couponsTool(){
@@ -689,7 +1050,7 @@
       <input id="dzImportFile" type="file" accept="application/json" style="display:none">
       <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
     panel.querySelector('#dzExport').onclick=()=>{
-      const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+      const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
       const data={version:1,exportedAt:new Date().toISOString(),data:{}};
       keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
