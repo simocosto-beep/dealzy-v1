@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dealzy.ai.test12'
+        applicationId 'com.dealzy.ai.test13'
         minSdk 24
         targetSdk 35
-        versionCode 12
-        versionName '1.2-gps-first'
+        versionCode 13
+        versionName '1.3-france-gps'
     }
 }
 
