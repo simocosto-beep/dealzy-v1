@@ -51,6 +51,14 @@
     return (code==="CAD"?"CA$":"$")+n.toFixed(0);
   }
 
+  function tr(key,values){
+    return window.DealzyI18n?window.DealzyI18n.t(key,values):String(key).replace(/\{(\w+)\}/g,(_,k)=>values&&values[k]!=null?String(values[k]):"{"+k+"}");
+  }
+
+  function locale(){
+    return window.DealzyI18n?window.DealzyI18n.getLocale():(localStorage.getItem("dealzyLocale")||"en");
+  }
+
   function persistMarket(country,city){
     market={country,city,currency:country==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
@@ -185,9 +193,9 @@
     const hasPrice=Number(d.price)>0;
     const hasDiscount=hasPrice&&Number(d.old)>Number(d.price);
     const pct=hasDiscount?Math.round((1-d.price/d.old)*100):0;
-    const priceText=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider");
+    const priceText=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
     const oldText=hasDiscount?'<span class="old">'+moneyFor(d.old,d.currency)+"</span>":"";
-    const saveText=hasDiscount?'<span class="save">Save '+pct+"%</span>":'<span class="save">'+h(d.source||"Live")+"</span>";
+    const saveText=hasDiscount?'<span class="save">'+h(tr("Save {pct}%",{pct}))+"</span>":'<span class="save">'+h(d.source||"Live")+"</span>";
     const bg=d.img?"background-image:url(&quot;"+h(d.img)+"&quot;)":"background:linear-gradient(135deg,#eef2ff,#f8f9fc)";
     return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div><div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
@@ -205,7 +213,7 @@
     }
     localStorage.setItem("dealzyFavs",JSON.stringify([...state.favorites]));
     saveSnapshots(snapshots);
-    toast(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites");
+    toast(tr(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites"));
   };
 
   openDeal=function(id){
@@ -221,14 +229,14 @@
     $("#detailMeta").textContent=[d.place,d.rating].filter(Boolean).join(" · ");
     $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider");
     $("#detailOld").textContent=hasDiscount?moneyFor(d.old,d.currency):"";
-    $("#detailSave").textContent=hasDiscount?"Save "+pct+"%":"Live partner";
+    $("#detailSave").textContent=hasDiscount?tr("Save {pct}%",{pct}):tr("Live partner");
     $("#detailText").textContent=d.text||"";
-    $("#partnerBtn").textContent="Open on "+(d.source||"Partner")+" ↗";
+    $("#partnerBtn").textContent=tr("Open on {source} ↗",{source:d.source||"Partner"});
     $("#partnerBtn").onclick=()=>{
       if(d.partnerUrl){
         trackPartnerClick(d);
         window.open(d.partnerUrl,"_blank","noopener,noreferrer");
-      }else toast("Partner link is temporarily unavailable.");
+      }else toast(tr("Partner link is temporarily unavailable."));
     };
     $("#detailOverlay").classList.remove("hidden");
   };
@@ -237,7 +245,7 @@
     loadSavedIntoCatalog();
     const snapshots=getSavedSnapshots();
     const list=[...state.favorites].map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
-    $("#favoritesGrid").innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">No favorites yet. Tap ♡ on a live result to save it.</div>';
+    $("#favoritesGrid").innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No favorites yet. Tap ♡ on a live result to save it."))+'</div>';
     bindCards($("#favoritesGrid"));
   };
 
@@ -253,11 +261,11 @@
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
 
-    $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(x)+"</button>").join("");
+    $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
 
-    if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live results…</div>';
-    if(count) count.textContent="Live search";
+    if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
+    if(count) count.textContent=tr("Live search");
 
     let list=[];
     try{
@@ -271,9 +279,12 @@
     }
     deals.splice(0,deals.length,...dedupe(list));
 
-    if(count) count.textContent=list.length+" live result"+(list.length===1?"":"s")+" · "+marketCityLabel()+(state.maxPrice?" · under "+moneyFor(state.maxPrice,market.currency):"");
+    if(count){
+      const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
+      count.textContent=resultText+" · "+marketCityLabel()+(state.maxPrice?" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)}):"");
+    }
     if(root){
-      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">No live provider result found right now. Try another category or search.</div>';
+      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
       bindCards(root);
     }
     renderFavs();
@@ -281,9 +292,9 @@
   };
 
   renderAll=function(){
-    $("#cats").innerHTML=cats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(c[1])+"</b></button>").join("");
+    $("#cats").innerHTML=cats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
-    $("#popularGrid").innerHTML=homeDeals.length?homeDeals.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
+    $("#popularGrid").innerHTML=homeDeals.length?homeDeals.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
     bindCards($("#popularGrid"));
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
@@ -297,45 +308,53 @@
     if(locationBtn){
       locationBtn.textContent=flag+" "+marketCityLabel();
       locationBtn.onclick=()=>show("profile");
-      locationBtn.title="Change market";
+      locationBtn.title=tr("Change market");
     }
 
     const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
-    if(popularHeading) popularHeading.textContent="Popular in "+market.city;
+    if(popularHeading) popularHeading.textContent=tr("Popular in {city}",{city:market.city});
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
-    if(heroBadge) heroBadge.textContent="🇺🇸 United States · 🇨🇦 Canada — LIVE";
+    if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
 
     const query=document.getElementById("aiQuery");
     if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas/i.test(query.value))){
-      query.value="Date night in "+market.city+" tonight under "+(market.currency==="CAD"?"CA$100":"$100");
+      query.value=locale()==="fr"
+        ? "Dîner à "+market.city+" ce soir moins de "+(market.currency==="CAD"?"CA$100":"$100")
+        : "Date night in "+market.city+" tonight under "+(market.currency==="CAD"?"CA$100":"$100");
       query.dataset.marketTouched="1";
     }
 
     const tripCard=document.querySelector("#tripsView .tripCard");
     if(tripCard){
       const title=tripCard.querySelector("b");
-      if(title) title.textContent=market.city+" Weekend";
+      if(title) title.textContent=tr("{city} Weekend",{city:market.city});
       const meta=tripCard.querySelector(".meta");
-      if(meta) meta.textContent="Create a trip by saving live deals in "+market.city+", then group them into a simple itinerary.";
+      if(meta) meta.textContent=tr("Create a trip by saving live deals in {city}, then group them into a simple itinerary.",{city:market.city});
     }
 
     document.querySelectorAll(".profileCard").forEach((card)=>{
       const heading=card.querySelector("h3");
-      if(!heading||heading.textContent.trim()!=="Market") return;
+      if(!heading||!/^(Market|Marché)$/.test(heading.textContent.trim())) return;
       const cities=MARKET_CITIES[market.country];
-      card.innerHTML='<h3 style="margin-top:0">Market</h3>'+
+      const currentLocale=locale();
+      card.innerHTML='<h3 style="margin-top:0">'+h(tr("Market"))+'</h3>'+
         '<div class="dz-form" style="margin-top:8px">'+
-          '<label>Country<select id="dzMarketCountry">'+
-            '<option value="US" '+(market.country==="US"?"selected":"")+'>🇺🇸 United States</option>'+
-            '<option value="CA" '+(market.country==="CA"?"selected":"")+'>🇨🇦 Canada</option>'+
+          '<label>'+h(tr("Country"))+'<select id="dzMarketCountry">'+
+            '<option value="US" '+(market.country==="US"?"selected":"")+'>🇺🇸 '+h(tr("United States"))+'</option>'+
+            '<option value="CA" '+(market.country==="CA"?"selected":"")+'>🇨🇦 '+h(tr("Canada"))+'</option>'+
           '</select></label>'+
-          '<label>City<select id="dzMarketCity">'+cities.map(x=>'<option value="'+h(x.value)+'" '+(x.value===market.city?"selected":"")+'>'+h(x.label)+'</option>').join("")+'</select></label>'+
+          '<label>'+h(tr("City"))+'<select id="dzMarketCity">'+cities.map(x=>'<option value="'+h(x.value)+'" '+(x.value===market.city?"selected":"")+'>'+h(x.label)+'</option>').join("")+'</select></label>'+
+          '<label>'+h(tr("Language"))+'<select id="dzMarketLanguage">'+
+            '<option value="en" '+(currentLocale==="en"?"selected":"")+'>English</option>'+
+            '<option value="fr" '+(currentLocale==="fr"?"selected":"")+'>Français</option>'+
+          '</select></label>'+
         '</div>'+
-        '<div class="meta" style="margin-top:10px"><b>'+flag+" "+h(countryName)+'</b> · '+h(market.currency)+' · live provider search</div>';
+        '<div class="meta" style="margin-top:10px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
 
       const countrySelect=card.querySelector("#dzMarketCountry");
       const citySelect=card.querySelector("#dzMarketCity");
+      const languageSelect=card.querySelector("#dzMarketLanguage");
 
       countrySelect.onchange=()=>{
         const nextCountry=countrySelect.value==="CA"?"CA":"US";
@@ -348,7 +367,22 @@
         updateMarketUI();
         hydrateHome();
       };
+      languageSelect.onchange=()=>{
+        if(window.DealzyI18n) window.DealzyI18n.setLocale(languageSelect.value);
+        else localStorage.setItem("dealzyLocale",languageSelect.value);
+        updateMarketUI();
+        renderAll();
+      };
     });
+
+    const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
+    if(quickButtons[0]) quickButtons[0].textContent=tr("📍 Near me");
+    if(quickButtons[1]) quickButtons[1].textContent=tr("🗓 This weekend");
+    if(quickButtons[2]) quickButtons[2].textContent=locale()==="fr"
+      ? "🏷 Moins de "+(market.currency==="CAD"?"50 CA$":"50 $")
+      : "🏷 Under "+(market.currency==="CAD"?"CA$50":"$50");
+
+    if(window.DealzyI18n) window.DealzyI18n.apply(document);
   }
 
   function parseSmartQuery(q){
@@ -373,7 +407,7 @@
 
     state.filter=
       /spa|massage|beauty|beauté|bien[- ]?être/.test(lower)?"Spa & Beauty":
-      /restaurant|dinner|food|brunch|café|cafe|manger|repas/.test(lower)?"Food & Drink":
+      /restaurant|dinner|dîner|diner|food|brunch|café|cafe|manger|repas/.test(lower)?"Food & Drink":
       /hotel|hôtel|travel|trip|voyage|stay/.test(lower)?"Travel":
       /concert|event|événement|activity|activité|tour|things to do|museum|musée|cruise|boat/.test(lower)?"Things to Do":"All";
 
@@ -416,7 +450,7 @@
     loadSavedIntoCatalog();
     deals.splice(0,deals.length);
     const popular=$("#popularGrid");
-    if(popular) popular.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
+    if(popular) popular.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
 
     const familyIndex=cats.findIndex((x)=>x[1]==="Family");
     if(familyIndex>=0) cats.splice(familyIndex,1);
@@ -430,18 +464,18 @@
     renderAll();
 
     document.querySelectorAll(".sectionHead span").forEach((span)=>{
-      if(/Demo inventory/i.test(span.textContent||"")) span.textContent="Live providers";
+      if(/Demo inventory|Sources en direct/i.test(span.textContent||"")) span.textContent=tr("Live providers");
     });
     const legal=document.querySelector("#homeView .legal");
-    if(legal&&/demo inventory/i.test(legal.textContent||"")){
-      legal.textContent="Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.";
+    if(legal){
+      legal.textContent=tr("Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.");
     }
 
     document.querySelectorAll(".profileCard").forEach((card)=>{
       const heading=card.querySelector("h3");
-      if(heading&&heading.textContent.trim()==="Partner status"){
+      if(heading&&/^(Partner status|Statut des partenaires)$/.test(heading.textContent.trim())){
         const paragraph=card.querySelector("p");
-        if(paragraph) paragraph.textContent="Live in USA and Canada: Viator, Ticketmaster and Yelp. Expedia, Booking.com and Skyscanner are connected as travel clickouts.";
+        if(paragraph) paragraph.textContent=tr("Live in USA and Canada: Viator, Ticketmaster and Yelp. Expedia, Booking.com and Skyscanner are connected as travel clickouts.");
       }
     });
 
@@ -472,6 +506,12 @@
     };
   }
 
+  document.addEventListener("dealzy:localechange",()=>{
+    updateMarketUI();
+    renderAll();
+    if(window.DealzyI18n) window.DealzyI18n.apply(document);
+  });
+
   const tripAdd=document.getElementById("tripAdd");
   if(tripAdd){
     tripAdd.onclick=()=>{
@@ -484,7 +524,7 @@
       localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
       saveSnapshots(snapshots);
       renderTrips();
-      toast("Favorites added to "+market.city+" Weekend");
+      toast(tr("Favorites added to {city} Weekend",{city:market.city}));
     };
   }
 
