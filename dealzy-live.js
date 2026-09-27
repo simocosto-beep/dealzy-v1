@@ -216,6 +216,7 @@
     localStorage.removeItem("dealzyCoords");
     catalog.clear();
     homeDeals=[];
+    exploreCache={key:"",rows:[]};
     if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
 
@@ -500,6 +501,108 @@
     });
   }
 
+  let exploreCache={key:"",rows:[]};
+
+  function readExplorePrefs(){
+    try{
+      const saved=JSON.parse(localStorage.getItem("dealzyExplorePrefs")||"null");
+      if(saved&&typeof saved==="object"){
+        return {
+          sort:["best","nearest","rating","price"].includes(saved.sort)?saved.sort:"best",
+          radius:[0,5,10,25,50].includes(Number(saved.radius))?Number(saved.radius):25,
+          source:String(saved.source||"all").toLowerCase()
+        };
+      }
+    }catch(_){}
+    return {sort:"best",radius:25,source:"all"};
+  }
+
+  function saveExplorePrefs(next){
+    localStorage.setItem("dealzyExplorePrefs",JSON.stringify(next));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function dealDistance(d){
+    if(!state.coords) return null;
+    return milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+  }
+
+  function exploreRequestKey(q){
+    const c=state.coords&&coordsAllowedForMarket(state.coords,market.country)
+      ? Number(state.coords.lat).toFixed(3)+","+Number(state.coords.lng).toFixed(3)
+      : "none";
+    return [market.country,market.city,state.filter,state.maxPrice||"",q||"",c].join("|");
+  }
+
+  function applyExplorePrefs(rows,prefs){
+    let list=dedupe(rows||[]);
+    const source=String(prefs.source||"all").toLowerCase();
+    if(source!=="all"){
+      list=list.filter(d=>String(d.provider||d.source||"").toLowerCase()===source);
+    }
+
+    if(Number(prefs.radius)>0&&state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      list=list.filter(d=>{
+        const distance=dealDistance(d);
+        // Keep rows without coordinates; the radius is strict only where a
+        // provider supplies geolocation.
+        return distance===null||distance<=Number(prefs.radius);
+      });
+    }
+
+    if(prefs.sort==="nearest"){
+      list.sort((a,b)=>(dealDistance(a)??99999)-(dealDistance(b)??99999));
+    }else if(prefs.sort==="rating"){
+      list.sort((a,b)=>(Number(b.ratingValue)||0)-(Number(a.ratingValue)||0)||(Number(b.reviewCount)||0)-(Number(a.reviewCount)||0));
+    }else if(prefs.sort==="price"){
+      list.sort((a,b)=>{
+        const ap=Number(a.price)>0?Number(a.price):999999;
+        const bp=Number(b.price)>0?Number(b.price):999999;
+        return ap-bp;
+      });
+    }else{
+      list.sort((a,b)=>dealzyScore(b).score-dealzyScore(a).score);
+    }
+    return list;
+  }
+
+  function exploreControlsHtml(rows,prefs,isFr){
+    const counts={};
+    (rows||[]).forEach(d=>{
+      const key=String(d.provider||d.source||"partner").toLowerCase();
+      counts[key]=(counts[key]||0)+1;
+    });
+    const sourceLabels={yelp:"Yelp",viator:"Viator",ticketmaster:"Ticketmaster"};
+    const sourceButtons=[
+      '<button data-source="all" class="'+(prefs.source==="all"?"active":"")+'">'+(isFr?"Toutes":"All")+' · '+rows.length+'</button>'
+    ];
+    Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
+      sourceButtons.push('<button data-source="'+h(key)+'" class="'+(prefs.source===key?"active":"")+'">'+h(sourceLabels[key]||key)+' · '+n+'</button>');
+    });
+    const radiusOptions=[
+      [0,isFr?"Tout rayon":"Any"],
+      [5,"5 mi"],[10,"10 mi"],[25,"25 mi"],[50,"50 mi"]
+    ];
+    const sortOptions=[
+      ["best",isFr?"Meilleur":"Best"],
+      ["nearest",isFr?"Plus proche":"Nearest"],
+      ["rating",isFr?"Mieux noté":"Top rated"],
+      ["price",isFr?"Prix bas":"Price low"]
+    ];
+    return '<div id="dzExplorePro" style="grid-column:1/-1;background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:12px;margin:0 0 10px;box-shadow:0 6px 18px rgba(17,24,39,.04)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><b style="font-size:14px">'+(isFr?"Affiner les résultats":"Refine results")+'</b><button id="dzExploreRefresh" style="border:0;background:#f2f4f7;border-radius:12px;padding:7px 10px;font-weight:750">↻ '+(isFr?"Actualiser":"Refresh")+'</button></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+        '<label class="meta">'+(isFr?"Trier":"Sort")+'<select id="dzExploreSort" style="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px;background:#fff">'+
+          sortOptions.map(([v,l])=>'<option value="'+v+'" '+(prefs.sort===v?"selected":"")+'>'+l+'</option>').join("")+
+        '</select></label>'+
+        '<label class="meta">'+(isFr?"Rayon":"Radius")+'<select id="dzExploreRadius" style="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px;background:#fff">'+
+          radiusOptions.map(([v,l])=>'<option value="'+v+'" '+(Number(prefs.radius)===v?"selected":"")+'>'+l+'</option>').join("")+
+        '</select></label>'+
+      '</div>'+
+      '<div id="dzExploreSources" style="display:flex;gap:7px;overflow:auto;padding-top:9px">'+sourceButtons.join("")+'</div>'+
+    '</div>';
+  }
+
   async function fetchLive(category,q="",limit=8){
     await ensureMarketCityCoords();
     const params=new URLSearchParams({
@@ -514,7 +617,8 @@
     if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
       params.set("lat",String(state.coords.lat));
       params.set("lng",String(state.coords.lng));
-      params.set("radius","25");
+      const radius=Number(readExplorePrefs().radius)||25;
+      params.set("radius",String(Math.max(1,Math.min(50,radius))));
     }
     const response=await fetch("/api/search?"+params.toString(),{
       headers:{Accept:"application/json"},
@@ -533,7 +637,15 @@
       raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
     }
 
-    return remember(raw.map(toDeal));
+    let normalized=raw.map(toDeal);
+    if(!apiHasDestination&&market.city.toLowerCase()!=="miami"&&state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      normalized=normalized.filter(d=>{
+        const distance=dealDistance(d);
+        return String(d.provider||"").toLowerCase()!=="yelp" || (distance!==null&&distance<=35);
+      });
+    }
+
+    return remember(normalized);
   }
 
   async function fetchCategoryBoosted(category,q="",target=12){
@@ -572,9 +684,13 @@
     const oldText=hasDiscount?'<span class="old">'+moneyFor(d.old,d.currency)+"</span>":"";
     const saveText=hasDiscount?'<span class="save">'+h(tr("Save {pct}%",{pct}))+"</span>":'<span class="save">'+h(d.source||"Live")+"</span>";
     const scoreInfo=dealzyScore(d);
+    const distance=dealDistance(d);
+    const distanceText=distance!==null
+      ? (distance<0.1?"<0.1 mi":distance.toFixed(distance<10?1:0)+" mi")
+      : "";
     const scorePill='<span title="'+h(tr("Personalized relevance score"))+'" style="display:inline-flex;align-items:center;gap:5px;background:#f1efff;color:#5145cd;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:850;margin-top:9px">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI"))+'</span>';
     const bg=d.img?"background-image:url(&quot;"+h(d.img)+"&quot;)":"background:linear-gradient(135deg,#eef2ff,#f8f9fc)";
-    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
+    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(distanceText?" · 📍 "+h(distanceText):"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
 
   toggleFav=function(id){
@@ -781,51 +897,62 @@
     };
   }
 
-  renderExplore=async function(){
+  renderExplore=async function(force=false){
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
     const isFr=locale()==="fr";
+    const prefs=readExplorePrefs();
 
     $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
-    $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
+    $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;exploreCache={key:"",rows:[]};renderExplore(true);});
 
-    if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
-    if(count) count.textContent=tr("Live search");
-
-    let list=[];
+    const requestKey=exploreRequestKey(q);
+    let rawList=[];
     let broadened=false;
     let includesUnknownPrice=false;
-    try{
-      list=state.filter==="All"?await fetchMixed(q,12):await fetchCategoryBoosted(state.filter,q,30);
-      if(list.length<8&&q){
-        broadened=true;
-        const broad=state.filter==="All"?await fetchMixed("",12):await fetchCategoryBoosted(state.filter,"",30);
-        list=dedupe([...list,...broad]);
+
+    if(!force&&exploreCache.key===requestKey&&exploreCache.rows.length){
+      rawList=[...exploreCache.rows];
+    }else{
+      if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
+      if(count) count.textContent=tr("Live search");
+      try{
+        rawList=state.filter==="All"?await fetchMixed(q,12):await fetchCategoryBoosted(state.filter,q,30);
+        if(rawList.length<8&&q){
+          broadened=true;
+          const broad=state.filter==="All"?await fetchMixed("",12):await fetchCategoryBoosted(state.filter,"",30);
+          rawList=dedupe([...rawList,...broad]);
+        }
+      }catch(_){
+        rawList=[];
       }
-    }catch(_){
-      list=[];
+
+      if(state.maxPrice){
+        const exact=rawList.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
+        const unknown=rawList.filter((d)=>!(Number(d.price)>0));
+        includesUnknownPrice=unknown.length>0;
+        rawList=dedupe([...exact,...unknown]).slice(0,40);
+      }else{
+        rawList=dedupe(rawList).slice(0,40);
+      }
+      exploreCache={key:requestKey,rows:[...rawList]};
     }
 
-    if(state.maxPrice){
-      const exact=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
-      const unknown=list.filter((d)=>!(Number(d.price)>0));
-      includesUnknownPrice=unknown.length>0;
-      list=dedupe([...exact,...unknown]).slice(0,36);
-    }else{
-      list=dedupe(list).slice(0,36);
-    }
+    const list=applyExplorePrefs(rawList,prefs).slice(0,40);
     deals.splice(0,deals.length,...list);
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
       let suffix=" · "+marketCityLabel();
       if(state.maxPrice) suffix+=" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)});
+      if(Number(prefs.radius)>0) suffix+=" · "+prefs.radius+" mi";
       if(broadened) suffix+=" · "+(isFr?"recherche élargie":"broadened search");
-      if(includesUnknownPrice) suffix+=" · "+(isFr?"prix exact non disponible pour certaines offres":"some exact prices unavailable");
+      if(includesUnknownPrice) suffix+=" · "+(isFr?"certains prix non disponibles":"some prices unavailable");
       count.textContent=resultText+suffix;
     }
 
+    const controls=exploreControlsHtml(rawList,prefs,isFr);
     const travelCards=
       '<div style="grid-column:1/-1;margin:2px 0 10px">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
@@ -840,8 +967,25 @@
     if(root){
       const liveHtml=list.length
         ? list.map(dealCard).join("")
-        : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre avec prix exact pour ce filtre. Voici les partenaires voyage disponibles.":"No exact-price live offer matched this filter. Travel partners are still available below.")+'</div>';
-      root.innerHTML=travelCards+liveHtml;
+        : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre ne correspond à ces filtres. Élargis le rayon ou choisis Toutes les sources.":"No offers match these filters. Increase the radius or choose All sources.")+'</div>';
+      root.innerHTML=controls+travelCards+liveHtml;
+
+      const sort=root.querySelector("#dzExploreSort");
+      const radius=root.querySelector("#dzExploreRadius");
+      if(sort) sort.onchange=()=>{
+        const next=readExplorePrefs(); next.sort=sort.value; saveExplorePrefs(next); renderExplore(false);
+      };
+      if(radius) radius.onchange=()=>{
+        const next=readExplorePrefs(); next.radius=Number(radius.value)||0; saveExplorePrefs(next); renderExplore(false);
+      };
+      root.querySelectorAll("#dzExploreSources [data-source]").forEach(btn=>{
+        btn.onclick=()=>{
+          const next=readExplorePrefs(); next.source=btn.dataset.source||"all"; saveExplorePrefs(next); renderExplore(false);
+        };
+      });
+      const refresh=root.querySelector("#dzExploreRefresh");
+      if(refresh) refresh.onclick=()=>{exploreCache={key:"",rows:[]};renderExplore(true);};
+
       root.querySelectorAll("[data-explore-travel]").forEach(btn=>{
         btn.onclick=()=>renderExploreTravelForm(btn.dataset.exploreTravel);
       });

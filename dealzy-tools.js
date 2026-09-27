@@ -91,7 +91,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches','dealzyExplorePrefs'];
   let cloudTimer=null;
 
   async function getCloudSession(){
