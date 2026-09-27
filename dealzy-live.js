@@ -576,11 +576,25 @@
       counts[key]=(counts[key]||0)+1;
     });
     const sourceLabels={yelp:"Yelp",viator:"Viator",ticketmaster:"Ticketmaster"};
+    const sourceChipStyle=(active)=>[
+      "flex:0 0 auto",
+      "border:1px solid "+(active?"#7768ff":"#e2e5ec"),
+      "background:"+(active?"#f0eeff":"#fff"),
+      "color:"+(active?"#5145cd":"#475467"),
+      "border-radius:999px",
+      "padding:8px 11px",
+      "font:inherit",
+      "font-size:12px",
+      "font-weight:800",
+      "white-space:nowrap",
+      "box-shadow:"+(active?"0 4px 12px rgba(81,69,205,.10)":"none")
+    ].join(";");
     const sourceButtons=[
-      '<button data-source="all" class="'+(prefs.source==="all"?"active":"")+'">'+(isFr?"Toutes":"All")+' · '+rows.length+'</button>'
+      '<button data-source="all" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
     ];
     Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
-      sourceButtons.push('<button data-source="'+h(key)+'" class="'+(prefs.source===key?"active":"")+'">'+h(sourceLabels[key]||key)+' · '+n+'</button>');
+      const active=prefs.source===key;
+      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(active)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
     });
     const radiusOptions=[
       [0,isFr?"Tout rayon":"Any"],
@@ -593,7 +607,7 @@
       ["price",isFr?"Prix bas":"Price low"]
     ];
     return '<div id="dzExplorePro" style="grid-column:1/-1;background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:12px;margin:0 0 10px;box-shadow:0 6px 18px rgba(17,24,39,.04)">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><b style="font-size:14px">'+(isFr?"Affiner les résultats":"Refine results")+'</b><button id="dzExploreRefresh" style="border:0;background:#f2f4f7;border-radius:12px;padding:7px 10px;font-weight:750">↻ '+(isFr?"Actualiser":"Refresh")+'</button></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px"><b style="font-size:14px">'+(isFr?"Affiner les résultats":"Refine results")+'</b><button id="dzExploreRefresh" style="border:0;background:#f4f5f8;border-radius:999px;padding:7px 11px;font:inherit;font-size:12px;font-weight:800;color:#475467">↻ '+(isFr?"Actualiser":"Refresh")+'</button></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
         '<label class="meta">'+(isFr?"Trier":"Sort")+'<select id="dzExploreSort" style="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px;background:#fff">'+
           sortOptions.map(([v,l])=>'<option value="'+v+'" '+(prefs.sort===v?"selected":"")+'>'+l+'</option>').join("")+
@@ -602,7 +616,7 @@
           radiusOptions.map(([v,l])=>'<option value="'+v+'" '+(Number(prefs.radius)===v?"selected":"")+'>'+l+'</option>').join("")+
         '</select></label>'+
       '</div>'+
-      '<div id="dzExploreSources" style="display:flex;gap:7px;overflow:auto;padding-top:9px">'+sourceButtons.join("")+'</div>'+
+      '<div id="dzExploreSources" style="display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;padding:9px 1px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch">'+sourceButtons.join("")+'</div>'+
     '</div>';
   }
 
@@ -1041,7 +1055,10 @@
       exploreCache={key:requestKey,rows:[...rawList]};
     }
 
-    const list=applyExplorePrefs(rawList,prefs).slice(0,40);
+    const sourceUniverse=applyExplorePrefs(rawList,{...prefs,source:"all"}).slice(0,40);
+    const list=prefs.source==="all"
+      ? [...sourceUniverse]
+      : sourceUniverse.filter(d=>String(d.provider||d.source||"").toLowerCase()===String(prefs.source||"").toLowerCase());
     deals.splice(0,deals.length,...list);
 
     if(count){
@@ -1054,7 +1071,7 @@
       count.textContent=resultText+suffix;
     }
 
-    const controls=exploreControlsHtml(rawList,prefs,isFr);
+    const controls=exploreControlsHtml(sourceUniverse,prefs,isFr);
     const travelCards=
       '<div style="grid-column:1/-1;margin:2px 0 10px">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
