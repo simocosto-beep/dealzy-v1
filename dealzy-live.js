@@ -452,6 +452,9 @@
       provider:raw.provider||source.toLowerCase(),
       currency:raw.currency||market.currency,
       reviewCount:reviews,
+      phone:raw.phone||null,
+      eventDate:raw.eventDate||null,
+      eventTime:raw.eventTime||null,
       live:true
     };
   }
@@ -710,17 +713,80 @@
     toast(tr(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites"));
   };
 
+  function addDealToTrip(d){
+    if(!d) return false;
+    const numeric=Number(d.id);
+    if(!state.trip.includes(numeric)) state.trip.push(numeric);
+    localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
+    const snapshots=getSavedSnapshots();
+    snapshots[String(numeric)]=d;
+    saveSnapshots(snapshots);
+    renderTrips();
+    renderProfileInsights();
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    return true;
+  }
+
+  function dealDirectionsUrl(d){
+    if(Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng))){
+      return "https://www.google.com/maps/dir/?api=1&destination="+
+        encodeURIComponent(String(d.lat)+","+String(d.lng));
+    }
+    const query=[d.place,d.title,market.city].filter(Boolean).join(" ");
+    return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(query);
+  }
+
+  async function shareDeal(d){
+    const price=Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"");
+    const shareText=[d.title,price,d.place,d.source?"via "+d.source:""].filter(Boolean).join(" · ");
+    const shareData={title:d.title||"Dealzy AI",text:shareText};
+    if(d.partnerUrl) shareData.url=d.partnerUrl;
+    try{
+      if(navigator.share){
+        await navigator.share(shareData);
+        return true;
+      }
+    }catch(e){
+      if(e&&e.name==="AbortError") return false;
+    }
+    try{
+      const text=[shareText,d.partnerUrl||""].filter(Boolean).join("\n");
+      await navigator.clipboard.writeText(text);
+      toast(locale()==="fr"?"Lien copié":"Link copied");
+      return true;
+    }catch(_){
+      toast(locale()==="fr"?"Partage indisponible sur cet appareil.":"Sharing is unavailable on this device.");
+      return false;
+    }
+  }
+
+  function ensureDetailActions(){
+    let host=document.getElementById("dealzyDetailActions");
+    if(host) return host;
+    host=document.createElement("div");
+    host.id="dealzyDetailActions";
+    host.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0";
+    const text=document.getElementById("detailText");
+    if(text) text.insertAdjacentElement("afterend",host);
+    return host;
+  }
+
   openDeal=function(id){
     const numericId=Number(id);
     const d=catalog.get(numericId)||getSavedSnapshots()[String(numericId)]||deals.find((x)=>Number(x.id)===numericId);
     if(!d) return;
+
     const hasPrice=Number(d.price)>0;
     const hasDiscount=hasPrice&&Number(d.old)>Number(d.price);
     const pct=hasDiscount?Math.round((1-d.price/d.old)*100):0;
+    const distance=dealDistance(d);
+    const distanceText=distance!==null?(distance<0.1?"<0.1 mi":distance.toFixed(distance<10?1:0)+" mi"):"";
+
     $("#detailHero").style.backgroundImage=d.img?'url("'+String(d.img).replace(/"/g,"%22")+'")':"none";
     $("#detailBadge").textContent=d.source||"Live";
     $("#detailTitle").textContent=d.title||"";
-    $("#detailMeta").textContent=[d.place,d.rating].filter(Boolean).join(" · ");
+    $("#detailMeta").textContent=[d.place,distanceText?("📍 "+distanceText):"",d.rating].filter(Boolean).join(" · ");
+
     const scoreInfo=dealzyScore(d);
     let scoreBox=document.getElementById("dealzyScoreDetail");
     if(!scoreBox){
@@ -729,11 +795,46 @@
       scoreBox.style.cssText="margin:12px 0;padding:12px 14px;border-radius:16px;background:#f8f7ff;border:1px solid #e5e1ff;color:#344054";
       $("#detailMeta").insertAdjacentElement("afterend",scoreBox);
     }
-    scoreBox.innerHTML='<b style="color:#5145cd">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI Score"))+'</b><div style="font-size:12px;margin-top:5px">'+h(scoreInfo.reasons.join(" · "))+'</div><div style="font-size:11px;color:#667085;margin-top:5px">'+h(tr("Personalized relevance score — not a provider rating or sponsored ranking."))+'</div>';
-    $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider");
+    scoreBox.innerHTML=
+      '<b style="color:#5145cd">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI Score"))+'</b>'+
+      '<div style="font-size:12px;margin-top:5px">'+h(scoreInfo.reasons.join(" · "))+'</div>'+
+      '<div style="font-size:11px;color:#667085;margin-top:5px">'+h(tr("Personalized relevance score — not a provider rating or sponsored ranking."))+'</div>';
+
+    $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
     $("#detailOld").textContent=hasDiscount?moneyFor(d.old,d.currency):"";
     $("#detailSave").textContent=hasDiscount?tr("Save {pct}%",{pct}):tr("Live partner");
-    $("#detailText").textContent=d.text||"";
+
+    const detailBits=[];
+    if(d.text) detailBits.push(d.text);
+    if(d.eventDate) detailBits.push((locale()==="fr"?"Date : ":"Date: ")+d.eventDate+(d.eventTime?" · "+d.eventTime:""));
+    $("#detailText").textContent=detailBits.join("\n\n");
+
+    const actions=ensureDetailActions();
+    const favorite=state.favorites.has(numericId);
+    const inTrip=state.trip.includes(numericId);
+    const hasPhone=!!String(d.phone||"").trim();
+    actions.innerHTML=
+      '<button id="dzDetailFav" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(favorite?"♥ ":"♡ ")+h(locale()==="fr"?(favorite?"Favori":"Ajouter aux favoris"):(favorite?"Saved":"Save"))+'</button>'+
+      '<button id="dzDetailTrip" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(inTrip?"✓ ":"✈ ")+h(locale()==="fr"?(inTrip?"Dans le voyage":"Ajouter au voyage"):(inTrip?"In trip":"Add to trip"))+'</button>'+
+      '<button id="dzDetailDirections" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">🗺 '+h(locale()==="fr"?"Itinéraire":"Directions")+'</button>'+
+      '<button id="dzDetailShare" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">↗ '+h(locale()==="fr"?"Partager":"Share")+'</button>'+
+      (hasPhone?'<button id="dzDetailCall" style="grid-column:1/-1;border:1px solid #dfe3eb;background:#f8f9fc;border-radius:14px;padding:12px;font-weight:800">📞 '+h(locale()==="fr"?"Appeler":"Call")+'</button>':"");
+
+    actions.querySelector("#dzDetailFav").onclick=()=>{
+      toggleFav(numericId);
+      openDeal(numericId);
+      renderFavs();
+    };
+    actions.querySelector("#dzDetailTrip").onclick=()=>{
+      addDealToTrip(d);
+      toast(locale()==="fr"?"Ajouté au voyage":"Added to trip");
+      openDeal(numericId);
+    };
+    actions.querySelector("#dzDetailDirections").onclick=()=>window.open(dealDirectionsUrl(d),"_blank","noopener,noreferrer");
+    actions.querySelector("#dzDetailShare").onclick=()=>shareDeal(d);
+    const call=actions.querySelector("#dzDetailCall");
+    if(call) call.onclick=()=>{location.href="tel:"+String(d.phone).replace(/[^+\d]/g,"");};
+
     $("#partnerBtn").textContent=tr("Open on {source} ↗",{source:d.source||"Partner"});
     $("#partnerBtn").onclick=()=>{
       if(d.partnerUrl){
@@ -741,6 +842,7 @@
         window.open(d.partnerUrl,"_blank","noopener,noreferrer");
       }else toast(tr("Partner link is temporarily unavailable."));
     };
+
     $("#detailOverlay").classList.remove("hidden");
   };
 
