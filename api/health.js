@@ -3,11 +3,14 @@ module.exports = async function handler(req,res){
   res.status(200).json({
     ok:true,
     service:'dealzy-api',
-    version:'2.0',
-    mode:'cloud-v2-demo-fallback',
-    liveProviders:[],
+    version:'2.1',
+    mode:'live-multi-provider',
+    liveProviders:['viator','ticketmaster','yelp'],
+    travelClickouts:['expedia','booking','skyscanner'],
+    markets:['US','CA'],
+    currencies:['USD','CAD'],
     backend:['supabase-auth','cloud-sync','rpc-v2'],
-    readyFor:['affiliate-adapters','approved-live-providers'],
+    readyFor:['additional-affiliate-adapters'],
     timestamp:new Date().toISOString()
   });
 };
