@@ -29,6 +29,37 @@
     ]
   };
 
+  const ONBOARDING_INTERESTS=[
+    {id:"food",label:"Food & Drink",icon:"🍽️"},
+    {id:"activities",label:"Things to Do",icon:"🎟️"},
+    {id:"wellness",label:"Spa & Beauty",icon:"✨"},
+    {id:"travel",label:"Travel",icon:"✈️"}
+  ];
+
+  function readOnboarding(){
+    try{
+      const data=JSON.parse(localStorage.getItem("dealzyOnboarding")||"null");
+      if(data&&typeof data==="object") return data;
+    }catch(_){}
+    return {completed:false,interests:[],budget:100};
+  }
+
+  function saveOnboarding(data){
+    const next={
+      completed:!!data.completed,
+      country:data.country==="CA"?"CA":"US",
+      city:String(data.city||"Miami"),
+      locale:data.locale==="fr"?"fr":"en",
+      interests:Array.isArray(data.interests)?data.interests.filter(Boolean).slice(0,4):[],
+      budget:Math.max(10,Math.min(5000,Number(data.budget)||100)),
+      updatedAt:new Date().toISOString(),
+      completedAt:data.completed?(data.completedAt||new Date().toISOString()):null
+    };
+    localStorage.setItem("dealzyOnboarding",JSON.stringify(next));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    return next;
+  }
+
   function readMarket(){
     let saved=null;
     try{saved=JSON.parse(localStorage.getItem("dealzyMarket")||"null");}catch(_){}
@@ -224,6 +255,7 @@
     }
     localStorage.setItem("dealzyFavs",JSON.stringify([...state.favorites]));
     saveSnapshots(snapshots);
+    renderProfileInsights();
     toast(tr(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites"));
   };
 
@@ -312,6 +344,182 @@
     renderTrips();
   };
 
+  function ensureOnboardingStyles(){
+    if(document.getElementById("dealzyOnboardingStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyOnboardingStyles";
+    style.textContent=[
+      ".dz-ob-wrap{position:fixed;inset:0;z-index:160;background:rgba(17,24,39,.55);display:flex;align-items:flex-end;justify-content:center;padding:16px}",
+      ".dz-ob-card{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:28px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.28)}",
+      ".dz-ob-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}",
+      ".dz-ob-head h2{margin:0;font-size:28px}.dz-ob-head p{margin:6px 0 0;color:#667085;line-height:1.5}",
+      ".dz-ob-close{border:0;background:#f2f4f7;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer}",
+      ".dz-ob-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}",
+      ".dz-ob-grid label{font-size:13px;color:#667085;font-weight:700}",
+      ".dz-ob-grid select,.dz-ob-grid input{display:block;width:100%;margin-top:6px;border:1px solid #dfe3eb;border-radius:13px;padding:12px;background:#fff}",
+      ".dz-ob-interests{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}",
+      ".dz-ob-interest{border:1px solid #dfe3eb;background:#fff;border-radius:16px;padding:13px;text-align:left;cursor:pointer;font-weight:750}",
+      ".dz-ob-interest.active{border-color:#6d5dfc;background:#f1efff;color:#5145cd}",
+      ".dz-ob-actions{display:flex;gap:10px;margin-top:18px}.dz-ob-actions button{flex:1;border:0;border-radius:14px;padding:14px;font-weight:850;cursor:pointer}",
+      ".dz-ob-primary{background:linear-gradient(135deg,#6d5dfc,#3d8bfd);color:#fff}.dz-ob-secondary{background:#f2f4f7;color:#344054}",
+      ".dz-profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}",
+      ".dz-profile-stat{background:#f8f9fc;border:1px solid #e7e9f0;border-radius:16px;padding:12px;text-align:center}",
+      ".dz-profile-stat b{display:block;font-size:22px}.dz-profile-stat span{font-size:11px;color:#667085}",
+      ".dz-interest-chip{display:inline-block;padding:7px 10px;border-radius:999px;background:#f2f4f7;margin:3px;font-size:12px}",
+      "@media(max-width:560px){.dz-ob-grid{grid-template-columns:1fr}.dz-ob-interests{grid-template-columns:1fr}.dz-profile-stats{grid-template-columns:repeat(3,1fr)}.dz-ob-card{padding:18px;border-radius:24px}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function onboardingStats(){
+    let clicks=[];
+    try{clicks=JSON.parse(localStorage.getItem("dealzyPartnerClicks")||"[]")}catch(_){}
+    return {
+      favorites:state.favorites?state.favorites.size:0,
+      trips:Array.isArray(state.trip)?state.trip.length:0,
+      clicks:Array.isArray(clicks)?clicks.length:0
+    };
+  }
+
+  function renderProfileInsights(){
+    const profile=document.getElementById("profileView");
+    if(!profile) return;
+    let card=document.getElementById("dealzyProfileInsights");
+    if(!card){
+      card=document.createElement("div");
+      card.className="profileCard";
+      card.id="dealzyProfileInsights";
+      const trust=[...profile.querySelectorAll(".profileCard")].find(x=>/Trust & legal|Confiance et mentions légales/.test(x.querySelector("h3")?.textContent||""));
+      if(trust) profile.insertBefore(card,trust);
+      else profile.appendChild(card);
+    }
+    const ob=readOnboarding();
+    const stats=onboardingStats();
+    const interests=(ob.interests||[]).map(id=>ONBOARDING_INTERESTS.find(x=>x.id===id)).filter(Boolean);
+    card.innerHTML=
+      '<h3 style="margin-top:0">'+h(tr("Your Dealzy profile"))+'</h3>'+
+      '<div class="meta">'+h(tr("Personalize Dealzy around your market, interests and preferred budget."))+'</div>'+
+      '<div class="dz-profile-stats">'+
+        '<div class="dz-profile-stat"><b>'+stats.favorites+'</b><span>'+h(tr("Favorites"))+'</span></div>'+
+        '<div class="dz-profile-stat"><b>'+stats.trips+'</b><span>'+h(tr("Trips"))+'</span></div>'+
+        '<div class="dz-profile-stat"><b>'+stats.clicks+'</b><span>'+h(tr("Partner clicks"))+'</span></div>'+
+      '</div>'+
+      '<div class="meta"><b>'+h(tr("Preferred budget"))+':</b> '+h(moneyFor(ob.budget||100,market.currency))+'</div>'+
+      '<div style="margin:8px 0">'+(interests.length?interests.map(x=>'<span class="dz-interest-chip">'+x.icon+' '+h(tr(x.label))+'</span>').join(""):'<span class="meta">'+h(tr("No interests selected yet."))+'</span>')+'</div>'+
+      '<button class="pill" id="dealzyEditProfile" style="margin-top:8px">'+h(tr("Edit preferences"))+'</button>';
+    const edit=card.querySelector("#dealzyEditProfile");
+    if(edit) edit.onclick=()=>showOnboarding(false);
+    if(window.DealzyI18n) window.DealzyI18n.apply(card);
+  }
+
+  function showOnboarding(firstRun){
+    ensureOnboardingStyles();
+    const existing=document.getElementById("dealzyOnboarding");
+    if(existing) existing.remove();
+
+    const current=readOnboarding();
+    const selectedCountry=current.country==="CA"?"CA":market.country;
+    const selectedCity=(MARKET_CITIES[selectedCountry]||[]).some(x=>x.value===current.city)?current.city:market.city;
+    const selectedLocale=current.locale==="fr"?"fr":locale();
+    const selectedInterests=new Set(Array.isArray(current.interests)?current.interests:[]);
+    const budget=Number(current.budget)||100;
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyOnboarding";
+    wrap.className="dz-ob-wrap";
+    wrap.innerHTML=
+      '<section class="dz-ob-card" role="dialog" aria-modal="true" aria-label="'+h(tr("Personalize Dealzy"))+'">'+
+        '<div class="dz-ob-head"><div><h2>'+h(firstRun?tr("Welcome to Dealzy"):tr("Your preferences"))+'</h2>'+
+        '<p>'+h(tr("Choose your market and what you like. You can change everything later."))+'</p></div>'+
+        '<button class="dz-ob-close" aria-label="'+h(tr("Close"))+'">×</button></div>'+
+        '<div class="dz-ob-grid">'+
+          '<label>'+h(tr("Country"))+'<select id="dzObCountry">'+
+            '<option value="US" '+(selectedCountry==="US"?"selected":"")+'>🇺🇸 '+h(tr("United States"))+'</option>'+
+            '<option value="CA" '+(selectedCountry==="CA"?"selected":"")+'>🇨🇦 '+h(tr("Canada"))+'</option>'+
+          '</select></label>'+
+          '<label>'+h(tr("City"))+'<select id="dzObCity"></select></label>'+
+          '<label>'+h(tr("Language"))+'<select id="dzObLocale">'+
+            '<option value="en" '+(selectedLocale==="en"?"selected":"")+'>English</option>'+
+            '<option value="fr" '+(selectedLocale==="fr"?"selected":"")+'>Français</option>'+
+          '</select></label>'+
+          '<label>'+h(tr("Preferred budget"))+'<input id="dzObBudget" type="number" min="10" max="5000" step="10" value="'+budget+'"></label>'+
+        '</div>'+
+        '<h3 style="margin:18px 0 6px">'+h(tr("What are you interested in?"))+'</h3>'+
+        '<div class="dz-ob-interests" id="dzObInterests">'+ONBOARDING_INTERESTS.map(x=>
+          '<button type="button" class="dz-ob-interest '+(selectedInterests.has(x.id)?"active":"")+'" data-interest="'+x.id+'">'+x.icon+' '+h(tr(x.label))+'</button>'
+        ).join("")+'</div>'+
+        '<div class="dz-ob-actions">'+
+          (!firstRun?'<button class="dz-ob-secondary" id="dzObCancel">'+h(tr("Cancel"))+'</button>':'')+
+          '<button class="dz-ob-primary" id="dzObSave">'+h(firstRun?tr("Start exploring"):tr("Save preferences"))+'</button>'+
+        '</div>'+
+      '</section>';
+    document.body.appendChild(wrap);
+
+    const country=wrap.querySelector("#dzObCountry");
+    const city=wrap.querySelector("#dzObCity");
+    const lang=wrap.querySelector("#dzObLocale");
+    const budgetInput=wrap.querySelector("#dzObBudget");
+
+    const fillCities=(countryValue,preferred)=>{
+      const rows=MARKET_CITIES[countryValue]||MARKET_CITIES.US;
+      city.innerHTML=rows.map(x=>'<option value="'+h(x.value)+'" '+(x.value===preferred?"selected":"")+'>'+h(x.label)+'</option>').join("");
+    };
+    fillCities(selectedCountry,selectedCity);
+
+    country.onchange=()=>fillCities(country.value,MARKET_CITIES[country.value][0].value);
+    wrap.querySelectorAll("[data-interest]").forEach(btn=>btn.onclick=()=>btn.classList.toggle("active"));
+
+    const close=()=>wrap.remove();
+    wrap.querySelector(".dz-ob-close").onclick=close;
+    const cancel=wrap.querySelector("#dzObCancel");
+    if(cancel) cancel.onclick=close;
+
+    wrap.querySelector("#dzObSave").onclick=()=>{
+      const nextCountry=country.value==="CA"?"CA":"US";
+      const nextCity=city.value||MARKET_CITIES[nextCountry][0].value;
+      const nextLocale=lang.value==="fr"?"fr":"en";
+      const interests=[...wrap.querySelectorAll("[data-interest].active")].map(x=>x.dataset.interest);
+      const nextBudget=Math.max(10,Math.min(5000,Number(budgetInput.value)||100));
+
+      persistMarket(nextCountry,nextCity);
+      const saved=saveOnboarding({
+        ...current,
+        completed:true,
+        country:nextCountry,
+        city:nextCity,
+        locale:nextLocale,
+        interests,
+        budget:nextBudget
+      });
+
+      try{
+        const prefs=JSON.parse(localStorage.getItem("dealzyToolPrefs")||"{}");
+        prefs.budget=nextBudget;
+        localStorage.setItem("dealzyToolPrefs",JSON.stringify(prefs));
+      }catch(_){}
+
+      if(window.DealzyI18n) window.DealzyI18n.setLocale(nextLocale);
+      else localStorage.setItem("dealzyLocale",nextLocale);
+
+      close();
+      renderProfileInsights();
+      updateMarketUI();
+      hydrateHome();
+      toast(tr("Preferences saved"));
+      return saved;
+    };
+
+    if(window.DealzyI18n) window.DealzyI18n.apply(wrap);
+  }
+
+  function maybeShowFirstRunOnboarding(){
+    const current=readOnboarding();
+    if(current.completed) return;
+    setTimeout(()=>{
+      if(!document.getElementById("dealzyOnboarding")) showOnboarding(true);
+    },550);
+  }
+
   function updateMarketUI(){
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
     const countryName=market.country==="CA"?"Canada":"United States";
@@ -393,6 +601,7 @@
       ? "🏷 Moins de "+(market.currency==="CAD"?"50 CA$":"50 $")
       : "🏷 Under "+(market.currency==="CAD"?"CA$50":"$50");
 
+    renderProfileInsights();
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
   }
 
@@ -545,9 +754,11 @@
       localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
       saveSnapshots(snapshots);
       renderTrips();
+      renderProfileInsights();
       toast(tr("Favorites added to {city} Weekend",{city:market.city}));
     };
   }
 
   hydrateHome();
+  maybeShowFirstRunOnboarding();
 })();
