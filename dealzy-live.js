@@ -128,6 +128,7 @@
   }
 
   function milesBetween(a,b,c,d){
+    if([a,b,c,d].some(x=>x===null||x===undefined||x==="")) return null;
     const vals=[a,b,c,d].map(Number);
     if(vals.some(x=>!Number.isFinite(x))) return null;
     const toRad=v=>v*Math.PI/180;
@@ -136,6 +137,22 @@
     const dLng=toRad(vals[3]-vals[1]);
     const q=Math.sin(dLat/2)**2+Math.cos(toRad(vals[0]))*Math.cos(toRad(vals[2]))*Math.sin(dLng/2)**2;
     return 2*R*Math.asin(Math.sqrt(q));
+  }
+
+  function formatDistance(miles){
+    const n=Number(miles);
+    if(!Number.isFinite(n)) return "—";
+    if(market.country==="CA"){
+      const km=n*1.609344;
+      return (km<10?km.toFixed(1):Math.round(km))+" km";
+    }
+    return (n<10?n.toFixed(1):Math.round(n))+" mi";
+  }
+
+  function distanceOptions(){
+    return market.country==="CA"
+      ? [{miles:3.10686,label:"≤ 5 km"},{miles:9.32057,label:"≤ 15 km"},{miles:24.8548,label:"≤ 40 km"},{miles:49.7097,label:"≤ 80 km"}]
+      : [{miles:3,label:"≤ 3 mi"},{miles:10,label:"≤ 10 mi"},{miles:25,label:"≤ 25 mi"},{miles:50,label:"≤ 50 mi"}];
   }
 
   function dealzyScore(d){
@@ -174,10 +191,10 @@
 
     const reviews=Number(d.reviewCount||0);
     if(reviews>=500){
-      score+=4;
+      score+=6;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=100){
-      score+=6;
+      score+=4;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=20){
       score+=2;
@@ -249,8 +266,11 @@
       partnerUrl:raw.partnerUrl||null,
       source,
       provider:raw.provider||source.toLowerCase(),
+      marketCountry:market.country,
+      marketCity:market.city,
       currency:raw.currency||market.currency,
       reviewCount:reviews,
+      isClosed:typeof raw.isClosed==="boolean"?raw.isClosed:null,
       live:true
     };
   }
@@ -288,6 +308,32 @@
       localStorage.setItem("dealzyPartnerClicks",JSON.stringify(events.slice(-200)));
       if(window.DealzyCloud) window.DealzyCloud.queueSync();
     }catch(_){}
+  }
+
+  function recordAnalyticsEvent(type,data={}){
+    try{
+      const events=JSON.parse(localStorage.getItem("dealzyAnalyticsEvents")||"[]");
+      const now=Date.now();
+      const event={
+        type:String(type||"event"),
+        market:{country:market.country,city:market.city,currency:market.currency},
+        category:data.category||null,
+        query:data.query||"",
+        results:Number(data.results||0),
+        view:data.view||null,
+        source:data.source||null,
+        createdAt:new Date(now).toISOString()
+      };
+      const signature=[event.type,event.market.country,event.market.city,event.category,event.query,event.view].join("|");
+      const last=events.length?events[events.length-1]:null;
+      const lastTime=last&&last.createdAt?new Date(last.createdAt).getTime():0;
+      const lastSig=last?[last.type,last.market&&last.market.country,last.market&&last.market.city,last.category,last.query,last.view].join("|"):"";
+      if(lastSig===signature&&now-lastTime<10000) return false;
+      events.push(event);
+      localStorage.setItem("dealzyAnalyticsEvents",JSON.stringify(events.slice(-500)));
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+      return true;
+    }catch(_){return false}
   }
 
   function dedupe(rows){
@@ -407,17 +453,519 @@
     bindCards($("#favoritesGrid"));
   };
 
+  function tripDurationMinutes(d){
+    return {
+      "Food & Drink":90,
+      "Spa & Beauty":90,
+      "Things to Do":120,
+      "Travel":150
+    }[d.cat]||90;
+  }
+
+  function tripRouteDistance(a,b){
+    if(!a||!b) return null;
+    return milesBetween(a.lat,a.lng,b.lat,b.lng);
+  }
+
+  function buildSmartTrip(items){
+    const source=(items||[]).filter(Boolean);
+    const active=source.filter(d=>{
+      if(d.marketCountry) return d.marketCountry===market.country;
+      return !d.currency||d.currency===market.currency;
+    });
+    const skipped=Math.max(0,source.length-active.length);
+    if(!active.length) return {
+      items:[],totalPrice:0,totalDuration:0,totalDistance:null,mapped:0,currency:market.currency,skipped
+    };
+
+    const withCoords=active.filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    const withoutCoords=active.filter(d=>!withCoords.includes(d));
+    let ordered=[];
+
+    if(withCoords.length){
+      const remaining=[...withCoords];
+      let current=null;
+      if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        current={lat:Number(state.coords.lat),lng:Number(state.coords.lng)};
+      }else{
+        current={lat:Number(remaining[0].lat),lng:Number(remaining[0].lng)};
+      }
+
+      while(remaining.length){
+        let bestIndex=0,bestDistance=Infinity;
+        remaining.forEach((d,index)=>{
+          const dist=tripRouteDistance(current,d);
+          const value=dist===null?Infinity:dist;
+          if(value<bestDistance){bestDistance=value;bestIndex=index;}
+        });
+        const next=remaining.splice(bestIndex,1)[0];
+        ordered.push(next);
+        current={lat:Number(next.lat),lng:Number(next.lng)};
+      }
+    }
+
+    ordered=[...ordered,...withoutCoords];
+
+    let totalPrice=0,totalDuration=0,totalDistance=0,distanceKnown=false;
+    const steps=ordered.map((d,index)=>{
+      const duration=tripDurationMinutes(d);
+      totalDuration+=duration;
+      if(Number(d.price)>0) totalPrice+=Number(d.price);
+      let distanceFromPrevious=null;
+      if(index>0){
+        distanceFromPrevious=tripRouteDistance(ordered[index-1],d);
+        if(distanceFromPrevious!==null){
+          totalDistance+=distanceFromPrevious;
+          distanceKnown=true;
+        }
+      }else if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        distanceFromPrevious=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+        if(distanceFromPrevious!==null){
+          totalDistance+=distanceFromPrevious;
+          distanceKnown=true;
+        }
+      }
+      return {...d,tripDuration:duration,distanceFromPrevious};
+    });
+
+    return {
+      items:steps,
+      totalPrice:Math.round(totalPrice*100)/100,
+      totalDuration,
+      totalDistance:distanceKnown?Math.round(totalDistance*10)/10:null,
+      mapped:withCoords.length,
+      currency:market.currency,
+      skipped,
+      marketCountry:market.country,
+      marketCity:market.city,
+      generatedAt:new Date().toISOString()
+    };
+  }
+
+  function formatDuration(minutes){
+    const m=Math.max(0,Number(minutes)||0);
+    const h=Math.floor(m/60),rest=m%60;
+    if(h&&rest) return h+"h "+rest+"m";
+    if(h) return h+"h";
+    return rest+"m";
+  }
+
+  function saveTripPlan(plan){
+    localStorage.setItem("dealzyTripPlan",JSON.stringify(plan||{}));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function loadTripPlan(){
+    try{return JSON.parse(localStorage.getItem("dealzyTripPlan")||"null");}catch(_){return null;}
+  }
+
+  function ensureTripStyles(){
+    if(document.getElementById("dealzyTripStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyTripStyles";
+    style.textContent=[
+      ".dz-trip-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}",
+      ".dz-trip-stat{background:#f8f9fc;border:1px solid #e7e9f0;border-radius:16px;padding:12px;text-align:center}",
+      ".dz-trip-stat b{display:block;font-size:18px}.dz-trip-stat span{font-size:11px;color:#667085}",
+      ".dz-trip-step{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;margin:10px 0;padding:12px;border:1px solid #e7e9f0;border-radius:16px;background:#fff}",
+      ".dz-trip-num{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#f1efff;color:#5145cd;font-weight:900}",
+      ".dz-trip-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}",
+      ".dz-trip-map{height:360px;border-radius:18px;overflow:hidden;border:1px solid #e7e9f0;margin-top:12px;background:#eef2f6}",
+      ".dz-trip-map-fallback{padding:20px;color:#667085;text-align:center}",
+      "@media(max-width:560px){.dz-trip-summary{grid-template-columns:1fr 1fr 1fr}.dz-trip-map{height:300px}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function loadLeaflet(){
+    if(window.L) return Promise.resolve(window.L);
+    if(window.__dealzyLeafletPromise) return window.__dealzyLeafletPromise;
+    window.__dealzyLeafletPromise=new Promise((resolve,reject)=>{
+      if(!document.querySelector('link[data-dealzy-leaflet]')){
+        const link=document.createElement("link");
+        link.rel="stylesheet";
+        link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.dataset.dealzyLeaflet="1";
+        document.head.appendChild(link);
+      }
+      const existing=document.querySelector('script[data-dealzy-leaflet]');
+      if(existing){
+        existing.addEventListener("load",()=>resolve(window.L),{once:true});
+        existing.addEventListener("error",reject,{once:true});
+        return;
+      }
+      const script=document.createElement("script");
+      script.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.dataset.dealzyLeaflet="1";
+      script.onload=()=>resolve(window.L);
+      script.onerror=reject;
+      document.head.appendChild(script);
+    });
+    return window.__dealzyLeafletPromise;
+  }
+
+  async function renderTripMap(plan){
+    const root=document.getElementById("dealzyTripMap");
+    if(!root) return;
+    const tripsView=document.getElementById("tripsView");
+    if(tripsView&&tripsView.classList.contains("hidden")) return;
+    const points=(plan?.items||[]).filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    if(!points.length){
+      root.innerHTML='<div class="dz-trip-map-fallback">'+h(tr("Map will appear when saved places include coordinates."))+'</div>';
+      return;
+    }
+
+    try{
+      const L=await loadLeaflet();
+      if(!L) throw new Error("Leaflet unavailable");
+      root.innerHTML="";
+      if(window.__dealzyTripMap){
+        try{window.__dealzyTripMap.remove();}catch(_){}
+      }
+      const map=L.map(root,{scrollWheelZoom:false});
+      window.__dealzyTripMap=map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:19,
+        attribution:"© OpenStreetMap contributors"
+      }).addTo(map);
+
+      const latLngs=[];
+      points.forEach((d,index)=>{
+        const ll=[Number(d.lat),Number(d.lng)];
+        latLngs.push(ll);
+        const marker=L.marker(ll).addTo(map);
+        marker.bindPopup('<b>'+h(String(index+1)+". "+d.title)+'</b><br>'+h(d.place||""));
+      });
+      if(latLngs.length>1){
+        L.polyline(latLngs,{weight:4,opacity:.65}).addTo(map);
+        map.fitBounds(latLngs,{padding:[24,24]});
+      }else{
+        map.setView(latLngs[0],13);
+      }
+    }catch(_){
+      const p=points[0];
+      const delta=.06;
+      const bbox=[Number(p.lng)-delta,Number(p.lat)-delta,Number(p.lng)+delta,Number(p.lat)+delta].join(",");
+      const src="https://www.openstreetmap.org/export/embed.html?bbox="+encodeURIComponent(bbox)+"&layer=mapnik&marker="+encodeURIComponent(p.lat+","+p.lng);
+      root.innerHTML='<iframe title="'+h(tr("Trip map"))+'" src="'+h(src)+'" style="width:100%;height:100%;border:0" loading="lazy"></iframe>';
+    }
+  }
+
+  function renderSmartTripPlan(plan){
+    const host=document.getElementById("dealzySmartTrip");
+    if(!host) return;
+    const items=plan?.items||[];
+    if(!items.length){
+      host.innerHTML='<div class="empty">'+h(tr("Save favorites first, then build your smart trip."))+'</div>';
+      return;
+    }
+
+    const moneyText=plan.totalPrice>0?moneyFor(plan.totalPrice,plan.currency):tr("Price on provider");
+    const distanceText=plan.totalDistance===null?"—":formatDistance(plan.totalDistance);
+    host.innerHTML=
+      '<div class="dz-trip-summary">'+
+        '<div class="dz-trip-stat"><b>'+h(moneyText)+'</b><span>'+h(tr("Known total"))+'</span></div>'+
+        '<div class="dz-trip-stat"><b>'+h(formatDuration(plan.totalDuration))+'</b><span>'+h(tr("Estimated activity time"))+'</span></div>'+
+        '<div class="dz-trip-stat"><b>'+h(distanceText)+'</b><span>'+h(tr("Approx. route"))+'</span></div>'+
+      '</div>'+
+      '<div class="meta">'+h(tr("{mapped} of {total} stops can be shown on the map.",{mapped:plan.mapped,total:items.length}))+
+        (plan.skipped?'<br>'+h(tr("{count} saved item(s) from another market were excluded from this plan.",{count:plan.skipped})):"")+
+      '</div>'+
+      '<div>'+items.map((d,index)=>
+        '<div class="dz-trip-step">'+
+          '<div class="dz-trip-num">'+(index+1)+'</div>'+
+          '<div><b>'+h(d.title)+'</b>'+
+            '<div class="meta">'+h(d.place||"")+' · '+h(d.cat||"")+'</div>'+
+            '<div class="meta">'+h(tr("Estimated visit"))+': '+h(formatDuration(d.tripDuration))+
+              (d.distanceFromPrevious!==null?' · '+h(tr("Approx. {distance} from previous stop",{distance:formatDistance(d.distanceFromPrevious)})):"")+
+            '</div>'+
+          '</div>'+
+        '</div>'
+      ).join("")+'</div>'+
+      '<div class="dz-trip-map" id="dealzyTripMap"></div>'+
+      '<div class="meta" style="margin-top:8px">'+h(tr("Route order and times are estimates based on saved coordinates and category defaults; check provider details before travel."))+'</div>';
+    renderTripMap(plan);
+  }
+
+  function planCurrentTrip(){
+    loadSavedIntoCatalog();
+    const snapshots=getSavedSnapshots();
+    const list=state.trip.map(id=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
+    const plan=buildSmartTrip(list);
+    saveTripPlan(plan);
+    renderSmartTripPlan(plan);
+    return plan;
+  }
+
   renderTrips=function(){
+    ensureTripStyles();
     loadSavedIntoCatalog();
     const snapshots=getSavedSnapshots();
     const list=state.trip.map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
-    $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
+    const tripItems=$("#tripItems");
+    if(!tripItems) return;
+
+    tripItems.innerHTML=
+      (list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider")))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">'+h(tr("Your trip is empty."))+'</div>')+
+      '<div class="dz-trip-actions">'+
+        '<button class="pill" id="dealzyPlanTrip">'+h(tr("Plan my trip"))+'</button>'+
+        (list.length?'<button class="pill" id="dealzyClearTrip">'+h(tr("Clear trip"))+'</button>':"")+
+      '</div>'+
+      '<div id="dealzySmartTrip"></div>';
+
+    const planBtn=document.getElementById("dealzyPlanTrip");
+    if(planBtn) planBtn.onclick=()=>planCurrentTrip();
+
+    const clearBtn=document.getElementById("dealzyClearTrip");
+    if(clearBtn) clearBtn.onclick=()=>{
+      state.trip=[];
+      localStorage.setItem("dealzyTrip","[]");
+      localStorage.removeItem("dealzyTripPlan");
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+      renderTrips();
+      renderProfileInsights();
+      toast(tr("Trip cleared"));
+    };
+
+    const savedPlan=loadTripPlan();
+    if(savedPlan&&Array.isArray(savedPlan.items)&&savedPlan.items.length) renderSmartTripPlan(savedPlan);
   };
+
+  function readExplorePrefs(){
+    try{
+      const p=JSON.parse(localStorage.getItem("dealzyExplorePrefs")||"null");
+      if(p&&typeof p==="object") return {
+        view:p.view==="map"?"map":"list",
+        maxPrice:Number(p.maxPrice)>0?Number(p.maxPrice):null,
+        minRating:Number(p.minRating)||0,
+        maxDistance:Number(p.maxDistance)>0?Number(p.maxDistance):null,
+        knownPrice:!!p.knownPrice,
+        openNow:!!p.openNow,
+        sort:["recommended","nearest","rating","price"].includes(p.sort)?p.sort:"recommended"
+      };
+    }catch(_){}
+    return {view:"list",maxPrice:null,minRating:0,maxDistance:null,knownPrice:false,openNow:false,sort:"recommended"};
+  }
+
+  function saveExplorePrefs(prefs){
+    localStorage.setItem("dealzyExplorePrefs",JSON.stringify(prefs));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function ensureExploreStyles(){
+    if(document.getElementById("dealzyExploreStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyExploreStyles";
+    style.textContent=[
+      ".dz-explore-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}",
+      ".dz-explore-tools select,.dz-explore-tools input{border:1px solid #dfe3eb;background:#fff;border-radius:12px;padding:10px 11px;font-size:12px;min-height:40px}",
+      ".dz-explore-tools label{display:flex;align-items:center;gap:6px;font-size:12px;color:#667085;font-weight:700}",
+      ".dz-view-switch{display:flex;gap:6px;padding:4px;background:#f2f4f7;border-radius:14px}",
+      ".dz-view-switch button{border:0;background:transparent;padding:8px 12px;border-radius:10px;font-weight:800;cursor:pointer}",
+      ".dz-view-switch button.active{background:#fff;color:#5145cd;box-shadow:0 1px 4px rgba(16,24,40,.12)}",
+      ".dz-explore-map{height:520px;border-radius:20px;overflow:hidden;border:1px solid #e7e9f0;background:#eef2f6;margin-top:14px}",
+      ".dz-map-empty{height:100%;display:grid;place-items:center;padding:24px;text-align:center;color:#667085}",
+      ".dz-map-popup{min-width:190px}.dz-map-popup b{display:block;margin-bottom:4px}.dz-map-popup .meta{font-size:11px;color:#667085;margin:3px 0}.dz-map-popup button{margin-top:7px;border:0;border-radius:10px;padding:8px 10px;background:#5145cd;color:#fff;font-weight:800;cursor:pointer;width:100%}",
+      "@media(max-width:560px){.dz-explore-map{height:380px}.dz-explore-tools{display:grid;grid-template-columns:1fr 1fr}.dz-explore-tools .dz-view-switch{grid-column:1/-1}.dz-explore-tools label{display:block}.dz-explore-tools select,.dz-explore-tools input{width:100%;margin-top:5px}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function ensureExploreControls(){
+    ensureExploreStyles();
+    const filters=document.getElementById("filters");
+    if(!filters) return;
+    const existing=document.getElementById("dealzyExploreTools");
+    if(existing){
+      const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+      const distance=existing.querySelector("#dzExploreDistance");
+      if(distance) distance.disabled=!locReady;
+      return;
+    }
+    const prefs=readExplorePrefs();
+    const tools=document.createElement("div");
+    tools.id="dealzyExploreTools";
+    tools.className="dz-explore-tools";
+    const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+    tools.innerHTML=
+      '<div class="dz-view-switch">'+
+        '<button type="button" data-viewmode="list" class="'+(prefs.view==="list"?"active":"")+'">☷ '+h(tr("List"))+'</button>'+
+        '<button type="button" data-viewmode="map" class="'+(prefs.view==="map"?"active":"")+'">🗺 '+h(tr("Map"))+'</button>'+
+      '</div>'+
+      '<label>'+h(tr("Budget"))+'<input id="dzExploreBudget" type="number" min="1" step="10" placeholder="'+h(tr("Any"))+'" value="'+(prefs.maxPrice||"")+'"></label>'+
+      '<label>'+h(tr("Minimum rating"))+'<select id="dzExploreRating">'+
+        '<option value="0">'+h(tr("Any"))+'</option>'+
+        '<option value="4">4.0+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option>'+
+      '</select></label>'+
+      '<label>'+h(tr("Distance"))+'<select id="dzExploreDistance" '+(locReady?"":"disabled")+'>'+
+        '<option value="">'+h(locReady?tr("Any distance"):tr("Enable location"))+'</option>'+
+        distanceOptions().map(x=>'<option value="'+x.miles+'">'+h(x.label)+'</option>').join("")+
+      '</select></label>'+
+      '<label>'+h(tr("Sort"))+'<select id="dzExploreSort">'+
+        '<option value="recommended">'+h(tr("Recommended"))+'</option>'+
+        '<option value="nearest">'+h(tr("Nearest"))+'</option>'+
+        '<option value="rating">'+h(tr("Highest rated"))+'</option>'+
+        '<option value="price">'+h(tr("Lowest price"))+'</option>'+
+      '</select></label>'+
+      '<label style="padding:0 4px"><input id="dzExploreKnownPrice" type="checkbox" '+(prefs.knownPrice?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Known price only"))+'</label>'+
+      '<label style="padding:0 4px"><input id="dzExploreOpenNow" type="checkbox" '+(prefs.openNow?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Open now"))+'</label>';
+
+    filters.insertAdjacentElement("afterend",tools);
+    tools.querySelector("#dzExploreRating").value=String(prefs.minRating||0);
+    tools.querySelector("#dzExploreDistance").value=prefs.maxDistance?String(prefs.maxDistance):"";
+    tools.querySelector("#dzExploreSort").value=prefs.sort||"recommended";
+
+    const collect=()=>{
+      const next={
+        view:tools.querySelector("[data-viewmode].active")?.dataset.viewmode||"list",
+        maxPrice:Number(tools.querySelector("#dzExploreBudget").value)>0?Number(tools.querySelector("#dzExploreBudget").value):null,
+        minRating:Number(tools.querySelector("#dzExploreRating").value)||0,
+        maxDistance:Number(tools.querySelector("#dzExploreDistance").value)>0?Number(tools.querySelector("#dzExploreDistance").value):null,
+        knownPrice:tools.querySelector("#dzExploreKnownPrice").checked,
+        openNow:tools.querySelector("#dzExploreOpenNow").checked,
+        sort:tools.querySelector("#dzExploreSort").value||"recommended"
+      };
+      saveExplorePrefs(next);
+      return next;
+    };
+
+    tools.querySelectorAll("[data-viewmode]").forEach(btn=>btn.onclick=()=>{
+      tools.querySelectorAll("[data-viewmode]").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      collect();
+      renderExplore();
+    });
+
+    ["#dzExploreBudget","#dzExploreRating","#dzExploreDistance","#dzExploreSort","#dzExploreKnownPrice","#dzExploreOpenNow"].forEach(sel=>{
+      const el=tools.querySelector(sel);
+      if(!el) return;
+      el.addEventListener(el.tagName==="INPUT"&&el.type==="number"?"change":"change",()=>{
+        collect();
+        renderExplore();
+      });
+    });
+
+    if(window.DealzyI18n) window.DealzyI18n.apply(tools);
+  }
+
+  function applyExploreFilters(rows,prefs){
+    const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+    let out=[...(rows||[])];
+
+    if(prefs.maxPrice){
+      out=out.filter(d=>Number(d.price)>0&&Number(d.price)<=prefs.maxPrice);
+    }
+    if(prefs.minRating){
+      out=out.filter(d=>Number(d.ratingValue)>=prefs.minRating);
+    }
+    if(prefs.knownPrice){
+      out=out.filter(d=>Number(d.price)>0);
+    }
+    if(prefs.openNow){
+      out=out.filter(d=>d.isClosed===false);
+    }
+    if(prefs.maxDistance&&locReady){
+      out=out.filter(d=>{
+        const dist=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+        return dist!==null&&dist<=prefs.maxDistance;
+      });
+    }
+
+    if(prefs.sort==="nearest"&&locReady){
+      out.sort((a,b)=>{
+        const da=milesBetween(state.coords.lat,state.coords.lng,a.lat,a.lng);
+        const db=milesBetween(state.coords.lat,state.coords.lng,b.lat,b.lng);
+        return (da===null?Infinity:da)-(db===null?Infinity:db);
+      });
+    }else if(prefs.sort==="rating"){
+      out.sort((a,b)=>Number(b.ratingValue||0)-Number(a.ratingValue||0));
+    }else if(prefs.sort==="price"){
+      out.sort((a,b)=>{
+        const pa=Number(a.price)>0?Number(a.price):Infinity;
+        const pb=Number(b.price)>0?Number(b.price):Infinity;
+        return pa-pb;
+      });
+    }else{
+      out.sort((a,b)=>dealzyScore(b).score-dealzyScore(a).score);
+    }
+    return out;
+  }
+
+  async function renderExploreMap(rows){
+    let mapRoot=document.getElementById("dealzyExploreMap");
+    const grid=document.getElementById("exploreGrid");
+    if(!grid) return;
+    if(!mapRoot){
+      mapRoot=document.createElement("div");
+      mapRoot.id="dealzyExploreMap";
+      mapRoot.className="dz-explore-map";
+      grid.insertAdjacentElement("afterend",mapRoot);
+    }
+
+    const points=(rows||[]).filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    if(!points.length){
+      mapRoot.innerHTML='<div class="dz-map-empty">'+h(tr("No mapped results match these filters yet."))+'</div>';
+      return;
+    }
+
+    try{
+      const L=await loadLeaflet();
+      if(!L) throw new Error("Leaflet unavailable");
+      mapRoot.innerHTML="";
+      if(window.__dealzyExploreMap){
+        try{window.__dealzyExploreMap.remove();}catch(_){}
+      }
+      const map=L.map(mapRoot,{scrollWheelZoom:false});
+      window.__dealzyExploreMap=map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:19,
+        attribution:"© OpenStreetMap contributors"
+      }).addTo(map);
+
+      const latLngs=[];
+      if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        const here=[Number(state.coords.lat),Number(state.coords.lng)];
+        L.circleMarker(here,{radius:7,weight:3,fillOpacity:.8}).addTo(map).bindPopup(h(tr("Your location")));
+        latLngs.push(here);
+      }
+
+      points.forEach(d=>{
+        const ll=[Number(d.lat),Number(d.lng)];
+        latLngs.push(ll);
+        const score=dealzyScore(d).score;
+        const marker=L.marker(ll).addTo(map);
+        const price=Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
+        marker.bindPopup(
+          '<div class="dz-map-popup"><b>'+h(d.title)+'</b>'+
+          '<div class="meta">'+h(d.place||"")+'</div>'+
+          '<div class="meta">'+h(price)+(d.ratingValue?' · ★ '+h(d.ratingValue):"")+' · ✦ '+score+'</div>'+
+          '<button type="button" data-map-deal="'+d.id+'">'+h(tr("View deal"))+'</button></div>'
+        );
+        marker.on("popupopen",()=>{
+          const btn=mapRoot.querySelector('[data-map-deal="'+d.id+'"]');
+          if(btn) btn.onclick=()=>openDeal(d.id);
+        });
+      });
+
+      if(latLngs.length>1) map.fitBounds(latLngs,{padding:[26,26]});
+      else map.setView(latLngs[0],13);
+    }catch(_){
+      mapRoot.innerHTML='<div class="dz-map-empty">'+h(tr("Interactive map is temporarily unavailable."))+'</div>';
+    }
+  }
 
   renderExplore=async function(){
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
+
+    ensureExploreControls();
+    const prefs=readExplorePrefs();
+    const tools=document.getElementById("dealzyExploreTools");
+    if(tools){
+      const budget=tools.querySelector("#dzExploreBudget");
+      if(state.maxPrice&&!prefs.maxPrice&&budget) budget.value=String(state.maxPrice);
+    }
 
     $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
@@ -425,26 +973,64 @@
     if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
     if(count) count.textContent=tr("Live search");
 
+    const effectiveMax=prefs.maxPrice||state.maxPrice||null;
+    const previousMax=state.maxPrice;
+    state.maxPrice=effectiveMax;
+
     let list=[];
     try{
       list=state.filter==="All"?await fetchMixed(q,6):await fetchLive(state.filter,q,18);
     }catch(_){
       list=[];
+    }finally{
+      state.maxPrice=previousMax;
     }
 
-    if(state.maxPrice){
-      list=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
+    const effectivePrefs={...prefs,maxPrice:effectiveMax};
+    list=applyExploreFilters(dedupe(list),effectivePrefs);
+    deals.splice(0,deals.length,...list);
+    const exploreView=document.getElementById("exploreView");
+    if(exploreView&&!exploreView.classList.contains("hidden")){
+      recordAnalyticsEvent("search",{
+        category:state.filter,
+        query:q,
+        results:list.length,
+        view:prefs.view||"list"
+      });
     }
-    deals.splice(0,deals.length,...dedupe(list));
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
-      count.textContent=resultText+" · "+marketCityLabel()+(state.maxPrice?" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)}):"");
+      const extras=[];
+      if(effectiveMax) extras.push(tr("under {price}",{price:moneyFor(effectiveMax,market.currency)}));
+      if(prefs.minRating) extras.push("★ "+prefs.minRating+"+");
+      if(prefs.maxDistance&&state.coords&&coordsAllowedForMarket(state.coords,market.country)) extras.push(formatDistance(prefs.maxDistance));
+      count.textContent=resultText+" · "+marketCityLabel()+(extras.length?" · "+extras.join(" · "):"");
     }
-    if(root){
-      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
-      bindCards(root);
+
+    let mapRoot=document.getElementById("dealzyExploreMap");
+    if(prefs.view==="map"){
+      if(root){
+        root.style.display="none";
+        root.innerHTML="";
+      }
+      if(!mapRoot){
+        mapRoot=document.createElement("div");
+        mapRoot.id="dealzyExploreMap";
+        mapRoot.className="dz-explore-map";
+        root.insertAdjacentElement("afterend",mapRoot);
+      }
+      mapRoot.style.display="block";
+      await renderExploreMap(list);
+    }else{
+      if(mapRoot) mapRoot.style.display="none";
+      if(root){
+        root.style.display="";
+        root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
+        bindCards(root);
+      }
     }
+
     renderFavs();
     renderTrips();
   };
@@ -868,6 +1454,11 @@
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
   });
 
+  const tripNav=document.querySelector('.navBtn[data-view="trips"]');
+  if(tripNav){
+    tripNav.addEventListener("click",()=>setTimeout(()=>renderTrips(),30));
+  }
+
   const tripAdd=document.getElementById("tripAdd");
   if(tripAdd){
     tripAdd.onclick=()=>{
@@ -880,10 +1471,19 @@
       localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
       saveSnapshots(snapshots);
       renderTrips();
+      planCurrentTrip();
       renderProfileInsights();
       toast(tr("Favorites added to {city} Weekend",{city:market.city}));
     };
   }
+
+  window.DealzyAnalytics={record:recordAnalyticsEvent};
+  window.DealzyTrips={
+    build:planCurrentTrip,
+    render:renderTrips,
+    getPlan:loadTripPlan,
+    openMap:()=>{const plan=loadTripPlan();if(plan) renderSmartTripPlan(plan);}
+  };
 
   hydrateHome();
   maybeShowFirstRunOnboarding();
