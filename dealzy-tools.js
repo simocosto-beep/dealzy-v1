@@ -3,6 +3,16 @@
 */
 (() => {
   'use strict';
+  try{
+    deals.splice(0,deals.length);
+    const pg=document.getElementById('popularGrid');
+    if(pg) pg.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
+  }catch(_){}
+  const dealzyLiveScript=document.createElement('script');
+  dealzyLiveScript.src='/dealzy-live.js?v=20260927a';
+  dealzyLiveScript.defer=true;
+  document.head.appendChild(dealzyLiveScript);
+
 
   async function bootstrapSupabaseSession(){
     try{
