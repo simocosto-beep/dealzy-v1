@@ -51,7 +51,12 @@
       {value:"Saskatoon",label:"Saskatoon, SK"},
       {value:"Regina",label:"Regina, SK"},
       {value:"St. John's",label:"St. John's, NL"},
-      {value:"Charlottetown",label:"Charlottetown, PE"}
+      {value:"Charlottetown",label:"Charlottetown, PE"},
+      {value:"Sherbrooke",label:"Sherbrooke, QC"},
+      {value:"Laval",label:"Laval, QC"},
+      {value:"Gatineau",label:"Gatineau, QC"},
+      {value:"Trois-Rivieres",label:"Trois-Rivières, QC"},
+      {value:"London",label:"London, ON"}
     ]
   };
 
@@ -126,6 +131,79 @@
     const alaska=lat>=51&&lat<=72&&lng>=-170&&lng<=-129;
     const hawaii=lat>=18&&lat<=23&&lng>=-161&&lng<=-154;
     return contiguous||alaska||hawaii;
+  }
+
+  const MARKET_CITY_COORDS={
+    US:{
+      "Miami":[25.7617,-80.1918],"New York":[40.7128,-74.0060],"Los Angeles":[34.0522,-118.2437],
+      "Chicago":[41.8781,-87.6298],"Las Vegas":[36.1699,-115.1398],"Orlando":[28.5383,-81.3792],
+      "San Francisco":[37.7749,-122.4194],"Boston":[42.3601,-71.0589],"Seattle":[47.6062,-122.3321],
+      "Washington":[38.9072,-77.0369],"Dallas":[32.7767,-96.7970],"Houston":[29.7604,-95.3698],
+      "San Diego":[32.7157,-117.1611],"Philadelphia":[39.9526,-75.1652],"Atlanta":[33.7490,-84.3880],
+      "New Orleans":[29.9511,-90.0715],"Austin":[30.2672,-97.7431],"Denver":[39.7392,-104.9903],
+      "Nashville":[36.1627,-86.7816],"Phoenix":[33.4484,-112.0740],"Honolulu":[21.3099,-157.8581],
+      "Fort Lauderdale":[26.1224,-80.1373]
+    },
+    CA:{
+      "Toronto":[43.6532,-79.3832],"Montreal":[45.5017,-73.5673],"Vancouver":[49.2827,-123.1207],
+      "Calgary":[51.0447,-114.0719],"Ottawa":[45.4215,-75.6972],"Edmonton":[53.5461,-113.4938],
+      "Quebec City":[46.8139,-71.2080],"Winnipeg":[49.8951,-97.1384],"Halifax":[44.6488,-63.5752],
+      "Victoria":[48.4284,-123.3656],"Niagara Falls":[43.0896,-79.0849],"Banff":[51.1784,-115.5708],
+      "Kelowna":[49.8880,-119.4960],"Whistler":[50.1163,-122.9574],"Mississauga":[43.5890,-79.6441],
+      "Hamilton":[43.2557,-79.8711],"Kitchener":[43.4516,-80.4925],"Saskatoon":[52.1332,-106.6700],
+      "Regina":[50.4452,-104.6189],"St. John's":[47.5615,-52.7126],"Charlottetown":[46.2382,-63.1311],
+      "Sherbrooke":[45.4042,-71.8929],"Laval":[45.6066,-73.7124],"Gatineau":[45.4765,-75.7013],
+      "Trois-Rivieres":[46.3430,-72.5430],"London":[42.9849,-81.2453]
+    }
+  };
+
+  async function ensureMarketCityCoords(){
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)) return state.coords;
+
+    const known=(MARKET_CITY_COORDS[market.country]||{})[market.city];
+    if(known){
+      state.coords={lat:known[0],lng:known[1],source:"city"};
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      return state.coords;
+    }
+
+    let cache={};
+    try{cache=JSON.parse(localStorage.getItem("dealzyCityGeo")||"{}")||{};}catch(_){}
+    const cacheKey=market.country+"|"+market.city.toLowerCase();
+    const cached=cache[cacheKey];
+    if(cached&&coordsAllowedForMarket(cached,market.country)){
+      state.coords={lat:Number(cached.lat),lng:Number(cached.lng),source:"city"};
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      return state.coords;
+    }
+
+    try{
+      const countryName=market.country==="CA"?"Canada":"United States";
+      const p=new URLSearchParams({
+        format:"jsonv2",
+        limit:"1",
+        countrycodes:market.country.toLowerCase(),
+        q:market.city+", "+countryName
+      });
+      const response=await fetch("https://nominatim.openstreetmap.org/search?"+p.toString(),{
+        headers:{Accept:"application/json"}
+      });
+      if(response.ok){
+        const rows=await response.json();
+        const first=Array.isArray(rows)?rows[0]:null;
+        const lat=first?Number(first.lat):NaN;
+        const lng=first?Number(first.lon):NaN;
+        const next={lat,lng};
+        if(coordsAllowedForMarket(next,market.country)){
+          cache[cacheKey]=next;
+          localStorage.setItem("dealzyCityGeo",JSON.stringify(cache));
+          state.coords={lat,lng,source:"city"};
+          localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+          return state.coords;
+        }
+      }
+    }catch(_){}
+    return null;
   }
 
   function persistMarket(country,city){
@@ -329,6 +407,7 @@
   }
 
   async function fetchLive(category,q="",limit=8){
+    await ensureMarketCityCoords();
     const params=new URLSearchParams({
       category,
       limit:String(limit),
@@ -350,7 +429,17 @@
     if(!response.ok) return [];
     const data=await response.json();
     if(!data||data.mode==="demo-fallback") return [];
-    return remember((data.results||[]).map(toDeal));
+
+    let raw=Array.isArray(data.results)?data.results:[];
+    const apiHasDestination=!!(data.query&&data.query.destination);
+
+    // Current stable production API is legacy and hard-coded to Miami for
+    // Ticketmaster/Viator. Never present those as local results for another city.
+    if(!apiHasDestination&&market.city.toLowerCase()!=="miami"){
+      raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
+    }
+
+    return remember(raw.map(toDeal));
   }
 
   async function fetchCategoryBoosted(category,q="",target=12){
@@ -480,7 +569,8 @@
       "Edmonton":"YEA","Quebec City":"YQB","Winnipeg":"YWG","Halifax":"YHZ","Victoria":"YVR",
       "Niagara Falls":"IAG","Banff":"YYC","Kelowna":"YLW","Whistler":"YVR","Mississauga":"YYZ",
       "Hamilton":"YHM","Kitchener":"YKF","Saskatoon":"YXE","Regina":"YQR","St. John's":"YYT",
-      "Charlottetown":"YYG"
+      "Charlottetown":"YYG","Sherbrooke":"YSC","Laval":"YUL","Gatineau":"YOW",
+      "Trois-Rivieres":"YUL","London":"YXU"
     };
     return map[market.city]||"";
   }
