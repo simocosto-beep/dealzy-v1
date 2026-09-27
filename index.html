@@ -87,7 +87,50 @@ function renderFavs(){const list=deals.filter(d=>state.favorites.has(d.id));$('#
 function renderTrips(){const list=deals.filter(d=>state.trip.includes(d.id));$('#tripItems').innerHTML=list.length?list.map(d=>`<div class="tripCard"><b>${d.title}</b><div class="meta">${d.place} · $${d.price}</div></div>`).join(''):`<div class="empty">Your trip is empty.</div>`}
 function toggleFav(id){state.favorites.has(id)?state.favorites.delete(id):state.favorites.add(id);localStorage.setItem('dealzyFavs',JSON.stringify([...state.favorites]));if(window.DealzyCloud)window.DealzyCloud.queueSync();toast(state.favorites.has(id)?'Saved to Favorites':'Removed from Favorites')}
 function openDeal(id){const d=deals.find(x=>x.id===id),pct=Math.round((1-d.price/d.old)*100);$('#detailHero').style.backgroundImage=`url('${d.img}')`;$('#detailBadge').textContent=`🔥 ${pct}% OFF`;$('#detailTitle').textContent=d.title;$('#detailMeta').textContent=`Miami, FL · ${d.place} · ${d.rating}`;$('#detailPrice').textContent=`$${d.price}`;$('#detailOld').textContent=`$${d.old}`;$('#detailSave').textContent=`Save ${pct}%`;$('#detailText').textContent=d.text;$('#partnerBtn').onclick=()=>toast('Partner link is temporarily unavailable.');$('#detailOverlay').classList.remove('hidden')}
-function show(v){['home','explore','favorites','trips','profile'].forEach(x=>$(`#${x}View`).classList.toggle('hidden',x!==v));document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));window.scrollTo(0,0)}
+window.__dealzyNavStack=window.__dealzyNavStack||[];
+function currentDealzyView(){
+  return ['home','explore','favorites','trips','profile'].find(x=>!$(`#${x}View`).classList.contains('hidden'))||'home';
+}
+function show(v,opts){
+  const current=currentDealzyView();
+  const fromBack=!!(opts&&opts.fromBack);
+  if(!fromBack&&current&&current!==v){
+    const stack=window.__dealzyNavStack;
+    if(!stack.length||stack[stack.length-1]!==current) stack.push(current);
+    if(stack.length>20) stack.splice(0,stack.length-20);
+  }
+  ['home','explore','favorites','trips','profile'].forEach(x=>$(`#${x}View`).classList.toggle('hidden',x!==v));
+  document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  window.scrollTo(0,0);
+}
+window.DealzyHandleBack=function(){
+  try{
+    const marketPicker=document.getElementById('dealzyMarketPicker');
+    if(marketPicker){marketPicker.remove();return true;}
+
+    const onboarding=document.getElementById('dealzyOnboarding');
+    if(onboarding){onboarding.remove();return true;}
+
+    const detail=document.getElementById('detailOverlay');
+    if(detail&&!detail.classList.contains('hidden')){detail.classList.add('hidden');return true;}
+
+    const sheet=document.querySelector('.dz-sheet-wrap.open');
+    if(sheet){sheet.classList.remove('open');const panel=sheet.querySelector('.dz-panel');if(panel)panel.classList.remove('open');return true;}
+
+    const travel=document.getElementById('dzExploreTravelForm');
+    if(travel&&travel.innerHTML.trim()){travel.innerHTML='';return true;}
+
+    const current=currentDealzyView();
+    if(current!=='home'){
+      const prev=window.__dealzyNavStack.length?window.__dealzyNavStack.pop():'home';
+      show(prev,{fromBack:true});
+      return true;
+    }
+    return false;
+  }catch(_){
+    return false;
+  }
+};
 $$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view));$('#closeDetail').onclick=()=>$('#detailOverlay').classList.add('hidden');$('#detailOverlay').onclick=e=>{if(e.target===$('#detailOverlay'))$('#detailOverlay').classList.add('hidden')};
 function aiSearch(q){const t=q.toLowerCase();state.filter=t.includes('spa')||t.includes('massage')?'Spa & Beauty':t.includes('dinner')||t.includes('food')||t.includes('restaurant')||t.includes('brunch')?'Food & Drink':t.includes('family')||t.includes('kids')?'Family':t.includes('hotel')||t.includes('travel')||t.includes('stay')?'Travel':t.includes('boat')||t.includes('cruise')||t.includes('things to do')?'Things to Do':'All';const m=t.match(/(?:under|below|max|less than)\s*\$?\s*(\d{1,4})/);state.maxPrice=m?Number(m[1]):null;$('#exploreQuery').value=q.replace(/date night|tonight|this weekend|near me|under \$?\d+|below \$?\d+|max \$?\d+|less than \$?\d+/gi,'').trim();show('explore');renderExplore();toast('Dealzy AI interpreted category'+(state.maxPrice?' + budget':''))}
 $('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});

@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dealzy.ai.test15'
+        applicationId 'com.dealzy.ai.test16'
         minSdk 24
         targetSdk 35
-        versionCode 15
-        versionName '1.5-explore-pro'
+        versionCode 16
+        versionName '1.6-android-back-nav'
     }
 }
 

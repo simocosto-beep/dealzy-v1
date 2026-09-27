@@ -238,10 +238,33 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean backEvaluationPending = false;
+
+    private void fallbackBack() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            finish();
+        }
+    }
+
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        if (webView == null) {
+            finish();
+            return;
+        }
+        if (backEvaluationPending) return;
+
+        backEvaluationPending = true;
+        webView.evaluateJavascript(
+                "(function(){try{return !!(window.DealzyHandleBack&&window.DealzyHandleBack());}catch(e){return false;}})();",
+                value -> {
+                    backEvaluationPending = false;
+                    if ("true".equalsIgnoreCase(value)) return;
+                    fallbackBack();
+                }
+        );
     }
 
     @Override
