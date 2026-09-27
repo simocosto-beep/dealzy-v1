@@ -143,57 +143,57 @@
     const interests=Array.isArray(profile.interests)?profile.interests:[];
     const preferredBudget=Math.max(10,Number(profile.budget)||100);
     const interestId=categoryInterestId(d.cat);
-    let score=42;
+    let score=30;
     const reasons=[];
 
     if(interests.length&&interestId&&interests.includes(interestId)){
-      score+=20;
+      score+=18;
       reasons.push(tr("Matches your interests"));
     }
 
     const price=Number(d.price||0);
     if(price>0){
       if(price<=preferredBudget){
-        score+=15;
+        score+=12;
         reasons.push(tr("Within your preferred budget"));
       }else if(price<=preferredBudget*1.25){
-        score+=6;
+        score+=5;
       }
     }else score+=2;
 
     const rating=Number(d.ratingValue||0);
     if(rating>=4.7){
-      score+=12;
+      score+=10;
       reasons.push(tr("Strong customer rating"));
     }else if(rating>=4.4){
-      score+=9;
+      score+=8;
       reasons.push(tr("Strong customer rating"));
     }else if(rating>=4.0){
-      score+=6;
+      score+=5;
     }
 
     const reviews=Number(d.reviewCount||0);
     if(reviews>=500){
-      score+=8;
+      score+=4;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=100){
       score+=6;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=20){
-      score+=3;
+      score+=2;
     }
 
     if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
       const distance=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
       if(distance!==null){
         if(distance<=3){
-          score+=12;
+          score+=10;
           reasons.push(tr("Near your location"));
         }else if(distance<=10){
-          score+=9;
+          score+=7;
           reasons.push(tr("Near your location"));
         }else if(distance<=25){
-          score+=5;
+          score+=4;
         }
       }
     }
@@ -203,7 +203,7 @@
 
     score=Math.max(1,Math.min(99,Math.round(score)));
     if(!reasons.length) reasons.push(tr("Relevant live provider result"));
-    return {score,reasons:reasons.slice(0,3),preferredBudget};
+    return {score,reasons:reasons.slice(0,4),preferredBudget};
   }
 
   function personalizedHome(rows){
