@@ -1342,8 +1342,13 @@
   // Quietly check saved watches after the app settles. This creates in-app notifications only when a signed-in user has watches.
   setTimeout(()=>checkPriceWatches(false),3500);
 
-  // PWA shell registration.
+  // PWA shell registration. Force an update check so installed/mobile clients do not keep stale interaction code.
   if('serviceWorker' in navigator){
-    window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+    window.addEventListener('load',async()=>{
+      try{
+        const reg=await navigator.serviceWorker.register('/sw.js?v=20260927f');
+        await reg.update();
+      }catch(_){}
+    });
   }
 })();
