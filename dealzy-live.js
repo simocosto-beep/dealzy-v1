@@ -463,16 +463,20 @@
     const skyscannerUrl="https://www.skyscanner.com/";
     const expediaUrl="https://expedia.com/shop/dealzy-ai";
     const travelCards=
-      '<div style="grid-column:1/-1;margin:4px 0 2px"><div style="font-size:18px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Recherchez aussi hôtels et vols chez nos partenaires voyage.":"Also search hotels and flights with our travel partners.")+'</div></div>'+
-      '<a href="'+bookingUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">🏨</div><b style="display:block;font-size:18px;margin:8px 0 4px">Booking.com</b><span class="meta">'+(isFr?"Hôtels à "+h(marketCityLabel()):"Hotels in "+h(marketCityLabel()))+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Rechercher des hôtels ↗":"Search hotels ↗")+'</div></a>'+
-      '<a href="'+skyscannerUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">✈️</div><b style="display:block;font-size:18px;margin:8px 0 4px">Skyscanner</b><span class="meta">'+(isFr?"Comparer les vols":"Compare flights")+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Rechercher des vols ↗":"Search flights ↗")+'</div></a>'+
-      '<a href="'+expediaUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">🧳</div><b style="display:block;font-size:18px;margin:8px 0 4px">Expedia · Dealzy AI</b><span class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Ouvrir Expedia ↗":"Open Expedia ↗")+'</div></a>';
+      '<div style="grid-column:1/-1;margin:2px 0 10px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Accès rapide aux partenaires voyage":"Quick access to travel partners")+'</div></div></div>'+
+        '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+
+          '<a href="'+bookingUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></a>'+
+          '<a href="'+skyscannerUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></a>'+
+          '<a href="'+expediaUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></a>'+
+        '</div>'+
+      '</div>';
 
     if(root){
       const liveHtml=list.length
         ? list.map(dealCard).join("")
         : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre avec prix exact pour ce filtre. Voici les partenaires voyage disponibles.":"No exact-price live offer matched this filter. Travel partners are still available below.")+'</div>';
-      root.innerHTML=liveHtml+travelCards;
+      root.innerHTML=travelCards+liveHtml;
       bindCards(root);
     }
     renderFavs();
