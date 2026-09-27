@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dealzy.ai.test9'
+        applicationId 'com.dealzy.ai.test10'
         minSdk 24
         targetSdk 35
-        versionCode 9
-        versionName '0.9-inventory-boost'
+        versionCode 10
+        versionName '1.0-city-search'
     }
 }
 

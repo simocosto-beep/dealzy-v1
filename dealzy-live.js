@@ -11,7 +11,24 @@
       {value:"New York",label:"New York, NY"},
       {value:"Los Angeles",label:"Los Angeles, CA"},
       {value:"Chicago",label:"Chicago, IL"},
-      {value:"Las Vegas",label:"Las Vegas, NV"}
+      {value:"Las Vegas",label:"Las Vegas, NV"},
+      {value:"Orlando",label:"Orlando, FL"},
+      {value:"San Francisco",label:"San Francisco, CA"},
+      {value:"Boston",label:"Boston, MA"},
+      {value:"Seattle",label:"Seattle, WA"},
+      {value:"Washington",label:"Washington, DC"},
+      {value:"Dallas",label:"Dallas, TX"},
+      {value:"Houston",label:"Houston, TX"},
+      {value:"San Diego",label:"San Diego, CA"},
+      {value:"Philadelphia",label:"Philadelphia, PA"},
+      {value:"Atlanta",label:"Atlanta, GA"},
+      {value:"New Orleans",label:"New Orleans, LA"},
+      {value:"Austin",label:"Austin, TX"},
+      {value:"Denver",label:"Denver, CO"},
+      {value:"Nashville",label:"Nashville, TN"},
+      {value:"Phoenix",label:"Phoenix, AZ"},
+      {value:"Honolulu",label:"Honolulu, HI"},
+      {value:"Fort Lauderdale",label:"Fort Lauderdale, FL"}
     ],
     CA:[
       {value:"Toronto",label:"Toronto, ON"},
@@ -25,7 +42,16 @@
       {value:"Halifax",label:"Halifax, NS"},
       {value:"Victoria",label:"Victoria, BC"},
       {value:"Niagara Falls",label:"Niagara Falls, ON"},
-      {value:"Banff",label:"Banff, AB"}
+      {value:"Banff",label:"Banff, AB"},
+      {value:"Kelowna",label:"Kelowna, BC"},
+      {value:"Whistler",label:"Whistler, BC"},
+      {value:"Mississauga",label:"Mississauga, ON"},
+      {value:"Hamilton",label:"Hamilton, ON"},
+      {value:"Kitchener",label:"Kitchener, ON"},
+      {value:"Saskatoon",label:"Saskatoon, SK"},
+      {value:"Regina",label:"Regina, SK"},
+      {value:"St. John's",label:"St. John's, NL"},
+      {value:"Charlottetown",label:"Charlottetown, PE"}
     ]
   };
 
@@ -65,7 +91,8 @@
     try{saved=JSON.parse(localStorage.getItem("dealzyMarket")||"null");}catch(_){}
     const country=saved&&saved.country==="CA"?"CA":"US";
     const cities=MARKET_CITIES[country];
-    const city=saved&&cities.some(x=>x.value===saved.city)?saved.city:cities[0].value;
+    const savedCity=saved&&String(saved.city||"").trim();
+    const city=savedCity?savedCity.slice(0,80):cities[0].value;
     return {country,city,currency:country==="CA"?"CAD":"USD"};
   }
 
@@ -102,7 +129,8 @@
   }
 
   function persistMarket(country,city){
-    market={country,city,currency:country==="CA"?"CAD":"USD"};
+    const safeCity=String(city||"").trim().replace(/\s+/g," ").slice(0,80)||MARKET_CITIES[country][0].value;
+    market={country,city:safeCity,currency:country==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
     state.coords=null;
     localStorage.removeItem("dealzyCoords");
@@ -444,9 +472,15 @@
   function marketIata(){
     const map={
       "Miami":"MIA","New York":"NYC","Los Angeles":"LAX","Chicago":"CHI","Las Vegas":"LAS",
+      "Orlando":"MCO","San Francisco":"SFO","Boston":"BOS","Seattle":"SEA","Washington":"WAS",
+      "Dallas":"DFW","Houston":"HOU","San Diego":"SAN","Philadelphia":"PHL","Atlanta":"ATL",
+      "New Orleans":"MSY","Austin":"AUS","Denver":"DEN","Nashville":"BNA","Phoenix":"PHX",
+      "Honolulu":"HNL","Fort Lauderdale":"FLL",
       "Toronto":"YTO","Montreal":"YMQ","Vancouver":"YVR","Calgary":"YYC","Ottawa":"YOW",
-      "Edmonton":"YEA","Quebec City":"YQB","Winnipeg":"YWG","Halifax":"YHZ","Victoria":"YYJ",
-      "Niagara Falls":"IAG","Banff":"YYC"
+      "Edmonton":"YEA","Quebec City":"YQB","Winnipeg":"YWG","Halifax":"YHZ","Victoria":"YVR",
+      "Niagara Falls":"IAG","Banff":"YYC","Kelowna":"YLW","Whistler":"YVR","Mississauga":"YYZ",
+      "Hamilton":"YHM","Kitchener":"YKF","Saskatoon":"YXE","Regina":"YQR","St. John's":"YYT",
+      "Charlottetown":"YYG"
     };
     return map[market.city]||"";
   }
@@ -847,7 +881,11 @@
       ".dz-picker-option .dz-check{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#f2f4f7;color:transparent;font-weight:900}",
       ".dz-picker-option.selected{background:#f3f0ff;color:#5b4be7}",
       ".dz-picker-option.selected .dz-check{background:#6d5dfc;color:white}",
-      ".dz-picker-option:active{transform:scale(.992)}"
+      ".dz-picker-option:active{transform:scale(.992)}",
+      ".dz-picker-search{padding:0 8px 8px}.dz-picker-search input{width:100%;border:1px solid #dfe3eb;border-radius:16px;padding:13px 14px;font:inherit;background:#f8f9fc;outline:none}",
+      ".dz-picker-search input:focus{border-color:#8b7cff;box-shadow:0 0 0 3px rgba(109,93,252,.10);background:#fff}",
+      ".dz-picker-custom{margin:8px;border:1px dashed #c9c3ff;background:#f8f7ff;border-radius:16px;padding:12px 14px;color:#5145cd;font-weight:800;text-align:left;width:calc(100% - 16px)}",
+      ".dz-picker-empty{padding:18px 14px;color:#667085;text-align:center}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -885,42 +923,75 @@
     const wrap=document.createElement("div");
     wrap.id="dealzyMarketPicker";
     wrap.className="dz-picker-wrap";
+    const searchable=kind==="city";
     wrap.innerHTML=
       '<section class="dz-picker-card" role="dialog" aria-modal="true" aria-label="'+h(title)+'">'+
         '<div class="dz-picker-head"><b>'+h(title)+'</b><button class="dz-picker-close" aria-label="'+h(tr("Close"))+'">×</button></div>'+
-        options.map(opt=>'<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
-          '<span class="dz-opt-main"><span>'+opt.icon+'</span><span>'+h(opt.label)+'</span></span>'+
-          '<span class="dz-check">✓</span></button>').join("")+
+        (searchable?'<div class="dz-picker-search"><input id="dzCitySearch" autocomplete="off" placeholder="'+h(locale()==="fr"?"Rechercher ou saisir une ville…":"Search or type a city…")+'"></div>':"")+
+        '<div id="dzPickerOptions"></div>'+
       '</section>';
 
     document.body.appendChild(wrap);
     wrap.querySelector(".dz-picker-close").onclick=closeMarketPicker;
     wrap.onclick=e=>{if(e.target===wrap) closeMarketPicker();};
 
-    wrap.querySelectorAll(".dz-picker-option").forEach(btn=>{
-      btn.onclick=()=>{
-        const value=btn.dataset.value;
-        closeMarketPicker();
-
-        if(kind==="country"){
-          const nextCountry=value==="CA"?"CA":"US";
-          persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
-          updateMarketUI();
-          hydrateHome();
-          return;
-        }
-        if(kind==="city"){
-          persistMarket(market.country,value);
-          updateMarketUI();
-          hydrateHome();
-          return;
-        }
-        if(window.DealzyI18n) window.DealzyI18n.setLocale(value);
-        else localStorage.setItem("dealzyLocale",value);
+    const optionsHost=wrap.querySelector("#dzPickerOptions");
+    const chooseValue=(value)=>{
+      closeMarketPicker();
+      if(kind==="country"){
+        const nextCountry=value==="CA"?"CA":"US";
+        persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
         updateMarketUI();
-        renderAll();
-      };
-    });
+        hydrateHome();
+        return;
+      }
+      if(kind==="city"){
+        persistMarket(market.country,value);
+        updateMarketUI();
+        hydrateHome();
+        return;
+      }
+      if(window.DealzyI18n) window.DealzyI18n.setLocale(value);
+      else localStorage.setItem("dealzyLocale",value);
+      updateMarketUI();
+      renderAll();
+    };
+
+    const renderOptions=(query="")=>{
+      const needle=String(query||"").trim().toLowerCase();
+      const filtered=needle
+        ? options.filter(opt=>(opt.label+" "+opt.value).toLowerCase().includes(needle))
+        : options;
+
+      optionsHost.innerHTML=filtered.map(opt=>'<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
+          '<span class="dz-opt-main"><span>'+opt.icon+'</span><span>'+h(opt.label)+'</span></span>'+
+          '<span class="dz-check">✓</span></button>').join("");
+
+      if(searchable&&needle){
+        const raw=String(query||"").trim().replace(/\s+/g," ").slice(0,80);
+        const exact=options.some(opt=>opt.value.toLowerCase()===raw.toLowerCase()||opt.label.toLowerCase()===raw.toLowerCase());
+        if(raw.length>=2&&!exact){
+          optionsHost.insertAdjacentHTML("beforeend",
+            '<button class="dz-picker-custom" data-custom-city="'+h(raw)+'">＋ '+h(locale()==="fr"?'Utiliser « '+raw+' »':'Use “'+raw+'”')+'</button>');
+        }else if(!filtered.length){
+          optionsHost.innerHTML='<div class="dz-picker-empty">'+h(locale()==="fr"?"Aucune ville trouvée.":"No city found.")+'</div>';
+        }
+      }
+
+      optionsHost.querySelectorAll(".dz-picker-option").forEach(btn=>{
+        btn.onclick=()=>chooseValue(btn.dataset.value);
+      });
+      const custom=optionsHost.querySelector("[data-custom-city]");
+      if(custom) custom.onclick=()=>chooseValue(custom.dataset.customCity);
+    };
+
+    renderOptions();
+
+    if(searchable){
+      const input=wrap.querySelector("#dzCitySearch");
+      input.oninput=()=>renderOptions(input.value);
+      setTimeout(()=>{try{input.focus();}catch(_){}},80);
+    }
   }
 
   function updateMarketUI(){
@@ -943,7 +1014,7 @@
     if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
 
     const query=document.getElementById("aiQuery");
-    if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas/i.test(query.value))){
+    if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas|Orlando|San Francisco|Boston|Seattle|Washington|Dallas|Houston|San Diego|Philadelphia|Atlanta|New Orleans|Austin|Denver|Nashville|Phoenix|Honolulu/i.test(query.value))){
       const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
         ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
