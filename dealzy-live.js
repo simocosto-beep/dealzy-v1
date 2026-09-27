@@ -418,6 +418,7 @@
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
+    const isFr=locale()==="fr";
 
     $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
@@ -426,23 +427,52 @@
     if(count) count.textContent=tr("Live search");
 
     let list=[];
+    let broadened=false;
+    let includesUnknownPrice=false;
     try{
-      list=state.filter==="All"?await fetchMixed(q,6):await fetchLive(state.filter,q,18);
+      list=state.filter==="All"?await fetchMixed(q,8):await fetchLive(state.filter,q,24);
+      if(!list.length&&q){
+        broadened=true;
+        list=state.filter==="All"?await fetchMixed("",8):await fetchLive(state.filter,"",24);
+      }
     }catch(_){
       list=[];
     }
 
     if(state.maxPrice){
-      list=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
+      const exact=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
+      const unknown=list.filter((d)=>!(Number(d.price)>0));
+      includesUnknownPrice=unknown.length>0;
+      list=dedupe([...exact,...unknown]).slice(0,24);
+    }else{
+      list=dedupe(list).slice(0,24);
     }
-    deals.splice(0,deals.length,...dedupe(list));
+    deals.splice(0,deals.length,...list);
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
-      count.textContent=resultText+" · "+marketCityLabel()+(state.maxPrice?" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)}):"");
+      let suffix=" · "+marketCityLabel();
+      if(state.maxPrice) suffix+=" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)});
+      if(broadened) suffix+=" · "+(isFr?"recherche élargie":"broadened search");
+      if(includesUnknownPrice) suffix+=" · "+(isFr?"prix exact non disponible pour certaines offres":"some exact prices unavailable");
+      count.textContent=resultText+suffix;
     }
+
+    const city=encodeURIComponent(market.city);
+    const bookingUrl="https://www.booking.com/searchresults.html?ss="+city;
+    const skyscannerUrl="https://www.skyscanner.com/";
+    const expediaUrl="https://expedia.com/shop/dealzy-ai";
+    const travelCards=
+      '<div style="grid-column:1/-1;margin:4px 0 2px"><div style="font-size:18px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Recherchez aussi hôtels et vols chez nos partenaires voyage.":"Also search hotels and flights with our travel partners.")+'</div></div>'+
+      '<a href="'+bookingUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">🏨</div><b style="display:block;font-size:18px;margin:8px 0 4px">Booking.com</b><span class="meta">'+(isFr?"Hôtels à "+h(marketCityLabel()):"Hotels in "+h(marketCityLabel()))+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Rechercher des hôtels ↗":"Search hotels ↗")+'</div></a>'+
+      '<a href="'+skyscannerUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">✈️</div><b style="display:block;font-size:18px;margin:8px 0 4px">Skyscanner</b><span class="meta">'+(isFr?"Comparer les vols":"Compare flights")+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Rechercher des vols ↗":"Search flights ↗")+'</div></a>'+
+      '<a href="'+expediaUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:22px;padding:18px;display:block;box-shadow:0 8px 24px rgba(17,24,39,.06)"><div style="font-size:30px">🧳</div><b style="display:block;font-size:18px;margin:8px 0 4px">Expedia · Dealzy AI</b><span class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</span><div style="margin-top:12px;color:#5145cd;font-weight:800">'+(isFr?"Ouvrir Expedia ↗":"Open Expedia ↗")+'</div></a>';
+
     if(root){
-      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
+      const liveHtml=list.length
+        ? list.map(dealCard).join("")
+        : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre avec prix exact pour ce filtre. Voici les partenaires voyage disponibles.":"No exact-price live offer matched this filter. Travel partners are still available below.")+'</div>';
+      root.innerHTML=liveHtml+travelCards;
       bindCards(root);
     }
     renderFavs();
