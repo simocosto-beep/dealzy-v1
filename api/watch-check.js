@@ -32,6 +32,15 @@ function safeCategory(value){
   return allowed.includes(value)?value:'All';
 }
 
+function inferCategory(q){
+  const s=norm(q);
+  if(/spa|massage|beauty|wellness/.test(s)) return 'Spa & Beauty';
+  if(/restaurant|dinner|food|brunch|cafe|coffee/.test(s)) return 'Food & Drink';
+  if(/hotel|travel|trip|stay/.test(s)) return 'Travel';
+  if(/concert|event|activity|tour|museum|cruise|boat/.test(s)) return 'Things to Do';
+  return 'All';
+}
+
 function signature(deal){
   const provider=String(deal.provider||deal.source||'partner').toLowerCase();
   const id=String(deal.id||deal.externalId||deal.title||'result');
@@ -142,7 +151,7 @@ module.exports=async function handler(req,res){
     const city=String(watch.city||defaultCity).slice(0,80);
     const search=await runLiveSearch({
       q,
-      category:safeCategory(watch.category||'All'),
+      category:safeCategory(watch.category||inferCategory(q)),
       maxPrice:String(target),
       limit:'12',
       country,
@@ -278,6 +287,6 @@ module.exports=async function handler(req,res){
       }
     })),
     alertStates,
-    note:'Only verified live provider results are checked; demo fallback results are ignored.'
+    note:'Only verified live provider results are checked; internal fallback results are ignored.'
   });
 };
