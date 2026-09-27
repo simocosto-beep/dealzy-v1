@@ -100,10 +100,14 @@ async function searchViator({q,maxPrice,limit,city='Miami',countryCode='US',curr
   }
 
   const data=await r.json();
-  let rows=Array.isArray(data.products)?data.products.map(row=>normalizeViator(row,{city,countryCode,currency})):[];
+  const allRows=Array.isArray(data.products)?data.products.map(row=>normalizeViator(row,{city,countryCode,currency})):[];
+  let rows=allRows;
   if(q){
     const needle=q.toLowerCase();
-    rows=rows.filter(d=>(d.title+' '+d.text).toLowerCase().includes(needle));
+    const exact=allRows.filter(d=>(d.title+' '+d.text).toLowerCase().includes(needle));
+    rows=exact.length>=Math.min(6,limit)
+      ? exact
+      : [...exact,...allRows.filter(d=>!exact.some(x=>x.id===d.id))];
   }
   if(maxPrice) rows=rows.filter(d=>d.price>0&&d.price<=maxPrice);
   rows=rows.slice(0,limit);
@@ -177,10 +181,16 @@ async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',curren
 }
 
 async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD',lat=null,lng=null,radius=25}){
-  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10),city,countryCode,currency,lat,lng,radius});
-  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10),city,countryCode,currency,lat,lng,radius});
+  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,12),city,countryCode,currency,lat,lng,radius});
   if(!live.ok) return live;
-  let rows=live.results;
+  let rows=live.results||[];
+  if(q && rows.length<Math.min(6,limit)){
+    const broad=await ticketmasterRequest({q:'',limit:Math.max(limit*2,16),city,countryCode,currency,lat,lng,radius});
+    if(broad.ok){
+      const seen=new Set(rows.map(x=>x.id));
+      rows=[...rows,...broad.results.filter(x=>!seen.has(x.id))];
+    }
+  }
   if(maxPrice) rows=rows.filter(d=>!d.price||d.price<=maxPrice);
   return {...live,results:rows.slice(0,limit)};
 }
@@ -250,10 +260,30 @@ async function searchYelp({q,category,limit,lat,lng,city='Miami',countryCode='US
     return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
   }
   const data=await r.json();
-  const rows=Array.isArray(data.businesses)
+  let rows=Array.isArray(data.businesses)
     ? data.businesses.map(x=>normalizeYelp(x,category,currency)).filter(x=>!x.countryCode||x.countryCode===countryCode)
     : [];
-  return {ok:true,results:rows,total:Number(data.total||rows.length)};
+
+  if(q && rows.length<Math.min(8,limit)){
+    const broadParams=new URLSearchParams(params);
+    broadParams.delete('term');
+    broadParams.set('limit',String(Math.min(50,Math.max(12,limit))));
+    try{
+      const broadResponse=await fetch('https://api.yelp.com/v3/businesses/search?'+broadParams.toString(),{
+        headers:{'Accept':'application/json','Authorization':'Bearer '+key}
+      });
+      if(broadResponse.ok){
+        const broadData=await broadResponse.json();
+        const broadRows=Array.isArray(broadData.businesses)
+          ? broadData.businesses.map(x=>normalizeYelp(x,category,currency)).filter(x=>!x.countryCode||x.countryCode===countryCode)
+          : [];
+        const seen=new Set(rows.map(x=>x.id));
+        rows=[...rows,...broadRows.filter(x=>!seen.has(x.id))];
+      }
+    }catch(_){}
+  }
+
+  return {ok:true,results:rows.slice(0,limit),total:Number(data.total||rows.length)};
 }
 
 function coordinatesAllowed(countryCode,lat,lng){
@@ -320,7 +350,7 @@ module.exports = async function handler(req,res){
       const yelp=await searchYelp({
         q:demo.q,
         category:demo.category,
-        limit:demo.limit,
+        limit:Math.min(40,Math.max(demo.limit,24)),
         lat:safeLat,
         lng:safeLng,
         city,
@@ -337,7 +367,7 @@ module.exports = async function handler(req,res){
   if(wantsTicketmaster){
     try{
       const tm=await searchTicketmaster({
-        q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency,
+        q:demo.q,maxPrice:demo.maxPrice,limit:Math.min(40,Math.max(demo.limit,24)),city,countryCode,currency,
         lat:safeLat,
         lng:safeLng,
         radius:safeHasCoords?(demo.radius||25):25
@@ -350,7 +380,7 @@ module.exports = async function handler(req,res){
   }
   if(wantsViator){
     try{
-      const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency});
+      const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:Math.min(40,Math.max(demo.limit,24)),city,countryCode,currency});
       if(viator.ok && viator.results.length){
         if(demo.category==='Travel') liveRows.unshift(...viator.results);
         else liveRows.push(...viator.results);
@@ -360,7 +390,13 @@ module.exports = async function handler(req,res){
   }
 
   if(liveRows.length){
-    const results=liveRows.slice(0,demo.limit);
+    const seen=new Set();
+    const results=liveRows.filter(row=>{
+      const key=String(row.provider||row.source||'')+'|'+String(row.id||row.title||'');
+      if(seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0,demo.limit);
     return res.status(200).json({
       ok:true,
       mode:liveProviders.length>1?'live-multi-provider':'live-'+liveProviders[0].name,

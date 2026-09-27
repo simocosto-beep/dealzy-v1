@@ -325,13 +325,31 @@
     return remember((data.results||[]).map(toDeal));
   }
 
-  async function fetchMixed(q="",limitEach=5){
-    const groups=await Promise.all(LIVE_CATEGORIES.map((cat)=>fetchLive(cat,q,limitEach).catch(()=>[])));
+  async function fetchCategoryBoosted(category,q="",target=12){
+    const wanted=Math.max(4,Math.min(30,Number(target)||12));
+    let primary=[];
+    try{ primary=await fetchLive(category,q,wanted); }catch(_){ primary=[]; }
+
+    // If a strict query returns too little, keep those matches and add popular live
+    // inventory from the same category. Nothing synthetic is added here.
+    if(q && primary.length<Math.min(6,wanted)){
+      let broad=[];
+      try{ broad=await fetchLive(category,"",wanted); }catch(_){ broad=[]; }
+      primary=dedupe([...primary,...broad]);
+    }
+    return remember(primary.slice(0,wanted));
+  }
+
+  async function fetchMixed(q="",limitEach=10){
+    const perCategory=Math.max(6,Math.min(16,Number(limitEach)||10));
+    const groups=await Promise.all(
+      LIVE_CATEGORIES.map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
+    );
     const interleaved=[];
-    for(let i=0;i<limitEach;i++){
+    for(let i=0;i<perCategory;i++){
       groups.forEach((group)=>{ if(group[i]) interleaved.push(group[i]); });
     }
-    return remember(dedupe(interleaved));
+    return remember(dedupe(interleaved).slice(0,40));
   }
 
   dealCard=function(d){
@@ -561,10 +579,11 @@
     let broadened=false;
     let includesUnknownPrice=false;
     try{
-      list=state.filter==="All"?await fetchMixed(q,8):await fetchLive(state.filter,q,24);
-      if(!list.length&&q){
+      list=state.filter==="All"?await fetchMixed(q,12):await fetchCategoryBoosted(state.filter,q,30);
+      if(list.length<8&&q){
         broadened=true;
-        list=state.filter==="All"?await fetchMixed("",8):await fetchLive(state.filter,"",24);
+        const broad=state.filter==="All"?await fetchMixed("",12):await fetchCategoryBoosted(state.filter,"",30);
+        list=dedupe([...list,...broad]);
       }
     }catch(_){
       list=[];
@@ -574,9 +593,9 @@
       const exact=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
       const unknown=list.filter((d)=>!(Number(d.price)>0));
       includesUnknownPrice=unknown.length>0;
-      list=dedupe([...exact,...unknown]).slice(0,24);
+      list=dedupe([...exact,...unknown]).slice(0,36);
     }else{
-      list=dedupe(list).slice(0,24);
+      list=dedupe(list).slice(0,36);
     }
     deals.splice(0,deals.length,...list);
 
@@ -619,7 +638,7 @@
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     const personalized=personalizedHome(homeDeals);
-    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
+    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,12).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
     bindCards($("#popularGrid"));
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
@@ -1053,7 +1072,7 @@
     const previousMaxPrice=state.maxPrice;
     state.maxPrice=null;
     try{
-      homeDeals=await fetchMixed("",4);
+      homeDeals=await fetchMixed("",8);
     }catch(_){
       homeDeals=[];
     }finally{
