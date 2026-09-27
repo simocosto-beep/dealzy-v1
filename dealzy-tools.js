@@ -732,7 +732,7 @@
         <label>What are you looking for?<input id="dzProviderQ" placeholder="restaurant, spa, concert, cruise"></label>
         <label>Category
           <select id="dzProviderCategory">
-            <option value="All">All live sources</option>
+            <option value="All">Activities & events · Ticketmaster / Viator</option>
             <option value="Food & Drink">Food & Drink · Yelp</option>
             <option value="Spa & Beauty">Spa & Beauty · Yelp</option>
             <option value="Things to Do">Things to Do · Ticketmaster / Viator</option>
