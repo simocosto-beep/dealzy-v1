@@ -444,7 +444,10 @@
       });
     });
 
-    cleaned=cleaned.replace(/\b(in|à|a|dans)\b/gi," ").replace(/\s+/g," ").trim();
+    cleaned=cleaned
+      .replace(/(^|\s)(in|dans|a|à)(?=\s|$)/gi," ")
+      .replace(/\s+/g," ")
+      .trim();
     return {query:cleaned};
   }
 
