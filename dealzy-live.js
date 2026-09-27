@@ -139,6 +139,22 @@
     return 2*R*Math.asin(Math.sqrt(q));
   }
 
+  function formatDistance(miles){
+    const n=Number(miles);
+    if(!Number.isFinite(n)) return "—";
+    if(market.country==="CA"){
+      const km=n*1.609344;
+      return (km<10?km.toFixed(1):Math.round(km))+" km";
+    }
+    return (n<10?n.toFixed(1):Math.round(n))+" mi";
+  }
+
+  function distanceOptions(){
+    return market.country==="CA"
+      ? [{miles:3.10686,label:"≤ 5 km"},{miles:9.32057,label:"≤ 15 km"},{miles:24.8548,label:"≤ 40 km"},{miles:49.7097,label:"≤ 80 km"}]
+      : [{miles:3,label:"≤ 3 mi"},{miles:10,label:"≤ 10 mi"},{miles:25,label:"≤ 25 mi"},{miles:50,label:"≤ 50 mi"}];
+  }
+
   function dealzyScore(d){
     const profile=readOnboarding();
     const interests=Array.isArray(profile.interests)?profile.interests:[];
@@ -254,6 +270,7 @@
       marketCity:market.city,
       currency:raw.currency||market.currency,
       reviewCount:reviews,
+      isClosed:typeof raw.isClosed==="boolean"?raw.isClosed:null,
       live:true
     };
   }
@@ -618,7 +635,7 @@
     }
 
     const moneyText=plan.totalPrice>0?moneyFor(plan.totalPrice,plan.currency):tr("Price on provider");
-    const distanceText=plan.totalDistance===null?"—":plan.totalDistance.toFixed(1)+" mi";
+    const distanceText=plan.totalDistance===null?"—":formatDistance(plan.totalDistance);
     host.innerHTML=
       '<div class="dz-trip-summary">'+
         '<div class="dz-trip-stat"><b>'+h(moneyText)+'</b><span>'+h(tr("Known total"))+'</span></div>'+
@@ -634,7 +651,7 @@
           '<div><b>'+h(d.title)+'</b>'+
             '<div class="meta">'+h(d.place||"")+' · '+h(d.cat||"")+'</div>'+
             '<div class="meta">'+h(tr("Estimated visit"))+': '+h(formatDuration(d.tripDuration))+
-              (d.distanceFromPrevious!==null?' · '+h(tr("Approx. {distance} mi from previous stop",{distance:d.distanceFromPrevious.toFixed(1)})):"")+
+              (d.distanceFromPrevious!==null?' · '+h(tr("Approx. {distance} from previous stop",{distance:formatDistance(d.distanceFromPrevious)})):"")+
             '</div>'+
           '</div>'+
         '</div>'
@@ -697,10 +714,11 @@
         minRating:Number(p.minRating)||0,
         maxDistance:Number(p.maxDistance)>0?Number(p.maxDistance):null,
         knownPrice:!!p.knownPrice,
+        openNow:!!p.openNow,
         sort:["recommended","nearest","rating","price"].includes(p.sort)?p.sort:"recommended"
       };
     }catch(_){}
-    return {view:"list",maxPrice:null,minRating:0,maxDistance:null,knownPrice:false,sort:"recommended"};
+    return {view:"list",maxPrice:null,minRating:0,maxDistance:null,knownPrice:false,openNow:false,sort:"recommended"};
   }
 
   function saveExplorePrefs(prefs){
@@ -730,7 +748,14 @@
   function ensureExploreControls(){
     ensureExploreStyles();
     const filters=document.getElementById("filters");
-    if(!filters||document.getElementById("dealzyExploreTools")) return;
+    if(!filters) return;
+    const existing=document.getElementById("dealzyExploreTools");
+    if(existing){
+      const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+      const distance=existing.querySelector("#dzExploreDistance");
+      if(distance) distance.disabled=!locReady;
+      return;
+    }
     const prefs=readExplorePrefs();
     const tools=document.createElement("div");
     tools.id="dealzyExploreTools";
@@ -748,7 +773,7 @@
       '</select></label>'+
       '<label>'+h(tr("Distance"))+'<select id="dzExploreDistance" '+(locReady?"":"disabled")+'>'+
         '<option value="">'+h(locReady?tr("Any distance"):tr("Enable location"))+'</option>'+
-        '<option value="3">≤ 3 mi</option><option value="10">≤ 10 mi</option><option value="25">≤ 25 mi</option><option value="50">≤ 50 mi</option>'+
+        distanceOptions().map(x=>'<option value="'+x.miles+'">'+h(x.label)+'</option>').join("")+
       '</select></label>'+
       '<label>'+h(tr("Sort"))+'<select id="dzExploreSort">'+
         '<option value="recommended">'+h(tr("Recommended"))+'</option>'+
@@ -756,7 +781,8 @@
         '<option value="rating">'+h(tr("Highest rated"))+'</option>'+
         '<option value="price">'+h(tr("Lowest price"))+'</option>'+
       '</select></label>'+
-      '<label style="padding:0 4px"><input id="dzExploreKnownPrice" type="checkbox" '+(prefs.knownPrice?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Known price only"))+'</label>';
+      '<label style="padding:0 4px"><input id="dzExploreKnownPrice" type="checkbox" '+(prefs.knownPrice?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Known price only"))+'</label>'+
+      '<label style="padding:0 4px"><input id="dzExploreOpenNow" type="checkbox" '+(prefs.openNow?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Open now"))+'</label>';
 
     filters.insertAdjacentElement("afterend",tools);
     tools.querySelector("#dzExploreRating").value=String(prefs.minRating||0);
@@ -770,6 +796,7 @@
         minRating:Number(tools.querySelector("#dzExploreRating").value)||0,
         maxDistance:Number(tools.querySelector("#dzExploreDistance").value)>0?Number(tools.querySelector("#dzExploreDistance").value):null,
         knownPrice:tools.querySelector("#dzExploreKnownPrice").checked,
+        openNow:tools.querySelector("#dzExploreOpenNow").checked,
         sort:tools.querySelector("#dzExploreSort").value||"recommended"
       };
       saveExplorePrefs(next);
@@ -783,7 +810,7 @@
       renderExplore();
     });
 
-    ["#dzExploreBudget","#dzExploreRating","#dzExploreDistance","#dzExploreSort","#dzExploreKnownPrice"].forEach(sel=>{
+    ["#dzExploreBudget","#dzExploreRating","#dzExploreDistance","#dzExploreSort","#dzExploreKnownPrice","#dzExploreOpenNow"].forEach(sel=>{
       const el=tools.querySelector(sel);
       if(!el) return;
       el.addEventListener(el.tagName==="INPUT"&&el.type==="number"?"change":"change",()=>{
@@ -807,6 +834,9 @@
     }
     if(prefs.knownPrice){
       out=out.filter(d=>Number(d.price)>0);
+    }
+    if(prefs.openNow){
+      out=out.filter(d=>d.isClosed===false);
     }
     if(prefs.maxDistance&&locReady){
       out=out.filter(d=>{
@@ -939,7 +969,7 @@
       const extras=[];
       if(effectiveMax) extras.push(tr("under {price}",{price:moneyFor(effectiveMax,market.currency)}));
       if(prefs.minRating) extras.push("★ "+prefs.minRating+"+");
-      if(prefs.maxDistance&&state.coords&&coordsAllowedForMarket(state.coords,market.country)) extras.push("≤ "+prefs.maxDistance+" mi");
+      if(prefs.maxDistance&&state.coords&&coordsAllowedForMarket(state.coords,market.country)) extras.push(formatDistance(prefs.maxDistance));
       count.textContent=resultText+" · "+marketCityLabel()+(extras.length?" · "+extras.join(" · "):"");
     }
 
