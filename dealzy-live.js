@@ -800,10 +800,14 @@
     const familyIndex=cats.findIndex((x)=>x[1]==="Family");
     if(familyIndex>=0) cats.splice(familyIndex,1);
 
+    const previousMaxPrice=state.maxPrice;
+    state.maxPrice=null;
     try{
       homeDeals=await fetchMixed("",4);
     }catch(_){
       homeDeals=[];
+    }finally{
+      state.maxPrice=previousMaxPrice;
     }
     deals.splice(0,deals.length,...homeDeals);
     renderAll();
