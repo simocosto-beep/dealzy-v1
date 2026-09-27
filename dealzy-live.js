@@ -1175,6 +1175,9 @@
 
     const close=()=>wrap.remove();
     wrap.querySelector(".dz-ob-close").onclick=close;
+    wrap.addEventListener("click",e=>{if(e.target===wrap) close();});
+    const onKey=e=>{if(e.key==="Escape"){document.removeEventListener("keydown",onKey);close();}};
+    document.addEventListener("keydown",onKey);
     const cancel=wrap.querySelector("#dzObCancel");
     if(cancel) cancel.onclick=close;
 
@@ -1219,9 +1222,10 @@
   function maybeShowFirstRunOnboarding(){
     const current=readOnboarding();
     if(current.completed) return;
+    // Keep first launch non-blocking on mobile. Preferences remain available from Profile.
     setTimeout(()=>{
-      if(!document.getElementById("dealzyOnboarding")) showOnboarding(true);
-    },550);
+      if(!document.getElementById("dealzyOnboarding")) toast(tr("Personalize Dealzy"));
+    },700);
   }
 
   function updateMarketUI(){
