@@ -7,6 +7,18 @@
     deals.splice(0,deals.length);
     const pg=document.getElementById('popularGrid');
     if(pg) pg.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
+    document.querySelectorAll('.sectionHead span').forEach(s=>{
+      if(/demo inventory/i.test(s.textContent||'')) s.textContent='Live providers';
+    });
+    const legal=document.querySelector('#homeView .legal');
+    if(legal) legal.textContent='Loading verified live provider inventory…';
+    document.querySelectorAll('.profileCard').forEach(card=>{
+      const h=card.querySelector('h3');
+      if(h&&h.textContent.trim()==='Partner status'){
+        const p=card.querySelector('p');
+        if(p) p.textContent='Checking live partner sources…';
+      }
+    });
   }catch(_){}
   const dealzyLiveScript=document.createElement('script');
   dealzyLiveScript.src='/dealzy-live.js?v=20260927c';
