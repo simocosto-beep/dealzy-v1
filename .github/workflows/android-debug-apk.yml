@@ -1,0 +1,87 @@
+name: Build Dealzy Android Test APK
+
+on:
+  push:
+    branches:
+      - android/personalized-safe-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare embedded Dealzy web app
+        run: |
+          mkdir -p app/src/main/assets
+          cp index.html dealzy-live.js dealzy-tools.js dealzy-providers.js dealzy-i18n.js app/src/main/assets/
+          cp icon.svg manifest.webmanifest privacy.html affiliate-disclosure.html app/src/main/assets/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/src/main/assets/dealzy-tools.js")
+          s=p.read_text()
+          old="""  // PWA shell registration.
+          if('serviceWorker' in navigator){
+            window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+          }
+          """
+          if old not in s:
+              raise SystemExit("Expected service worker block not found")
+          s=s.replace(old,"  // Native APK: service worker disabled; Android serves embedded assets directly.\n")
+          p.write_text(s)
+          PY
+
+      - name: Validate embedded interaction guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          live=Path("app/src/main/assets/dealzy-live.js").read_text()
+          index=Path("app/src/main/assets/index.html").read_text()
+          assert "showOnboarding(true)" not in live
+          assert "$$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view))" in index
+          for view in ["home","explore","favorites","trips","profile"]:
+              assert f'data-view="{view}"' in index
+          print("Interaction guard passed")
+          PY
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Dealzy-AI-Personalized-Safe-Test.apk
+          ls -lh Dealzy-AI-Personalized-Safe-Test.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dealzy-AI-Personalized-Safe-Test
+          path: Dealzy-AI-Personalized-Safe-Test.apk
+          if-no-files-found: error
+          retention-days: 7
