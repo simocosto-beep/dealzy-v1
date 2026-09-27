@@ -250,6 +250,8 @@
       partnerUrl:raw.partnerUrl||null,
       source,
       provider:raw.provider||source.toLowerCase(),
+      marketCountry:market.country,
+      marketCity:market.city,
       currency:raw.currency||market.currency,
       reviewCount:reviews,
       live:true
@@ -424,12 +426,17 @@
 
   function buildSmartTrip(items){
     const source=(items||[]).filter(Boolean);
-    if(!source.length) return {
-      items:[],totalPrice:0,totalDuration:0,totalDistance:null,mapped:0,currency:market.currency
+    const active=source.filter(d=>{
+      if(d.marketCountry) return d.marketCountry===market.country;
+      return !d.currency||d.currency===market.currency;
+    });
+    const skipped=Math.max(0,source.length-active.length);
+    if(!active.length) return {
+      items:[],totalPrice:0,totalDuration:0,totalDistance:null,mapped:0,currency:market.currency,skipped
     };
 
-    const withCoords=source.filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
-    const withoutCoords=source.filter(d=>!withCoords.includes(d));
+    const withCoords=active.filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    const withoutCoords=active.filter(d=>!withCoords.includes(d));
     let ordered=[];
 
     if(withCoords.length){
@@ -485,6 +492,9 @@
       totalDistance:distanceKnown?Math.round(totalDistance*10)/10:null,
       mapped:withCoords.length,
       currency:market.currency,
+      skipped,
+      marketCountry:market.country,
+      marketCity:market.city,
       generatedAt:new Date().toISOString()
     };
   }
@@ -615,7 +625,9 @@
         '<div class="dz-trip-stat"><b>'+h(formatDuration(plan.totalDuration))+'</b><span>'+h(tr("Estimated activity time"))+'</span></div>'+
         '<div class="dz-trip-stat"><b>'+h(distanceText)+'</b><span>'+h(tr("Approx. route"))+'</span></div>'+
       '</div>'+
-      '<div class="meta">'+h(tr("{mapped} of {total} stops can be shown on the map.",{mapped:plan.mapped,total:items.length}))+'</div>'+
+      '<div class="meta">'+h(tr("{mapped} of {total} stops can be shown on the map.",{mapped:plan.mapped,total:items.length}))+
+        (plan.skipped?'<br>'+h(tr("{count} saved item(s) from another market were excluded from this plan.",{count:plan.skipped})):"")+
+      '</div>'+
       '<div>'+items.map((d,index)=>
         '<div class="dz-trip-step">'+
           '<div class="dz-trip-num">'+(index+1)+'</div>'+
