@@ -18,7 +18,14 @@
       {value:"Montreal",label:"Montréal, QC"},
       {value:"Vancouver",label:"Vancouver, BC"},
       {value:"Calgary",label:"Calgary, AB"},
-      {value:"Ottawa",label:"Ottawa, ON"}
+      {value:"Ottawa",label:"Ottawa, ON"},
+      {value:"Edmonton",label:"Edmonton, AB"},
+      {value:"Quebec City",label:"Québec City, QC"},
+      {value:"Winnipeg",label:"Winnipeg, MB"},
+      {value:"Halifax",label:"Halifax, NS"},
+      {value:"Victoria",label:"Victoria, BC"},
+      {value:"Niagara Falls",label:"Niagara Falls, ON"},
+      {value:"Banff",label:"Banff, AB"}
     ]
   };
 
@@ -439,10 +446,20 @@
   const useLoc=document.getElementById("useLocationBtn");
   if(useLoc){
     useLoc.onclick=()=>{
-      if(typeof useLocation==="function"){
-        useLocation();
-        setTimeout(()=>{if(state.coords) hydrateHome();},1500);
-      }
+      if(typeof useLocation!=="function") return;
+      const before=state.coords?String(state.coords.lat)+","+String(state.coords.lng):"";
+      useLocation();
+      let tries=0;
+      const poll=setInterval(()=>{
+        tries++;
+        const after=state.coords?String(state.coords.lat)+","+String(state.coords.lng):"";
+        if(after&&after!==before){
+          clearInterval(poll);
+          hydrateHome();
+        }else if(tries>=20){
+          clearInterval(poll);
+        }
+      },500);
     };
   }
 
