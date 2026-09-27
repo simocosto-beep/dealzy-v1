@@ -197,6 +197,7 @@
     "You save":"Vous économisez",
     "Discount":"Remise",
     "Rating":"Note",
+    "Activities & events · Ticketmaster / Viator":"Activités & événements · Ticketmaster / Viator",
     "Location outside selected market":"Position hors du marché sélectionné",
     "Keeping {city} for live searches.":"{city} reste utilisé pour les recherches en direct.",
     "Location outside selected market. Keeping {city}.":"Position hors du marché sélectionné. Dealzy conserve {city}.",
