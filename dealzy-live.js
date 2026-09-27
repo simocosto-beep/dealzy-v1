@@ -57,25 +57,6 @@
       {value:"Gatineau",label:"Gatineau, QC"},
       {value:"Trois-Rivieres",label:"Trois-Rivières, QC"},
       {value:"London",label:"London, ON"}
-    ],
-    FR:[
-      {value:"Paris",label:"Paris"},
-      {value:"Lyon",label:"Lyon"},
-      {value:"Marseille",label:"Marseille"},
-      {value:"Nice",label:"Nice"},
-      {value:"Toulouse",label:"Toulouse"},
-      {value:"Bordeaux",label:"Bordeaux"},
-      {value:"Nantes",label:"Nantes"},
-      {value:"Strasbourg",label:"Strasbourg"},
-      {value:"Lille",label:"Lille"},
-      {value:"Montpellier",label:"Montpellier"},
-      {value:"Rennes",label:"Rennes"},
-      {value:"Grenoble",label:"Grenoble"},
-      {value:"Annecy",label:"Annecy"},
-      {value:"Cannes",label:"Cannes"},
-      {value:"La Rochelle",label:"La Rochelle"},
-      {value:"La Roche-sur-Yon",label:"La Roche-sur-Yon"},
-      {value:"Les Sables-d'Olonne",label:"Les Sables-d’Olonne"}
     ]
   };
 
@@ -97,7 +78,7 @@
   function saveOnboarding(data){
     const next={
       completed:!!data.completed,
-      country:data.country==="CA"?"CA":data.country==="FR"?"FR":"US",
+      country:data.country==="CA"?"CA":"US",
       city:String(data.city||"Miami"),
       locale:data.locale==="fr"?"fr":"en",
       interests:Array.isArray(data.interests)?data.interests.filter(Boolean).slice(0,4):[],
@@ -113,27 +94,24 @@
   function readMarket(){
     let saved=null;
     try{saved=JSON.parse(localStorage.getItem("dealzyMarket")||"null");}catch(_){}
-    const rawCountry=saved&&String(saved.country||"").toUpperCase();
-    const country=rawCountry==="CA"?"CA":rawCountry==="FR"?"FR":"US";
+    const country=saved&&saved.country==="CA"?"CA":"US";
     const cities=MARKET_CITIES[country];
     const savedCity=saved&&String(saved.city||"").trim();
     const city=savedCity?savedCity.slice(0,80):cities[0].value;
-    const currency=country==="CA"?"CAD":country==="FR"?"EUR":"USD";
-    return {country,city,currency};
+    return {country,city,currency:country==="CA"?"CAD":"USD"};
   }
 
   let market=readMarket();
 
   function marketCityLabel(){
-    const cities=MARKET_CITIES[market.country]||[];
-    return (cities.find(x=>x.value===market.city)||{}).label||market.city;
+    return (MARKET_CITIES[market.country].find(x=>x.value===market.city)||{}).label||market.city;
   }
 
   function moneyFor(value,currency){
     const n=Number(value||0);
     if(!n) return "";
     const code=currency||market.currency;
-    return (code==="CAD"?"CA$":code==="EUR"?"€":"$")+n.toFixed(0);
+    return (code==="CAD"?"CA$":"$")+n.toFixed(0);
   }
 
   function tr(key,values){
@@ -149,11 +127,6 @@
     const lat=Number(coords.lat),lng=Number(coords.lng);
     if(!Number.isFinite(lat)||!Number.isFinite(lng)) return false;
     if(country==="CA") return lat>=41&&lat<=84&&lng>=-141&&lng<=-52;
-    if(country==="FR"){
-      const mainland=lat>=41&&lat<=51.5&&lng>=-5.5&&lng<=10;
-      const corsica=lat>=41.2&&lat<=43.2&&lng>=8.4&&lng<=9.7;
-      return mainland||corsica;
-    }
     const contiguous=lat>=24&&lat<=50&&lng>=-125&&lng<=-66;
     const alaska=lat>=51&&lat<=72&&lng>=-170&&lng<=-129;
     const hawaii=lat>=18&&lat<=23&&lng>=-161&&lng<=-154;
@@ -181,14 +154,6 @@
       "Regina":[50.4452,-104.6189],"St. John's":[47.5615,-52.7126],"Charlottetown":[46.2382,-63.1311],
       "Sherbrooke":[45.4042,-71.8929],"Laval":[45.6066,-73.7124],"Gatineau":[45.4765,-75.7013],
       "Trois-Rivieres":[46.3430,-72.5430],"London":[42.9849,-81.2453]
-    },
-    FR:{
-      "Paris":[48.8566,2.3522],"Lyon":[45.7640,4.8357],"Marseille":[43.2965,5.3698],
-      "Nice":[43.7102,7.2620],"Toulouse":[43.6047,1.4442],"Bordeaux":[44.8378,-0.5792],
-      "Nantes":[47.2184,-1.5536],"Strasbourg":[48.5734,7.7521],"Lille":[50.6292,3.0573],
-      "Montpellier":[43.6108,3.8767],"Rennes":[48.1173,-1.6778],"Grenoble":[45.1885,5.7245],
-      "Annecy":[45.8992,6.1294],"Cannes":[43.5528,7.0174],"La Rochelle":[46.1603,-1.1511],
-      "La Roche-sur-Yon":[46.6705,-1.4260],"Les Sables-d'Olonne":[46.4967,-1.7847]
     }
   };
 
@@ -213,7 +178,7 @@
     }
 
     try{
-      const countryName=market.country==="CA"?"Canada":market.country==="FR"?"France":"United States";
+      const countryName=market.country==="CA"?"Canada":"United States";
       const p=new URLSearchParams({
         format:"jsonv2",
         limit:"1",
@@ -242,10 +207,9 @@
   }
 
   function persistMarket(country,city,locationMode="manual"){
-    const safeCountry=country==="CA"?"CA":country==="FR"?"FR":"US";
+    const safeCountry=country==="CA"?"CA":"US";
     const safeCity=String(city||"").trim().replace(/\s+/g," ").slice(0,80)||MARKET_CITIES[safeCountry][0].value;
-    const currency=safeCountry==="CA"?"CAD":safeCountry==="FR"?"EUR":"USD";
-    market={country:safeCountry,city:safeCity,currency};
+    market={country:safeCountry,city:safeCity,currency:safeCountry==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
     localStorage.setItem("dealzyLocationMode",locationMode);
     state.coords=null;
@@ -271,7 +235,7 @@
       const data=await response.json();
       const address=data&&data.address?data.address:{};
       const cc=String(address.country_code||"").toUpperCase();
-      const country=cc==="CA"?"CA":cc==="FR"?"FR":cc==="US"?"US":null;
+      const country=cc==="CA"?"CA":cc==="US"?"US":null;
       if(!country) return {country:null,city:null,address};
       const city=String(
         address.city||address.town||address.municipality||address.village||
@@ -293,8 +257,8 @@
       localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
       localStorage.setItem("dealzyLocationMode","gps");
       if(!silent) toast(locale()==="fr"
-        ?"Position GPS détectée, mais ce pays n’est pas encore pris en charge par Dealzy."
-        :"GPS detected, but this country is not supported by Dealzy yet.");
+        ?"Position GPS détectée. Dealzy reste limité aux marchés USA/Canada."
+        :"GPS detected. Dealzy remains limited to USA/Canada markets.");
       if(typeof updateGeoUI==="function") updateGeoUI();
       return {coords,country:null,city:null};
     }
@@ -700,11 +664,7 @@
       "Niagara Falls":"IAG","Banff":"YYC","Kelowna":"YLW","Whistler":"YVR","Mississauga":"YYZ",
       "Hamilton":"YHM","Kitchener":"YKF","Saskatoon":"YXE","Regina":"YQR","St. John's":"YYT",
       "Charlottetown":"YYG","Sherbrooke":"YSC","Laval":"YUL","Gatineau":"YOW",
-      "Trois-Rivieres":"YUL","London":"YXU",
-      "Paris":"PAR","Lyon":"LYS","Marseille":"MRS","Nice":"NCE","Toulouse":"TLS",
-      "Bordeaux":"BOD","Nantes":"NTE","Strasbourg":"SXB","Lille":"LIL","Montpellier":"MPL",
-      "Rennes":"RNS","Grenoble":"GNB","Annecy":"GVA","Cannes":"NCE","La Rochelle":"LRH",
-      "La Roche-sur-Yon":"NTE","Les Sables-d'Olonne":"NTE"
+      "Trois-Rivieres":"YUL","London":"YXU"
     };
     return map[market.city]||"";
   }
@@ -1129,13 +1089,12 @@
       selected=market.country;
       options=[
         {value:"US",label:tr("United States"),icon:"🇺🇸"},
-        {value:"CA",label:tr("Canada"),icon:"🇨🇦"},
-        {value:"FR",label:"France",icon:"🇫🇷"}
+        {value:"CA",label:tr("Canada"),icon:"🇨🇦"}
       ];
     }else if(kind==="city"){
       title=tr("City");
       selected=market.city;
-      options=(MARKET_CITIES[market.country]||[]).map(x=>({value:x.value,label:x.label,icon:market.country==="CA"?"🇨🇦":market.country==="FR"?"🇫🇷":"🇺🇸"}));
+      options=(MARKET_CITIES[market.country]||[]).map(x=>({value:x.value,label:x.label,icon:market.country==="CA"?"🇨🇦":"🇺🇸"}));
     }else{
       title=tr("Language");
       selected=locale();
@@ -1164,7 +1123,7 @@
     const chooseValue=(value)=>{
       closeMarketPicker();
       if(kind==="country"){
-        const nextCountry=value==="CA"?"CA":value==="FR"?"FR":"US";
+        const nextCountry=value==="CA"?"CA":"US";
         persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
         updateMarketUI();
         hydrateHome();
@@ -1220,8 +1179,8 @@
   }
 
   function updateMarketUI(){
-    const flag=market.country==="CA"?"🇨🇦":market.country==="FR"?"🇫🇷":"🇺🇸";
-    const countryName=market.country==="CA"?"Canada":market.country==="FR"?"France":"United States";
+    const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
+    const countryName=market.country==="CA"?"Canada":"United States";
     const locationBtn=document.getElementById("locationBtn");
     if(locationBtn){
       locationBtn.textContent=flag+" "+marketCityLabel();
@@ -1241,7 +1200,7 @@
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
-    if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" · 🇫🇷 France — LIVE";
+    if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
 
     const query=document.getElementById("aiQuery");
     if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas|Orlando|San Francisco|Boston|Seattle|Washington|Dallas|Houston|San Diego|Philadelphia|Atlanta|New Orleans|Austin|Denver|Nashville|Phoenix|Honolulu/i.test(query.value))){
@@ -1295,8 +1254,8 @@
     if(quickButtons[0]) quickButtons[0].textContent=tr("📍 Near me");
     if(quickButtons[1]) quickButtons[1].textContent=tr("🗓 This weekend");
     if(quickButtons[2]) quickButtons[2].textContent=locale()==="fr"
-      ? "🏷 Moins de "+(market.currency==="CAD"?"50 CA$":market.currency==="EUR"?"50 €":"50 $")
-      : "🏷 Under "+(market.currency==="CAD"?"CA$50":market.currency==="EUR"?"€50":"$50");
+      ? "🏷 Moins de "+(market.currency==="CAD"?"50 CA$":"50 $")
+      : "🏷 Under "+(market.currency==="CAD"?"CA$50":"$50");
 
     renderProfileInsights();
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
@@ -1328,12 +1287,12 @@
       /hotel|hôtel|travel|trip|voyage|stay/.test(lower)?"Travel":
       /concert|event|événement|activity|activité|tour|things to do|museum|musée|cruise|boat/.test(lower)?"Things to Do":"All";
 
-    const budget=lower.match(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|€|eur|\$)?\s*(\d{1,5})/i);
+    const budget=lower.match(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*(\d{1,5})/i);
     state.maxPrice=budget?Number(budget[1]):null;
 
     let cleaned=original
       .replace(/date night|tonight|this weekend|near me|ce soir|ce week[- ]?end|près de moi/gi," ")
-      .replace(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|€|eur|\$)?\s*\d{1,5}/gi," ");
+      .replace(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*\d{1,5}/gi," ");
 
     const removeInsensitive=(text,needle)=>{
       if(!needle) return text;

@@ -96,7 +96,7 @@ function updateGeoUI(){
   if(state.coords){
     let m={country:'US',city:'',currency:'USD'};
     try{m={...m,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})}}catch(_){}
-    const flag=m.country==='CA'?'🇨🇦':m.country==='FR'?'🇫🇷':'🇺🇸';
+    const flag=m.country==='CA'?'🇨🇦':'🇺🇸';
     const gps=state.coords.source==='gps'||localStorage.getItem('dealzyLocationMode')==='gps';
     if($('#locationBtn')&&gps&&m.city) $('#locationBtn').textContent=flag+' '+m.city;
     if($('#geoTitle')) $('#geoTitle').textContent=gps?(window.DealzyI18n?.getLocale()==='fr'?'Position GPS active':'GPS location active'):'Location enabled';
