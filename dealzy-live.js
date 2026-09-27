@@ -642,6 +642,103 @@
     },700);
   }
 
+  function ensureMarketPickerStyles(){
+    if(document.getElementById("dealzyMarketPickerStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyMarketPickerStyles";
+    style.textContent=[
+      ".dz-market-grid{display:grid;gap:12px;margin-top:12px}",
+      ".dz-market-label{font-size:13px;color:#667085;font-weight:700;display:block}",
+      ".dz-market-field{width:100%;margin-top:7px;border:1px solid #e2e5ec;background:#fff;border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font:inherit;color:#182230;box-shadow:0 3px 10px rgba(17,24,39,.03);transition:border-color .18s ease,box-shadow .18s ease,transform .12s ease}",
+      ".dz-market-field:active{transform:scale(.992)}",
+      ".dz-market-field .dz-value{display:flex;align-items:center;gap:9px;font-weight:650}",
+      ".dz-market-field .dz-chevron{font-size:18px;color:#7b8497}",
+      ".dz-picker-wrap{position:fixed;inset:0;z-index:190;background:rgba(17,24,39,.48);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:14px}",
+      ".dz-picker-card{width:min(680px,100%);max-height:72vh;overflow:auto;background:#fff;border-radius:28px;padding:12px;box-shadow:0 24px 70px rgba(0,0,0,.30);animation:dzPickerUp .22s ease-out}",
+      "@keyframes dzPickerUp{from{transform:translateY(26px);opacity:.7}to{transform:translateY(0);opacity:1}}",
+      ".dz-picker-head{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 12px 12px}",
+      ".dz-picker-head b{font-size:20px}.dz-picker-close{width:38px;height:38px;border:0;border-radius:50%;background:#f2f4f7;font-size:20px}",
+      ".dz-picker-option{width:100%;border:0;background:#fff;border-radius:18px;padding:14px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font:inherit;color:#182230;margin:3px 0}",
+      ".dz-picker-option .dz-opt-main{display:flex;align-items:center;gap:11px;font-size:16px;font-weight:650}",
+      ".dz-picker-option .dz-check{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#f2f4f7;color:transparent;font-weight:900}",
+      ".dz-picker-option.selected{background:#f3f0ff;color:#5b4be7}",
+      ".dz-picker-option.selected .dz-check{background:#6d5dfc;color:white}",
+      ".dz-picker-option:active{transform:scale(.992)}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function closeMarketPicker(){
+    const picker=document.getElementById("dealzyMarketPicker");
+    if(picker) picker.remove();
+  }
+
+  function openMarketPicker(kind){
+    ensureMarketPickerStyles();
+    closeMarketPicker();
+
+    let title="",options=[],selected="";
+    if(kind==="country"){
+      title=tr("Country");
+      selected=market.country;
+      options=[
+        {value:"US",label:tr("United States"),icon:"🇺🇸"},
+        {value:"CA",label:tr("Canada"),icon:"🇨🇦"}
+      ];
+    }else if(kind==="city"){
+      title=tr("City");
+      selected=market.city;
+      options=(MARKET_CITIES[market.country]||[]).map(x=>({value:x.value,label:x.label,icon:market.country==="CA"?"🇨🇦":"🇺🇸"}));
+    }else{
+      title=tr("Language");
+      selected=locale();
+      options=[
+        {value:"en",label:"English",icon:"🇺🇸"},
+        {value:"fr",label:"Français",icon:"🇫🇷"}
+      ];
+    }
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyMarketPicker";
+    wrap.className="dz-picker-wrap";
+    wrap.innerHTML=
+      '<section class="dz-picker-card" role="dialog" aria-modal="true" aria-label="'+h(title)+'">'+
+        '<div class="dz-picker-head"><b>'+h(title)+'</b><button class="dz-picker-close" aria-label="'+h(tr("Close"))+'">×</button></div>'+
+        options.map(opt=>'<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
+          '<span class="dz-opt-main"><span>'+opt.icon+'</span><span>'+h(opt.label)+'</span></span>'+
+          '<span class="dz-check">✓</span></button>').join("")+
+      '</section>';
+
+    document.body.appendChild(wrap);
+    wrap.querySelector(".dz-picker-close").onclick=closeMarketPicker;
+    wrap.onclick=e=>{if(e.target===wrap) closeMarketPicker();};
+
+    wrap.querySelectorAll(".dz-picker-option").forEach(btn=>{
+      btn.onclick=()=>{
+        const value=btn.dataset.value;
+        closeMarketPicker();
+
+        if(kind==="country"){
+          const nextCountry=value==="CA"?"CA":"US";
+          persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
+          updateMarketUI();
+          hydrateHome();
+          return;
+        }
+        if(kind==="city"){
+          persistMarket(market.country,value);
+          updateMarketUI();
+          hydrateHome();
+          return;
+        }
+        if(window.DealzyI18n) window.DealzyI18n.setLocale(value);
+        else localStorage.setItem("dealzyLocale",value);
+        updateMarketUI();
+        renderAll();
+      };
+    });
+  }
+
   function updateMarketUI(){
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
     const countryName=market.country==="CA"?"Canada":"United States";
@@ -683,41 +780,25 @@
       if(!heading||!/^(Market|Marché)$/.test(heading.textContent.trim())) return;
       const cities=MARKET_CITIES[market.country];
       const currentLocale=locale();
+      ensureMarketPickerStyles();
+      const currentCity=(cities.find(x=>x.value===market.city)||{}).label||market.city;
       card.innerHTML='<h3 style="margin-top:0">'+h(tr("Market"))+'</h3>'+
-        '<div class="dz-form" style="margin-top:8px">'+
-          '<label>'+h(tr("Country"))+'<select id="dzMarketCountry">'+
-            '<option value="US" '+(market.country==="US"?"selected":"")+'>🇺🇸 '+h(tr("United States"))+'</option>'+
-            '<option value="CA" '+(market.country==="CA"?"selected":"")+'>🇨🇦 '+h(tr("Canada"))+'</option>'+
-          '</select></label>'+
-          '<label>'+h(tr("City"))+'<select id="dzMarketCity">'+cities.map(x=>'<option value="'+h(x.value)+'" '+(x.value===market.city?"selected":"")+'>'+h(x.label)+'</option>').join("")+'</select></label>'+
-          '<label>'+h(tr("Language"))+'<select id="dzMarketLanguage">'+
-            '<option value="en" '+(currentLocale==="en"?"selected":"")+'>English</option>'+
-            '<option value="fr" '+(currentLocale==="fr"?"selected":"")+'>Français</option>'+
-          '</select></label>'+
+        '<div class="dz-market-grid">'+
+          '<label class="dz-market-label">'+h(tr("Country"))+
+            '<button type="button" class="dz-market-field" data-picker="country"><span class="dz-value">'+flag+' '+h(tr(countryName))+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
+          '<label class="dz-market-label">'+h(tr("City"))+
+            '<button type="button" class="dz-market-field" data-picker="city"><span class="dz-value">'+flag+' '+h(currentCity)+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
+          '<label class="dz-market-label">'+h(tr("Language"))+
+            '<button type="button" class="dz-market-field" data-picker="language"><span class="dz-value">'+(currentLocale==="fr"?"🇫🇷 Français":"🇺🇸 English")+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
         '</div>'+
-        '<div class="meta" style="margin-top:10px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
+        '<div class="meta" style="margin-top:12px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
 
-      const countrySelect=card.querySelector("#dzMarketCountry");
-      const citySelect=card.querySelector("#dzMarketCity");
-      const languageSelect=card.querySelector("#dzMarketLanguage");
-
-      countrySelect.onchange=()=>{
-        const nextCountry=countrySelect.value==="CA"?"CA":"US";
-        persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
-        updateMarketUI();
-        hydrateHome();
-      };
-      citySelect.onchange=()=>{
-        persistMarket(market.country,citySelect.value);
-        updateMarketUI();
-        hydrateHome();
-      };
-      languageSelect.onchange=()=>{
-        if(window.DealzyI18n) window.DealzyI18n.setLocale(languageSelect.value);
-        else localStorage.setItem("dealzyLocale",languageSelect.value);
-        updateMarketUI();
-        renderAll();
-      };
+      card.querySelectorAll("[data-picker]").forEach(btn=>{
+        btn.onclick=()=>openMarketPicker(btn.dataset.picker);
+      });
     });
 
     const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
