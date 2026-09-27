@@ -505,6 +505,7 @@
     let notifPrefs={};
     try{notifPrefs=JSON.parse(localStorage.getItem('dealzyNotificationPrefs')||'{}')}catch(_){}
     const checkResult=options.checkResult||null;
+    const browserEnabled=!!(notifPrefs.enabled&&typeof Notification!=='undefined'&&Notification.permission==='granted');
     const currentCount=checkResult?(checkResult.alertMatches||checkResult.currentMatches||[]).length:null;
     const newCount=checkResult?(checkResult.newAlertMatches||checkResult.newMatches||[]).length:null;
 
@@ -528,7 +529,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="dz-action" id="dzSaveAlert">Save alert</button>
         <button class="dz-action alt" id="dzCheckAlerts">Check now</button>
-        <button class="dz-action alt" id="dzEnableAlerts">${notifPrefs.enabled?'✓ Browser notifications enabled':'Enable browser notifications'}</button>
+        <button class="dz-action alt" id="dzEnableAlerts">${browserEnabled?'✓ Browser notifications enabled':'Enable browser notifications'}</button>
       </div>
       ${checkResult?`<div class="dz-result"><b>${newCount||0} new match${newCount===1?'':'es'}</b> · ${currentCount||0} current match${currentCount===1?'':'es'}<br><span class="dz-small">Checked against verified live provider results.</span></div>`:''}
       <div class="dz-result"><b>${alerts.length} saved alert${alerts.length===1?'':'s'}</b><br>
