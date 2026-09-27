@@ -310,6 +310,32 @@
     }catch(_){}
   }
 
+  function recordAnalyticsEvent(type,data={}){
+    try{
+      const events=JSON.parse(localStorage.getItem("dealzyAnalyticsEvents")||"[]");
+      const now=Date.now();
+      const event={
+        type:String(type||"event"),
+        market:{country:market.country,city:market.city,currency:market.currency},
+        category:data.category||null,
+        query:data.query||"",
+        results:Number(data.results||0),
+        view:data.view||null,
+        source:data.source||null,
+        createdAt:new Date(now).toISOString()
+      };
+      const signature=[event.type,event.market.country,event.market.city,event.category,event.query,event.view].join("|");
+      const last=events.length?events[events.length-1]:null;
+      const lastTime=last&&last.createdAt?new Date(last.createdAt).getTime():0;
+      const lastSig=last?[last.type,last.market&&last.market.country,last.market&&last.market.city,last.category,last.query,last.view].join("|"):"";
+      if(lastSig===signature&&now-lastTime<10000) return false;
+      events.push(event);
+      localStorage.setItem("dealzyAnalyticsEvents",JSON.stringify(events.slice(-500)));
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+      return true;
+    }catch(_){return false}
+  }
+
   function dedupe(rows){
     const seen=new Set();
     return rows.filter((d)=>{
@@ -963,6 +989,15 @@
     const effectivePrefs={...prefs,maxPrice:effectiveMax};
     list=applyExploreFilters(dedupe(list),effectivePrefs);
     deals.splice(0,deals.length,...list);
+    const exploreView=document.getElementById("exploreView");
+    if(exploreView&&!exploreView.classList.contains("hidden")){
+      recordAnalyticsEvent("search",{
+        category:state.filter,
+        query:q,
+        results:list.length,
+        view:prefs.view||"list"
+      });
+    }
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
@@ -1442,6 +1477,7 @@
     };
   }
 
+  window.DealzyAnalytics={record:recordAnalyticsEvent};
   window.DealzyTrips={
     build:planCurrentTrip,
     render:renderTrips,
