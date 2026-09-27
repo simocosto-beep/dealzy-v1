@@ -146,16 +146,22 @@ function normalizeTicketmaster(row,defaultCurrency='USD'){
   };
 }
 
-async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',currency='USD'}){
+async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',currency='USD',lat=null,lng=null,radius=25}){
   const key=process.env.TICKETMASTER_API_KEY;
   if(!key) return {ok:false,reason:'not-configured',results:[]};
   const p=new URLSearchParams({
     apikey:key,
     countryCode,
-    city,
     size:String(Math.min(20,Math.max(1,limit))),
     sort:'date,asc'
   });
+  if(Number.isFinite(lat)&&Number.isFinite(lng)){
+    p.set('latlong',String(lat)+','+String(lng));
+    p.set('radius',String(Math.max(1,Math.min(100,Number(radius)||25))));
+    p.set('unit','miles');
+  }else{
+    p.set('city',city);
+  }
   if(q) p.set('keyword',q);
   const r=await fetch('https://app.ticketmaster.com/discovery/v2/events.json?'+p.toString(),{
     headers:{'Accept':'application/json'}
@@ -170,9 +176,9 @@ async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',curren
   return {ok:true,results:events.map(row=>normalizeTicketmaster(row,currency)),total:Number(data?.page?.totalElements||events.length)};
 }
 
-async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD'}){
-  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10),city,countryCode,currency});
-  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10),city,countryCode,currency});
+async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD',lat=null,lng=null,radius=25}){
+  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10),city,countryCode,currency,lat,lng,radius});
+  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10),city,countryCode,currency,lat,lng,radius});
   if(!live.ok) return live;
   let rows=live.results;
   if(maxPrice) rows=rows.filter(d=>!d.price||d.price<=maxPrice);
@@ -315,7 +321,12 @@ module.exports = async function handler(req,res){
 
   if(wantsTicketmaster){
     try{
-      const tm=await searchTicketmaster({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency});
+      const tm=await searchTicketmaster({
+        q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency,
+        lat:demo.hasCoords?demo.lat:null,
+        lng:demo.hasCoords?demo.lng:null,
+        radius:demo.radius||25
+      });
       if(tm.ok && tm.results.length){
         liveRows.push(...tm.results);
         liveProviders.push({name:'ticketmaster',status:'live'});
