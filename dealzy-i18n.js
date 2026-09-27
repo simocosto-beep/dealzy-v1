@@ -291,17 +291,8 @@
     if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
 
-  let queued=false;
-  const observer=new MutationObserver(()=>{
-    if(queued) return;
-    queued=true;
-    queueMicrotask(()=>{
-      queued=false;
-      apply(document);
-    });
-  });
-
-  if(document.documentElement) observer.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+  // Deliberately no global MutationObserver: applying translations to the entire
+  // document after every DOM change can monopolize the WebView main thread.
   window.DealzyI18n={getLocale,setLocale,t,apply};
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",()=>apply(document));
   else apply(document);

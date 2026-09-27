@@ -832,12 +832,19 @@
       }
     });
 
-    // Preload Explore with live data so the hidden legacy grid can never reappear when the tab is opened.
-    await renderExplore();
+    // Explore is loaded only when the user opens that tab.
   }
 
   const exploreButton=document.getElementById("exploreSearch");
   if(exploreButton) exploreButton.onclick=()=>renderExplore();
+
+  const exploreNav=document.querySelector('.navBtn[data-view="explore"]');
+  if(exploreNav){
+    exploreNav.onclick=()=>{
+      show("explore");
+      setTimeout(()=>renderExplore(),0);
+    };
+  }
 
   const useLoc=document.getElementById("useLocationBtn");
   if(useLoc){
