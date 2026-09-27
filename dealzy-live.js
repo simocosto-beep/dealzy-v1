@@ -174,10 +174,10 @@
 
     const reviews=Number(d.reviewCount||0);
     if(reviews>=500){
-      score+=4;
+      score+=6;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=100){
-      score+=6;
+      score+=4;
       reasons.push(tr("Popular with reviewers"));
     }else if(reviews>=20){
       score+=2;
@@ -407,11 +407,270 @@
     bindCards($("#favoritesGrid"));
   };
 
+  function tripDurationMinutes(d){
+    return {
+      "Food & Drink":90,
+      "Spa & Beauty":90,
+      "Things to Do":120,
+      "Travel":150
+    }[d.cat]||90;
+  }
+
+  function tripRouteDistance(a,b){
+    if(!a||!b) return null;
+    return milesBetween(a.lat,a.lng,b.lat,b.lng);
+  }
+
+  function buildSmartTrip(items){
+    const source=(items||[]).filter(Boolean);
+    if(!source.length) return {
+      items:[],totalPrice:0,totalDuration:0,totalDistance:null,mapped:0,currency:market.currency
+    };
+
+    const withCoords=source.filter(d=>Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    const withoutCoords=source.filter(d=>!withCoords.includes(d));
+    let ordered=[];
+
+    if(withCoords.length){
+      const remaining=[...withCoords];
+      let current=null;
+      if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        current={lat:Number(state.coords.lat),lng:Number(state.coords.lng)};
+      }else{
+        current={lat:Number(remaining[0].lat),lng:Number(remaining[0].lng)};
+      }
+
+      while(remaining.length){
+        let bestIndex=0,bestDistance=Infinity;
+        remaining.forEach((d,index)=>{
+          const dist=tripRouteDistance(current,d);
+          const value=dist===null?Infinity:dist;
+          if(value<bestDistance){bestDistance=value;bestIndex=index;}
+        });
+        const next=remaining.splice(bestIndex,1)[0];
+        ordered.push(next);
+        current={lat:Number(next.lat),lng:Number(next.lng)};
+      }
+    }
+
+    ordered=[...ordered,...withoutCoords];
+
+    let totalPrice=0,totalDuration=0,totalDistance=0,distanceKnown=false;
+    const steps=ordered.map((d,index)=>{
+      const duration=tripDurationMinutes(d);
+      totalDuration+=duration;
+      if(Number(d.price)>0) totalPrice+=Number(d.price);
+      let distanceFromPrevious=null;
+      if(index>0){
+        distanceFromPrevious=tripRouteDistance(ordered[index-1],d);
+        if(distanceFromPrevious!==null){
+          totalDistance+=distanceFromPrevious;
+          distanceKnown=true;
+        }
+      }else if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        distanceFromPrevious=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+        if(distanceFromPrevious!==null){
+          totalDistance+=distanceFromPrevious;
+          distanceKnown=true;
+        }
+      }
+      return {...d,tripDuration:duration,distanceFromPrevious};
+    });
+
+    return {
+      items:steps,
+      totalPrice:Math.round(totalPrice*100)/100,
+      totalDuration,
+      totalDistance:distanceKnown?Math.round(totalDistance*10)/10:null,
+      mapped:withCoords.length,
+      currency:market.currency,
+      generatedAt:new Date().toISOString()
+    };
+  }
+
+  function formatDuration(minutes){
+    const m=Math.max(0,Number(minutes)||0);
+    const h=Math.floor(m/60),rest=m%60;
+    if(h&&rest) return h+"h "+rest+"m";
+    if(h) return h+"h";
+    return rest+"m";
+  }
+
+  function saveTripPlan(plan){
+    localStorage.setItem("dealzyTripPlan",JSON.stringify(plan||{}));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function loadTripPlan(){
+    try{return JSON.parse(localStorage.getItem("dealzyTripPlan")||"null");}catch(_){return null;}
+  }
+
+  function ensureTripStyles(){
+    if(document.getElementById("dealzyTripStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyTripStyles";
+    style.textContent=[
+      ".dz-trip-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}",
+      ".dz-trip-stat{background:#f8f9fc;border:1px solid #e7e9f0;border-radius:16px;padding:12px;text-align:center}",
+      ".dz-trip-stat b{display:block;font-size:18px}.dz-trip-stat span{font-size:11px;color:#667085}",
+      ".dz-trip-step{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;margin:10px 0;padding:12px;border:1px solid #e7e9f0;border-radius:16px;background:#fff}",
+      ".dz-trip-num{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#f1efff;color:#5145cd;font-weight:900}",
+      ".dz-trip-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}",
+      ".dz-trip-map{height:360px;border-radius:18px;overflow:hidden;border:1px solid #e7e9f0;margin-top:12px;background:#eef2f6}",
+      ".dz-trip-map-fallback{padding:20px;color:#667085;text-align:center}",
+      "@media(max-width:560px){.dz-trip-summary{grid-template-columns:1fr 1fr 1fr}.dz-trip-map{height:300px}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function loadLeaflet(){
+    if(window.L) return Promise.resolve(window.L);
+    if(window.__dealzyLeafletPromise) return window.__dealzyLeafletPromise;
+    window.__dealzyLeafletPromise=new Promise((resolve,reject)=>{
+      if(!document.querySelector('link[data-dealzy-leaflet]')){
+        const link=document.createElement("link");
+        link.rel="stylesheet";
+        link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.dataset.dealzyLeaflet="1";
+        document.head.appendChild(link);
+      }
+      const existing=document.querySelector('script[data-dealzy-leaflet]');
+      if(existing){
+        existing.addEventListener("load",()=>resolve(window.L),{once:true});
+        existing.addEventListener("error",reject,{once:true});
+        return;
+      }
+      const script=document.createElement("script");
+      script.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.dataset.dealzyLeaflet="1";
+      script.onload=()=>resolve(window.L);
+      script.onerror=reject;
+      document.head.appendChild(script);
+    });
+    return window.__dealzyLeafletPromise;
+  }
+
+  async function renderTripMap(plan){
+    const root=document.getElementById("dealzyTripMap");
+    if(!root) return;
+    const points=(plan?.items||[]).filter(d=>Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    if(!points.length){
+      root.innerHTML='<div class="dz-trip-map-fallback">'+h(tr("Map will appear when saved places include coordinates."))+'</div>';
+      return;
+    }
+
+    try{
+      const L=await loadLeaflet();
+      if(!L) throw new Error("Leaflet unavailable");
+      root.innerHTML="";
+      if(window.__dealzyTripMap){
+        try{window.__dealzyTripMap.remove();}catch(_){}
+      }
+      const map=L.map(root,{scrollWheelZoom:false});
+      window.__dealzyTripMap=map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:19,
+        attribution:"© OpenStreetMap contributors"
+      }).addTo(map);
+
+      const latLngs=[];
+      points.forEach((d,index)=>{
+        const ll=[Number(d.lat),Number(d.lng)];
+        latLngs.push(ll);
+        const marker=L.marker(ll).addTo(map);
+        marker.bindPopup('<b>'+h(String(index+1)+". "+d.title)+'</b><br>'+h(d.place||""));
+      });
+      if(latLngs.length>1){
+        L.polyline(latLngs,{weight:4,opacity:.65}).addTo(map);
+        map.fitBounds(latLngs,{padding:[24,24]});
+      }else{
+        map.setView(latLngs[0],13);
+      }
+    }catch(_){
+      const p=points[0];
+      const delta=.06;
+      const bbox=[Number(p.lng)-delta,Number(p.lat)-delta,Number(p.lng)+delta,Number(p.lat)+delta].join(",");
+      const src="https://www.openstreetmap.org/export/embed.html?bbox="+encodeURIComponent(bbox)+"&layer=mapnik&marker="+encodeURIComponent(p.lat+","+p.lng);
+      root.innerHTML='<iframe title="'+h(tr("Trip map"))+'" src="'+h(src)+'" style="width:100%;height:100%;border:0" loading="lazy"></iframe>';
+    }
+  }
+
+  function renderSmartTripPlan(plan){
+    const host=document.getElementById("dealzySmartTrip");
+    if(!host) return;
+    const items=plan?.items||[];
+    if(!items.length){
+      host.innerHTML='<div class="empty">'+h(tr("Save favorites first, then build your smart trip."))+'</div>';
+      return;
+    }
+
+    const moneyText=plan.totalPrice>0?moneyFor(plan.totalPrice,plan.currency):tr("Price on provider");
+    const distanceText=plan.totalDistance===null?"—":plan.totalDistance.toFixed(1)+" mi";
+    host.innerHTML=
+      '<div class="dz-trip-summary">'+
+        '<div class="dz-trip-stat"><b>'+h(moneyText)+'</b><span>'+h(tr("Known total"))+'</span></div>'+
+        '<div class="dz-trip-stat"><b>'+h(formatDuration(plan.totalDuration))+'</b><span>'+h(tr("Estimated activity time"))+'</span></div>'+
+        '<div class="dz-trip-stat"><b>'+h(distanceText)+'</b><span>'+h(tr("Approx. route"))+'</span></div>'+
+      '</div>'+
+      '<div class="meta">'+h(tr("{mapped} of {total} stops can be shown on the map.",{mapped:plan.mapped,total:items.length}))+'</div>'+
+      '<div>'+items.map((d,index)=>
+        '<div class="dz-trip-step">'+
+          '<div class="dz-trip-num">'+(index+1)+'</div>'+
+          '<div><b>'+h(d.title)+'</b>'+
+            '<div class="meta">'+h(d.place||"")+' · '+h(d.cat||"")+'</div>'+
+            '<div class="meta">'+h(tr("Estimated visit"))+': '+h(formatDuration(d.tripDuration))+
+              (d.distanceFromPrevious!==null?' · '+h(tr("Approx. {distance} mi from previous stop",{distance:d.distanceFromPrevious.toFixed(1)})):"")+
+            '</div>'+
+          '</div>'+
+        '</div>'
+      ).join("")+'</div>'+
+      '<div class="dz-trip-map" id="dealzyTripMap"></div>'+
+      '<div class="meta" style="margin-top:8px">'+h(tr("Route order and times are estimates based on saved coordinates and category defaults; check provider details before travel."))+'</div>';
+    renderTripMap(plan);
+  }
+
+  function planCurrentTrip(){
+    loadSavedIntoCatalog();
+    const snapshots=getSavedSnapshots();
+    const list=state.trip.map(id=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
+    const plan=buildSmartTrip(list);
+    saveTripPlan(plan);
+    renderSmartTripPlan(plan);
+    return plan;
+  }
+
   renderTrips=function(){
+    ensureTripStyles();
     loadSavedIntoCatalog();
     const snapshots=getSavedSnapshots();
     const list=state.trip.map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
-    $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
+    const tripItems=$("#tripItems");
+    if(!tripItems) return;
+
+    tripItems.innerHTML=
+      (list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider")))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">'+h(tr("Your trip is empty."))+'</div>')+
+      '<div class="dz-trip-actions">'+
+        '<button class="pill" id="dealzyPlanTrip">'+h(tr("Plan my trip"))+'</button>'+
+        (list.length?'<button class="pill" id="dealzyClearTrip">'+h(tr("Clear trip"))+'</button>':"")+
+      '</div>'+
+      '<div id="dealzySmartTrip"></div>';
+
+    const planBtn=document.getElementById("dealzyPlanTrip");
+    if(planBtn) planBtn.onclick=()=>planCurrentTrip();
+
+    const clearBtn=document.getElementById("dealzyClearTrip");
+    if(clearBtn) clearBtn.onclick=()=>{
+      state.trip=[];
+      localStorage.setItem("dealzyTrip","[]");
+      localStorage.removeItem("dealzyTripPlan");
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+      renderTrips();
+      renderProfileInsights();
+      toast(tr("Trip cleared"));
+    };
+
+    const savedPlan=loadTripPlan();
+    if(savedPlan&&Array.isArray(savedPlan.items)&&savedPlan.items.length) renderSmartTripPlan(savedPlan);
   };
 
   renderExplore=async function(){
@@ -880,10 +1139,18 @@
       localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
       saveSnapshots(snapshots);
       renderTrips();
+      planCurrentTrip();
       renderProfileInsights();
       toast(tr("Favorites added to {city} Weekend",{city:market.city}));
     };
   }
+
+  window.DealzyTrips={
+    build:planCurrentTrip,
+    render:renderTrips,
+    getPlan:loadTripPlan,
+    openMap:()=>{const plan=loadTripPlan();if(plan) renderSmartTripPlan(plan);}
+  };
 
   hydrateHome();
   maybeShowFirstRunOnboarding();
