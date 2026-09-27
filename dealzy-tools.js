@@ -209,15 +209,33 @@
     const symbol=currency==='CAD'?'CA'+String.fromCharCode(36):String.fromCharCode(36);
     return symbol+Number(v||0).toFixed(0);
   }
-  function recordPartnerClick(provider,title){
+  function recordPartnerClick(provider,title,extra){
     try{
       let market={country:'US',city:'Miami',currency:'USD'};
       try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
       const events=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]');
-      events.push({provider,title:title||'',market,clickedAt:new Date().toISOString()});
-      localStorage.setItem('dealzyPartnerClicks',JSON.stringify(events.slice(-200)));
+      events.push({
+        provider:String(provider||'Partner'),
+        title:title||'',
+        market,
+        source:(extra&&extra.source)||'clickout',
+        externalId:(extra&&extra.externalId)||null,
+        clickedAt:new Date().toISOString()
+      });
+      localStorage.setItem('dealzyPartnerClicks',JSON.stringify(events.slice(-500)));
       queueCloudSync();
     }catch(_){}
+  }
+
+  function partnerClickStats(){
+    let events=[];
+    try{events=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]')}catch(_){}
+    const counts={};
+    events.forEach(e=>{
+      const key=String(e.provider||'Partner');
+      counts[key]=(counts[key]||0)+1;
+    });
+    return {total:events.length,counts,last:events.length?events[events.length-1]:null};
   }
   function esc(s){ return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function showPanel(html){
@@ -754,11 +772,18 @@
           if(Number(d.savings)>0) dealBits.push('Save '+money(d.savings));
           if(Number(d.discountPct)>0) dealBits.push(d.discountPct+'% off');
           const source=esc(d.source||d.provider||data.mode||'Dealzy');
-          const action=d.partnerUrl?'<a href="'+esc(d.partnerUrl)+'" target="_blank" rel="noopener noreferrer" class="dz-action alt" style="display:inline-block;margin-top:8px;text-decoration:none">Open on '+source+'</a>':'';
+          const action=d.partnerUrl?'<a href="'+esc(d.partnerUrl)+'" target="_blank" rel="noopener noreferrer" class="dz-action alt" data-track-provider="'+source+'" data-track-title="'+esc(d.title)+'" style="display:inline-block;margin-top:8px;text-decoration:none">Open on '+source+'</a>':'';
           return '<div class="dz-result" style="margin:8px 0"><b>'+esc(d.title)+'</b><br><span class="dz-small">'+meta+'</span><br><span class="dz-small"><b>'+source+'</b>'+(dealBits.length?' · '+dealBits.join(' · '):'')+'</span>'+action+'</div>';
         }).join('');
         out.innerHTML='<div class="dz-small" style="margin:10px 0"><b>'+esc(modeLabel)+'</b> · '+(data.count||0)+' result'+((data.count||0)===1?'':'s')+'</div>'+
           (rows||'<div class="dz-result">No matching result found.</div>');
+        out.querySelectorAll('[data-track-provider]').forEach(a=>{
+          a.addEventListener('click',()=>recordPartnerClick(
+            a.getAttribute('data-track-provider')||'Partner',
+            a.getAttribute('data-track-title')||'Provider result',
+            {source:'provider-search'}
+          ));
+        });
       }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. Please try again shortly.</div>'}
     };
   }
@@ -785,7 +810,16 @@
         }[x.kind]||String(x.kind||'Provider');
         return '<div class="dz-provider"><div><b>'+esc(x.name)+'</b><div class="dz-small">'+esc(note)+'</div></div><span class="dz-status '+(isLive?'live':'')+'">'+esc(label)+'</span></div>';
       }).join('');
-      box.innerHTML=rows+'<div class="dz-small" style="margin-top:10px">'+esc(data.note||'Dealzy only marks live upstream results as live.')+'</div>';
+      const stats=partnerClickStats();
+      const statRows=Object.entries(stats.counts).sort((a,b)=>b[1]-a[1]).map(([name,count])=>
+        '<span class="dz-chip">'+esc(name)+' · '+count+'</span>'
+      ).join('');
+      box.innerHTML=
+        '<div class="dz-result" style="margin-bottom:12px"><b>Partner click analytics</b><br>'+
+        '<span class="dz-small">'+stats.total+' tracked click'+(stats.total===1?'':'s')+' on this Dealzy profile.</span><br>'+
+        (statRows||'<span class="dz-small">No partner clicks tracked yet.</span>')+
+        '</div>'+rows+
+        '<div class="dz-small" style="margin-top:10px">'+esc(data.note||'Dealzy only marks live upstream results as live.')+'</div>';
     }catch(_){
       box.innerHTML='<div class="dz-result">Source status is temporarily unavailable.</div>';
     }
@@ -803,7 +837,16 @@
       else showPanel('<h3>📲 Install Dealzy</h3><div class="dz-result">Use your browser menu → “Add to Home screen” or “Install app”.</div>');
     };
     panel.querySelector('#dzShare').onclick=async()=>{
-      const data={title:'Dealzy AI',text:'Amazing Deals. Smarter Choices.',url:location.href};
+      let market={country:'US',city:'Miami'};
+      try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
+      const isFr=window.DealzyI18n&&window.DealzyI18n.getLocale()==='fr';
+      const data={
+        title:'Dealzy AI',
+        text:isFr
+          ? 'Dealzy AI · offres et voyages en direct aux États-Unis et au Canada · '+market.city
+          : 'Dealzy AI · live deals and travel across the USA and Canada · '+market.city,
+        url:location.href
+      };
       if(navigator.share){try{await navigator.share(data)}catch(_){}}
       else {try{await navigator.clipboard.writeText(location.href); showPanel('<h3>📲 App & Share</h3><div class="dz-result">Dealzy link copied.</div>')}catch(_){}}
     };

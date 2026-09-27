@@ -216,6 +216,7 @@ function normalizeYelp(row,category,currency='USD'){
     savings:0,
     discountPct:0,
     phone:row.display_phone||null,
+    countryCode:loc.country||null,
     isClosed:!!row.is_closed
   };
 }
@@ -249,8 +250,19 @@ async function searchYelp({q,category,limit,lat,lng,city='Miami',countryCode='US
     return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
   }
   const data=await r.json();
-  const rows=Array.isArray(data.businesses)?data.businesses.map(x=>normalizeYelp(x,category,currency)):[];
+  const rows=Array.isArray(data.businesses)
+    ? data.businesses.map(x=>normalizeYelp(x,category,currency)).filter(x=>!x.countryCode||x.countryCode===countryCode)
+    : [];
   return {ok:true,results:rows,total:Number(data.total||rows.length)};
+}
+
+function coordinatesAllowed(countryCode,lat,lng){
+  if(!Number.isFinite(lat)||!Number.isFinite(lng)) return false;
+  if(countryCode==='CA') return lat>=41&&lat<=84&&lng>=-141&&lng<=-52;
+  const contiguous=lat>=24&&lat<=50&&lng>=-125&&lng<=-66;
+  const alaska=lat>=51&&lat<=72&&lng>=-170&&lng<=-129;
+  const hawaii=lat>=18&&lat<=23&&lng>=-161&&lng<=-154;
+  return contiguous||alaska||hawaii;
 }
 
 function demoSearch(req){
@@ -294,6 +306,9 @@ module.exports = async function handler(req,res){
   const defaultCity=countryCode==='CA'?'Toronto':'Miami';
   const city=String(req.query.city||defaultCity).trim().slice(0,80)||defaultCity;
   const currency=countryCode==='CA'?'CAD':'USD';
+  const safeHasCoords=demo.hasCoords&&coordinatesAllowed(countryCode,demo.lat,demo.lng);
+  const safeLat=safeHasCoords?demo.lat:null;
+  const safeLng=safeHasCoords?demo.lng:null;
   const wantsTicketmaster=demo.category==='All'||demo.category==='Things to Do';
   const wantsViator=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
   const wantsYelp=demo.category==='Food & Drink'||demo.category==='Spa & Beauty';
@@ -306,8 +321,8 @@ module.exports = async function handler(req,res){
         q:demo.q,
         category:demo.category,
         limit:demo.limit,
-        lat:demo.hasCoords?demo.lat:null,
-        lng:demo.hasCoords?demo.lng:null,
+        lat:safeLat,
+        lng:safeLng,
         city,
         countryCode,
         currency
@@ -323,9 +338,9 @@ module.exports = async function handler(req,res){
     try{
       const tm=await searchTicketmaster({
         q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency,
-        lat:demo.hasCoords?demo.lat:null,
-        lng:demo.hasCoords?demo.lng:null,
-        radius:demo.radius||25
+        lat:safeLat,
+        lng:safeLng,
+        radius:safeHasCoords?(demo.radius||25):25
       });
       if(tm.ok && tm.results.length){
         liveRows.push(...tm.results);
@@ -349,7 +364,7 @@ module.exports = async function handler(req,res){
     return res.status(200).json({
       ok:true,
       mode:liveProviders.length>1?'live-multi-provider':'live-'+liveProviders[0].name,
-      query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:city,country:countryCode,currency},
+      query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:city,country:countryCode,currency,geolocationApplied:safeHasCoords},
       count:results.length,
       providers:liveProviders,
       results,
@@ -360,7 +375,7 @@ module.exports = async function handler(req,res){
   return res.status(200).json({
     ok:true,
     mode:'demo-fallback',
-    query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,lat:demo.hasCoords?demo.lat:null,lng:demo.hasCoords?demo.lng:null,radius:demo.radius||null,destination:city,country:countryCode,currency},
+    query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,lat:safeLat,lng:safeLng,radius:safeHasCoords?(demo.radius||null):null,destination:city,country:countryCode,currency,geolocationApplied:safeHasCoords},
     count:demo.rows.length,
     providers:[
       {name:'demo',status:'active'},

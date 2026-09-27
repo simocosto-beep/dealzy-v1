@@ -196,7 +196,12 @@
     "Price":"Prix",
     "You save":"Vous économisez",
     "Discount":"Remise",
-    "Rating":"Note"
+    "Rating":"Note",
+    "Location outside selected market":"Position hors du marché sélectionné",
+    "Keeping {city} for live searches.":"{city} reste utilisé pour les recherches en direct.",
+    "Location outside selected market. Keeping {city}.":"Position hors du marché sélectionné. Dealzy conserve {city}.",
+    "Partner click analytics":"Statistiques des clics partenaires",
+    "No partner clicks tracked yet.":"Aucun clic partenaire enregistré pour le moment."
   };
 
   const EN=Object.fromEntries(Object.entries(FR).map(([k,v])=>[v,k]));

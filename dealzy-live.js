@@ -59,6 +59,17 @@
     return window.DealzyI18n?window.DealzyI18n.getLocale():(localStorage.getItem("dealzyLocale")||"en");
   }
 
+  function coordsAllowedForMarket(coords,country){
+    if(!coords) return false;
+    const lat=Number(coords.lat),lng=Number(coords.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)) return false;
+    if(country==="CA") return lat>=41&&lat<=84&&lng>=-141&&lng<=-52;
+    const contiguous=lat>=24&&lat<=50&&lng>=-125&&lng<=-66;
+    const alaska=lat>=51&&lat<=72&&lng>=-170&&lng<=-129;
+    const hawaii=lat>=18&&lat<=23&&lng>=-161&&lng<=-154;
+    return contiguous||alaska||hawaii;
+  }
+
   function persistMarket(country,city){
     market={country,city,currency:country==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
@@ -164,7 +175,7 @@
     });
     if(q) params.set("q",q);
     if(state.maxPrice) params.set("maxPrice",String(state.maxPrice));
-    if(state.coords){
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
       params.set("lat",String(state.coords.lat));
       params.set("lng",String(state.coords.lng));
       params.set("radius","25");
@@ -498,6 +509,13 @@
         const after=state.coords?String(state.coords.lat)+","+String(state.coords.lng):"";
         if(after&&after!==before){
           clearInterval(poll);
+          if(!coordsAllowedForMarket(state.coords,market.country)){
+            const geoTitle=document.getElementById("geoTitle");
+            const geoSub=document.getElementById("geoSub");
+            if(geoTitle) geoTitle.textContent=tr("Location outside selected market");
+            if(geoSub) geoSub.textContent=tr("Keeping {city} for live searches.",{city:marketCityLabel()});
+            toast(tr("Location outside selected market. Keeping {city}.",{city:marketCityLabel()}));
+          }
           hydrateHome();
         }else if(tries>=20){
           clearInterval(poll);
