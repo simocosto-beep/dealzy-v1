@@ -228,6 +228,7 @@
     "Route order and times are estimates based on saved coordinates and category defaults; check provider details before travel.":"L’ordre du parcours et les durées sont des estimations basées sur les coordonnées disponibles et des durées par catégorie ; vérifiez les détails du partenaire avant le déplacement.",
     "Map will appear when saved places include coordinates.":"La carte apparaîtra lorsque les lieux enregistrés comporteront des coordonnées.",
     "Trip map":"Carte du voyage",
+    "{count} saved item(s) from another market were excluded from this plan.":"{count} élément(s) enregistré(s) d’un autre marché ont été exclus de ce plan.",
     "Your Dealzy profile":"Votre profil Dealzy",
     "Personalize Dealzy around your market, interests and preferred budget.":"Personnalisez Dealzy selon votre marché, vos centres d’intérêt et votre budget préféré.",
     "Partner clicks":"Clics partenaires",
