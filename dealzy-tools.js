@@ -91,7 +91,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyAnalyticsEvents','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
   let cloudTimer=null;
 
   async function getCloudSession(){
@@ -173,6 +173,7 @@
         <button class="dz-tool" data-tool="coupons"><span class="emoji">🎟️</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
         <button class="dz-tool" data-tool="backup"><span class="emoji">💾</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
         <button class="dz-tool" data-tool="split"><span class="emoji">🧾</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
+        <button class="dz-tool" data-tool="analytics"><span class="emoji">📊</span><b>Analytics</b><span>See Dealzy usage and partner click activity.</span></button>
         <button class="dz-tool" data-tool="providers"><span class="emoji">🔌</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
         <button class="dz-tool" data-tool="app"><span class="emoji">📲</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
       </div>
@@ -666,7 +667,7 @@
         })
         .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
       const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+        const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyAnalyticsEvents','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
       };
       panel.querySelector('#dzSyncUp').onclick=async()=>{
@@ -1051,7 +1052,7 @@
       <input id="dzImportFile" type="file" accept="application/json" style="display:none">
       <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
     panel.querySelector('#dzExport').onclick=()=>{
-      const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+      const keys=['dealzyFavs','dealzyTrip','dealzyTripPlan','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyExplorePrefs','dealzyLiveSaved','dealzyPartnerClicks','dealzyAnalyticsEvents','dealzyToolPrefs','dealzyAlerts','dealzyLocalNotifications','dealzyNotificationPrefs','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
       const data={version:1,exportedAt:new Date().toISOString(),data:{}};
       keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -1150,6 +1151,125 @@
     };
   }
 
+  function analyticsData(){
+    let searches=[],clicks=[],alerts=[],notifications=[],trip=[],favs=[];
+    try{searches=JSON.parse(localStorage.getItem('dealzyAnalyticsEvents')||'[]')||[]}catch(_){}
+    try{clicks=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]')||[]}catch(_){}
+    try{alerts=JSON.parse(localStorage.getItem('dealzyAlerts')||'[]')||[]}catch(_){}
+    try{notifications=JSON.parse(localStorage.getItem('dealzyLocalNotifications')||'[]')||[]}catch(_){}
+    try{trip=JSON.parse(localStorage.getItem('dealzyTrip')||'[]')||[]}catch(_){}
+    try{favs=JSON.parse(localStorage.getItem('dealzyFavs')||'[]')||[]}catch(_){}
+
+    const searchEvents=searches.filter(x=>x&&x.type==='search');
+    const byProvider={},byCategory={},byCity={},byView={};
+    clicks.forEach(x=>{
+      const k=String(x.provider||'Partner');
+      byProvider[k]=(byProvider[k]||0)+1;
+      const city=x.market&&x.market.city;
+      if(city) byCity[city]=(byCity[city]||0)+1;
+    });
+    searchEvents.forEach(x=>{
+      const cat=String(x.category||'All');
+      byCategory[cat]=(byCategory[cat]||0)+1;
+      const city=x.market&&x.market.city;
+      if(city) byCity[city]=(byCity[city]||0)+1;
+      const view=String(x.view||'list');
+      byView[view]=(byView[view]||0)+1;
+    });
+
+    const top=(obj)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]);
+    const activities=[
+      ...searchEvents.map(x=>({
+        kind:'search',
+        title:(x.query?x.query+' · ':'')+(x.category||'All'),
+        detail:(x.market&&x.market.city?x.market.city:'')+' · '+Number(x.results||0)+' results',
+        at:x.createdAt
+      })),
+      ...clicks.map(x=>({
+        kind:'click',
+        title:String(x.provider||'Partner')+' · '+String(x.title||'Partner click'),
+        detail:x.market&&x.market.city?x.market.city:'',
+        at:x.clickedAt
+      })),
+      ...notifications.map(x=>({
+        kind:'alert',
+        title:String(x.title||'Dealzy alert'),
+        detail:String(x.body||''),
+        at:x.createdAt
+      }))
+    ].filter(x=>x.at).sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0,8);
+
+    return {
+      searches:searchEvents.length,
+      clicks:clicks.length,
+      favorites:favs.length,
+      tripItems:trip.length,
+      alerts:alerts.length,
+      notifications:notifications.length,
+      byProvider:top(byProvider),
+      byCategory:top(byCategory),
+      byCity:top(byCity),
+      byView:top(byView),
+      activities
+    };
+  }
+
+  function analyticsBars(entries,labelFallback){
+    const rows=(entries||[]).slice(0,5);
+    if(!rows.length) return '<div class="dz-small">'+esc(labelFallback||'No data yet.')+'</div>';
+    const max=Math.max(...rows.map(x=>Number(x[1])||0),1);
+    return rows.map(([name,count])=>{
+      const width=Math.max(4,Math.round((Number(count)||0)/max*100));
+      return '<div style="margin:8px 0">'+
+        '<div style="display:flex;justify-content:space-between;gap:10px;font-size:12px"><b>'+esc(name)+'</b><span>'+count+'</span></div>'+
+        '<div style="height:7px;background:#eef0f4;border-radius:999px;overflow:hidden;margin-top:4px"><div style="height:100%;width:'+width+'%;background:linear-gradient(90deg,#6d5dfc,#3d8bfd);border-radius:999px"></div></div>'+
+      '</div>';
+    }).join('');
+  }
+
+  function analyticsTool(){
+    const d=analyticsData();
+    const topProvider=d.byProvider.length?d.byProvider[0][0]:'—';
+    const topCity=d.byCity.length?d.byCity[0][0]:'—';
+    const topCategory=d.byCategory.length?d.byCategory[0][0]:'—';
+
+    showPanel('<h3>📊 Dealzy Analytics</h3>'+
+      '<div class="dz-small">Private usage analytics from this Dealzy profile. Partner clicks are outbound click counts only — not purchases, conversions or revenue.</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0">'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.searches+'</b><br><span class="dz-small">Live searches</span></div>'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.clicks+'</b><br><span class="dz-small">Partner clicks</span></div>'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.favorites+'</b><br><span class="dz-small">Favorites</span></div>'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.tripItems+'</b><br><span class="dz-small">Trip items</span></div>'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.alerts+'</b><br><span class="dz-small">Saved alerts</span></div>'+
+        '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.notifications+'</b><br><span class="dz-small">Local notifications</span></div>'+
+      '</div>'+
+      '<div class="dz-result"><b>Highlights</b><br>'+
+        '<span class="dz-chip">Top provider · '+esc(topProvider)+'</span>'+
+        '<span class="dz-chip">Top category · '+esc(topCategory)+'</span>'+
+        '<span class="dz-chip">Top city · '+esc(topCity)+'</span>'+
+      '</div>'+
+      '<div class="dz-result"><b>Partner clicks by provider</b>'+analyticsBars(d.byProvider,'No partner clicks yet.')+'</div>'+
+      '<div class="dz-result"><b>Explore activity by category</b>'+analyticsBars(d.byCategory,'No Explore searches tracked yet.')+'</div>'+
+      '<div class="dz-result"><b>Activity by city</b>'+analyticsBars(d.byCity,'No city activity tracked yet.')+'</div>'+
+      '<div class="dz-result"><b>Explore view usage</b>'+analyticsBars(d.byView,'No view activity tracked yet.')+'</div>'+
+      '<div class="dz-result"><b>Recent activity</b><br>'+
+        (d.activities.length?d.activities.map(x=>{
+          const icon=x.kind==='click'?'↗':x.kind==='alert'?'🔔':'⌕';
+          return '<div style="padding:8px 0;border-bottom:1px solid #eef0f4"><b>'+icon+' '+esc(x.title)+'</b><br><span class="dz-small">'+esc(x.detail||'')+(x.at?' · '+new Date(x.at).toLocaleString():'')+'</span></div>';
+        }).join(''):'<span class="dz-small">No recent activity yet.</span>')+
+      '</div>'+
+      '<button class="dz-action alt" id="dzAnalyticsClear">Clear analytics history</button>'+
+      '<div class="dz-small" style="margin-top:9px">Clearing analytics removes search/click history only. Favorites, trips and alerts are not deleted.</div>');
+
+    const clear=panel.querySelector('#dzAnalyticsClear');
+    if(clear) clear.onclick=()=>{
+      localStorage.removeItem('dealzyAnalyticsEvents');
+      localStorage.removeItem('dealzyPartnerClicks');
+      queueCloudSync();
+      analyticsTool();
+    };
+  }
+
   async function providersTool(){
     showPanel('<h3>🔌 Deal Sources</h3><div id="dzSources"><div class="dz-result">Checking sources…</div></div>');
     const box=panel.querySelector('#dzSources');
@@ -1216,7 +1336,7 @@
 
   wrap.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>{
     const t=btn.dataset.tool;
-    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,travel:travelTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
+    ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,travel:travelTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,analytics:analyticsTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
 
   // Quietly check saved watches after the app settles. This creates in-app notifications only when a signed-in user has watches.
