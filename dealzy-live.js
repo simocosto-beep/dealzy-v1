@@ -78,7 +78,11 @@
 
   async function fetchMixed(q="",limitEach=5){
     const groups=await Promise.all(LIVE_CATEGORIES.map((cat)=>fetchLive(cat,q,limitEach).catch(()=>[])));
-    return remember(dedupe(groups.flat()));
+    const interleaved=[];
+    for(let i=0;i<limitEach;i++){
+      groups.forEach((group)=>{ if(group[i]) interleaved.push(group[i]); });
+    }
+    return remember(dedupe(interleaved));
   }
 
   dealCard=function(d){
@@ -185,6 +189,14 @@
     deals.splice(0,deals.length,...homeDeals);
     renderAll();
 
+    document.querySelectorAll(".sectionHead span").forEach((span)=>{
+      if(/Demo inventory/i.test(span.textContent||"")) span.textContent="Live providers";
+    });
+    const legal=document.querySelector("#homeView .legal");
+    if(legal&&/demo inventory/i.test(legal.textContent||"")){
+      legal.textContent="Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.";
+    }
+
     document.querySelectorAll(".profileCard").forEach((card)=>{
       const heading=card.querySelector("h3");
       if(heading&&heading.textContent.trim()==="Partner status"){
@@ -192,6 +204,9 @@
         if(paragraph) paragraph.textContent="Live sources: Viator, Ticketmaster and Yelp. Expedia, Booking.com and Skyscanner are connected as travel clickouts.";
       }
     });
+
+    // Preload Explore with live data so the hidden legacy grid can never reappear when the tab is opened.
+    await renderExplore();
   }
 
   const exploreButton=document.getElementById("exploreSearch");
