@@ -21,6 +21,8 @@ module.exports = async function handler(req,res){
       {name:'Dealzy Travel API',status:'pending-credentials',kind:'travel'}
     ],
     liveExternalProviders:(viatorProductionConfigured?1:0)+(ticketmasterConfigured?1:0)+(yelpConfigured?1:0),
-    note:'Viator sandbox credentials are test-only and never shown as live inventory. Production Viator results require VIATOR_PRODUCTION_API_KEY.'
+    markets:['US','CA'],
+    currencies:['USD','CAD'],
+    note:'Live provider inventory supports United States and Canada market selection. Viator sandbox credentials remain test-only and are never exposed as production inventory.'
   });
 };
