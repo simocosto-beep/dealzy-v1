@@ -1,11 +1,7 @@
-const BASE='https://api.sandbox.viator.com/partner';
-
-module.exports=async function handler(req,res){
-  res.setHeader('Cache-Control','no-store');
-  const key=process.env.VIATOR_API_KEY;
-  if(!key) return res.status(200).json({ok:false,configured:false,environment:'sandbox',productionReady:false,reason:'missing-key'});
+async function checkViator(base,key){
+  if(!key) return {configured:false,ok:false,upstreamStatus:null,productCount:0,message:'missing-key'};
   try{
-    const r=await fetch(BASE+'/products/search',{
+    const r=await fetch(base+'/products/search',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
@@ -20,21 +16,31 @@ module.exports=async function handler(req,res){
         currency:'USD'
       })
     });
-    let payload=null, raw='';
+    let payload=null,raw='';
     try{payload=await r.json()}catch(_){try{raw=await r.text()}catch(__){}}
     const count=payload&&Array.isArray(payload.products)?payload.products.length:0;
     const message=payload&&(payload.message||payload.error||payload.errorMessage||payload.code)||raw||null;
-    return res.status(200).json({
-      ok:r.ok&&count>0,
+    return {
       configured:true,
-      environment:'sandbox',
-      productionReady:false,
+      ok:r.ok&&count>0,
       upstreamStatus:r.status,
       productCount:count,
-      responseType:payload?Object.keys(payload).slice(0,8):[],
       message:message?String(message).slice(0,220):null
-    });
+    };
   }catch(e){
-    return res.status(200).json({ok:false,configured:true,environment:'sandbox',productionReady:false,upstreamStatus:null,message:String(e&&e.message||'network-error').slice(0,220)});
+    return {configured:true,ok:false,upstreamStatus:null,productCount:0,message:String(e&&e.message||'network-error').slice(0,220)};
   }
+}
+
+module.exports=async function handler(req,res){
+  res.setHeader('Cache-Control','no-store');
+  const sandbox=await checkViator('https://api.sandbox.viator.com/partner',process.env.VIATOR_API_KEY);
+  const production=await checkViator('https://api.viator.com/partner',process.env.VIATOR_PRODUCTION_API_KEY);
+  return res.status(200).json({
+    ok:production.ok,
+    productionReady:production.ok,
+    production,
+    sandbox,
+    note:'Sandbox inventory is test-only and is never exposed as live Dealzy inventory.'
+  });
 };

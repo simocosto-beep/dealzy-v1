@@ -246,7 +246,8 @@ module.exports = async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({ok:false,error:'Method not allowed'});
 
   const demo=demoSearch(req);
-  const wantsLive=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
+  const wantsTicketmaster=demo.category==='All'||demo.category==='Things to Do';
+  const wantsViator=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
   const wantsYelp=demo.category==='Food & Drink'||demo.category==='Spa & Beauty';
   const liveRows=[];
   const liveProviders=[];
@@ -267,7 +268,7 @@ module.exports = async function handler(req,res){
     }catch(_){}
   }
 
-  if(wantsLive){
+  if(wantsTicketmaster){
     try{
       const tm=await searchTicketmaster({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
       if(tm.ok && tm.results.length){
@@ -275,10 +276,13 @@ module.exports = async function handler(req,res){
         liveProviders.push({name:'ticketmaster',status:'live'});
       }
     }catch(_){}
+  }
+  if(wantsViator){
     try{
       const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
       if(viator.ok && viator.results.length){
-        liveRows.push(...viator.results);
+        if(demo.category==='Travel') liveRows.unshift(...viator.results);
+        else liveRows.push(...viator.results);
         liveProviders.push({name:'viator',status:'live'});
       }
     }catch(_){}
