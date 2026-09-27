@@ -49,14 +49,10 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/assets/dealzy-tools.js")
           s=p.read_text()
-          old="""  // PWA shell registration.
-          if('serviceWorker' in navigator){
-            window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
-          }
-          """
-          if old not in s:
-              raise SystemExit("Expected service worker block not found")
-          s=s.replace(old,"  // Native APK: service worker disabled; Android serves embedded assets directly.\n")
+          target="navigator.serviceWorker.register('/sw.js')"
+          if target not in s:
+              raise SystemExit("Service worker registration call not found")
+          s=s.replace(target,"Promise.reject(new Error('native-apk-service-worker-disabled'))")
           p.write_text(s)
           PY
 
