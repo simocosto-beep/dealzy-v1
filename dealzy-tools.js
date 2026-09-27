@@ -177,9 +177,11 @@
   function getFavorites(){
     try { return state && state.favorites ? [...state.favorites] : JSON.parse(localStorage.getItem('dealzyFavs')||'[]'); } catch (_) { return []; }
   }
-  function money(v){
-    let currency='USD';
-    try{currency=(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{}).currency||'USD';}catch(_){}
+  function money(v,currencyOverride){
+    let currency=currencyOverride||'USD';
+    if(!currencyOverride){
+      try{currency=(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{}).currency||'USD';}catch(_){}
+    }
     const symbol=currency==='CAD'?'CA'+String.fromCharCode(36):String.fromCharCode(36);
     return symbol+Number(v||0).toFixed(0);
   }
@@ -206,9 +208,9 @@
     const cols = fav.map(d=>'<div><b>'+esc(d.title)+'</b></div>').join('');
     const row = (label,fn)=>'<div class="dz-compare-row"><b>'+label+'</b>'+fav.map(d=>'<div>'+fn(d)+'</div>').join('')+'</div>';
     showPanel('<h3>⚖️ Smart Compare</h3><div class="dz-compare-row"><b>Deal</b>'+cols+'</div>'+
-      row('Price',d=>'<b>'+money(d.price)+'</b>')+
-      row('You save',d=>money(d.old-d.price))+
-      row('Discount',d=>Math.round((1-d.price/d.old)*100)+'%')+
+      row('Price',d=>'<b>'+(Number(d.price)>0?money(d.price,d.currency):esc(d.priceLabel||'Price on provider'))+'</b>')+
+      row('You save',d=>(Number(d.old)>Number(d.price)&&Number(d.price)>0)?money(d.old-d.price,d.currency):'—')+
+      row('Discount',d=>(Number(d.old)>Number(d.price)&&Number(d.price)>0)?Math.round((1-d.price/d.old)*100)+'%':'—')+
       row('Rating',d=>esc(d.rating||'—'))+
       '<div class="dz-small" style="margin-top:10px">Comparison is factual and based on the current deal data. Partner terms may change.</div>');
   }
@@ -229,7 +231,7 @@
       prefs.radius=Number(panel.querySelector('#dzRadius').value)||10;
       localStorage.setItem(stateKey,JSON.stringify(prefs)); queueCloudSync();
       const list=getDeals().filter(d=>(prefs.category==='All'||d.cat===prefs.category)&&Number(d.price)>0&&Number(d.price)<=prefs.budget).sort((a,b)=>a.price-b.price);
-      panel.querySelector('#dzBudgetResult').innerHTML='<div class="dz-result">'+(list.length?list.map(d=>'<div style="margin:6px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place)+'</div>').join(''):'No current live result matches this budget.')+'</div>';
+      panel.querySelector('#dzBudgetResult').innerHTML='<div class="dz-result">'+(list.length?list.map(d=>'<div style="margin:6px 0"><b>'+esc(d.title)+'</b> · '+money(d.price,d.currency)+' · '+esc(d.place)+'</div>').join(''):'No current live result matches this budget.')+'</div>';
     };
   }
 
