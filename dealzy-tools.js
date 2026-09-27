@@ -20,10 +20,20 @@
       }
     });
   }catch(_){}
-  const dealzyLiveScript=document.createElement('script');
-  dealzyLiveScript.src='/dealzy-live.js?v=20260927c';
-  dealzyLiveScript.defer=true;
-  document.head.appendChild(dealzyLiveScript);
+  const startDealzyLive=()=>{
+    if(document.querySelector('script[data-dealzy-live]')) return;
+    const liveScript=document.createElement('script');
+    liveScript.src='/dealzy-live.js?v=20260927d';
+    liveScript.defer=true;
+    liveScript.dataset.dealzyLive='1';
+    document.head.appendChild(liveScript);
+  };
+  const i18nScript=document.createElement('script');
+  i18nScript.src='/dealzy-i18n.js?v=20260927a';
+  i18nScript.defer=true;
+  i18nScript.onload=startDealzyLive;
+  i18nScript.onerror=startDealzyLive;
+  document.head.appendChild(i18nScript);
 
 
   async function bootstrapSupabaseSession(){
@@ -81,7 +91,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
   let cloudTimer=null;
 
   async function getCloudSession(){
@@ -169,12 +179,14 @@
       <div id="dzPanel" class="dz-panel"></div>
     </section>`;
   document.body.appendChild(wrap);
+  if(window.DealzyI18n) window.DealzyI18n.apply(wrap);
 
   const panel = wrap.querySelector('#dzPanel');
   const close = () => { wrap.classList.remove('open'); panel.classList.remove('open'); };
   fab.onclick = () => wrap.classList.add('open');
   wrap.querySelector('.dz-close').onclick = close;
   wrap.onclick = e => { if (e.target === wrap) close(); };
+  document.addEventListener('dealzy:localechange',()=>{if(window.DealzyI18n) window.DealzyI18n.apply(wrap);});
 
   function getDeals(){
     try {
@@ -208,7 +220,12 @@
     }catch(_){}
   }
   function esc(s){ return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function showPanel(html){ panel.innerHTML = html; panel.classList.add('open'); panel.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  function showPanel(html){
+    panel.innerHTML = html;
+    panel.classList.add('open');
+    if(window.DealzyI18n) window.DealzyI18n.apply(panel);
+    panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
 
   function compareTool(){
     const all = getDeals();
@@ -346,7 +363,7 @@
         })
         .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
       const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
       };
       panel.querySelector('#dzSyncUp').onclick=async()=>{
@@ -654,7 +671,7 @@
       <input id="dzImportFile" type="file" accept="application/json" style="display:none">
       <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
     panel.querySelector('#dzExport').onclick=()=>{
-      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
       const data={version:1,exportedAt:new Date().toISOString(),data:{}};
       keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
