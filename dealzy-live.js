@@ -688,10 +688,228 @@
     if(savedPlan&&Array.isArray(savedPlan.items)&&savedPlan.items.length) renderSmartTripPlan(savedPlan);
   };
 
+  function readExplorePrefs(){
+    try{
+      const p=JSON.parse(localStorage.getItem("dealzyExplorePrefs")||"null");
+      if(p&&typeof p==="object") return {
+        view:p.view==="map"?"map":"list",
+        maxPrice:Number(p.maxPrice)>0?Number(p.maxPrice):null,
+        minRating:Number(p.minRating)||0,
+        maxDistance:Number(p.maxDistance)>0?Number(p.maxDistance):null,
+        knownPrice:!!p.knownPrice,
+        sort:["recommended","nearest","rating","price"].includes(p.sort)?p.sort:"recommended"
+      };
+    }catch(_){}
+    return {view:"list",maxPrice:null,minRating:0,maxDistance:null,knownPrice:false,sort:"recommended"};
+  }
+
+  function saveExplorePrefs(prefs){
+    localStorage.setItem("dealzyExplorePrefs",JSON.stringify(prefs));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function ensureExploreStyles(){
+    if(document.getElementById("dealzyExploreStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyExploreStyles";
+    style.textContent=[
+      ".dz-explore-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}",
+      ".dz-explore-tools select,.dz-explore-tools input{border:1px solid #dfe3eb;background:#fff;border-radius:12px;padding:10px 11px;font-size:12px;min-height:40px}",
+      ".dz-explore-tools label{display:flex;align-items:center;gap:6px;font-size:12px;color:#667085;font-weight:700}",
+      ".dz-view-switch{display:flex;gap:6px;padding:4px;background:#f2f4f7;border-radius:14px}",
+      ".dz-view-switch button{border:0;background:transparent;padding:8px 12px;border-radius:10px;font-weight:800;cursor:pointer}",
+      ".dz-view-switch button.active{background:#fff;color:#5145cd;box-shadow:0 1px 4px rgba(16,24,40,.12)}",
+      ".dz-explore-map{height:520px;border-radius:20px;overflow:hidden;border:1px solid #e7e9f0;background:#eef2f6;margin-top:14px}",
+      ".dz-map-empty{height:100%;display:grid;place-items:center;padding:24px;text-align:center;color:#667085}",
+      ".dz-map-popup{min-width:190px}.dz-map-popup b{display:block;margin-bottom:4px}.dz-map-popup .meta{font-size:11px;color:#667085;margin:3px 0}.dz-map-popup button{margin-top:7px;border:0;border-radius:10px;padding:8px 10px;background:#5145cd;color:#fff;font-weight:800;cursor:pointer;width:100%}",
+      "@media(max-width:560px){.dz-explore-map{height:380px}.dz-explore-tools{display:grid;grid-template-columns:1fr 1fr}.dz-explore-tools .dz-view-switch{grid-column:1/-1}.dz-explore-tools label{display:block}.dz-explore-tools select,.dz-explore-tools input{width:100%;margin-top:5px}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function ensureExploreControls(){
+    ensureExploreStyles();
+    const filters=document.getElementById("filters");
+    if(!filters||document.getElementById("dealzyExploreTools")) return;
+    const prefs=readExplorePrefs();
+    const tools=document.createElement("div");
+    tools.id="dealzyExploreTools";
+    tools.className="dz-explore-tools";
+    const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+    tools.innerHTML=
+      '<div class="dz-view-switch">'+
+        '<button type="button" data-viewmode="list" class="'+(prefs.view==="list"?"active":"")+'">☷ '+h(tr("List"))+'</button>'+
+        '<button type="button" data-viewmode="map" class="'+(prefs.view==="map"?"active":"")+'">🗺 '+h(tr("Map"))+'</button>'+
+      '</div>'+
+      '<label>'+h(tr("Budget"))+'<input id="dzExploreBudget" type="number" min="1" step="10" placeholder="'+h(tr("Any"))+'" value="'+(prefs.maxPrice||"")+'"></label>'+
+      '<label>'+h(tr("Minimum rating"))+'<select id="dzExploreRating">'+
+        '<option value="0">'+h(tr("Any"))+'</option>'+
+        '<option value="4">4.0+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option>'+
+      '</select></label>'+
+      '<label>'+h(tr("Distance"))+'<select id="dzExploreDistance" '+(locReady?"":"disabled")+'>'+
+        '<option value="">'+h(locReady?tr("Any distance"):tr("Enable location"))+'</option>'+
+        '<option value="3">≤ 3 mi</option><option value="10">≤ 10 mi</option><option value="25">≤ 25 mi</option><option value="50">≤ 50 mi</option>'+
+      '</select></label>'+
+      '<label>'+h(tr("Sort"))+'<select id="dzExploreSort">'+
+        '<option value="recommended">'+h(tr("Recommended"))+'</option>'+
+        '<option value="nearest">'+h(tr("Nearest"))+'</option>'+
+        '<option value="rating">'+h(tr("Highest rated"))+'</option>'+
+        '<option value="price">'+h(tr("Lowest price"))+'</option>'+
+      '</select></label>'+
+      '<label style="padding:0 4px"><input id="dzExploreKnownPrice" type="checkbox" '+(prefs.knownPrice?"checked":"")+' style="width:auto;margin:0"> '+h(tr("Known price only"))+'</label>';
+
+    filters.insertAdjacentElement("afterend",tools);
+    tools.querySelector("#dzExploreRating").value=String(prefs.minRating||0);
+    tools.querySelector("#dzExploreDistance").value=prefs.maxDistance?String(prefs.maxDistance):"";
+    tools.querySelector("#dzExploreSort").value=prefs.sort||"recommended";
+
+    const collect=()=>{
+      const next={
+        view:tools.querySelector("[data-viewmode].active")?.dataset.viewmode||"list",
+        maxPrice:Number(tools.querySelector("#dzExploreBudget").value)>0?Number(tools.querySelector("#dzExploreBudget").value):null,
+        minRating:Number(tools.querySelector("#dzExploreRating").value)||0,
+        maxDistance:Number(tools.querySelector("#dzExploreDistance").value)>0?Number(tools.querySelector("#dzExploreDistance").value):null,
+        knownPrice:tools.querySelector("#dzExploreKnownPrice").checked,
+        sort:tools.querySelector("#dzExploreSort").value||"recommended"
+      };
+      saveExplorePrefs(next);
+      return next;
+    };
+
+    tools.querySelectorAll("[data-viewmode]").forEach(btn=>btn.onclick=()=>{
+      tools.querySelectorAll("[data-viewmode]").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      collect();
+      renderExplore();
+    });
+
+    ["#dzExploreBudget","#dzExploreRating","#dzExploreDistance","#dzExploreSort","#dzExploreKnownPrice"].forEach(sel=>{
+      const el=tools.querySelector(sel);
+      if(!el) return;
+      el.addEventListener(el.tagName==="INPUT"&&el.type==="number"?"change":"change",()=>{
+        collect();
+        renderExplore();
+      });
+    });
+
+    if(window.DealzyI18n) window.DealzyI18n.apply(tools);
+  }
+
+  function applyExploreFilters(rows,prefs){
+    const locReady=!!(state.coords&&coordsAllowedForMarket(state.coords,market.country));
+    let out=[...(rows||[])];
+
+    if(prefs.maxPrice){
+      out=out.filter(d=>Number(d.price)>0&&Number(d.price)<=prefs.maxPrice);
+    }
+    if(prefs.minRating){
+      out=out.filter(d=>Number(d.ratingValue)>=prefs.minRating);
+    }
+    if(prefs.knownPrice){
+      out=out.filter(d=>Number(d.price)>0);
+    }
+    if(prefs.maxDistance&&locReady){
+      out=out.filter(d=>{
+        const dist=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+        return dist!==null&&dist<=prefs.maxDistance;
+      });
+    }
+
+    if(prefs.sort==="nearest"&&locReady){
+      out.sort((a,b)=>{
+        const da=milesBetween(state.coords.lat,state.coords.lng,a.lat,a.lng);
+        const db=milesBetween(state.coords.lat,state.coords.lng,b.lat,b.lng);
+        return (da===null?Infinity:da)-(db===null?Infinity:db);
+      });
+    }else if(prefs.sort==="rating"){
+      out.sort((a,b)=>Number(b.ratingValue||0)-Number(a.ratingValue||0));
+    }else if(prefs.sort==="price"){
+      out.sort((a,b)=>{
+        const pa=Number(a.price)>0?Number(a.price):Infinity;
+        const pb=Number(b.price)>0?Number(b.price):Infinity;
+        return pa-pb;
+      });
+    }else{
+      out.sort((a,b)=>dealzyScore(b).score-dealzyScore(a).score);
+    }
+    return out;
+  }
+
+  async function renderExploreMap(rows){
+    let mapRoot=document.getElementById("dealzyExploreMap");
+    const grid=document.getElementById("exploreGrid");
+    if(!grid) return;
+    if(!mapRoot){
+      mapRoot=document.createElement("div");
+      mapRoot.id="dealzyExploreMap";
+      mapRoot.className="dz-explore-map";
+      grid.insertAdjacentElement("afterend",mapRoot);
+    }
+
+    const points=(rows||[]).filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    if(!points.length){
+      mapRoot.innerHTML='<div class="dz-map-empty">'+h(tr("No mapped results match these filters yet."))+'</div>';
+      return;
+    }
+
+    try{
+      const L=await loadLeaflet();
+      if(!L) throw new Error("Leaflet unavailable");
+      mapRoot.innerHTML="";
+      if(window.__dealzyExploreMap){
+        try{window.__dealzyExploreMap.remove();}catch(_){}
+      }
+      const map=L.map(mapRoot,{scrollWheelZoom:false});
+      window.__dealzyExploreMap=map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:19,
+        attribution:"© OpenStreetMap contributors"
+      }).addTo(map);
+
+      const latLngs=[];
+      if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+        const here=[Number(state.coords.lat),Number(state.coords.lng)];
+        L.circleMarker(here,{radius:7,weight:3,fillOpacity:.8}).addTo(map).bindPopup(h(tr("Your location")));
+        latLngs.push(here);
+      }
+
+      points.forEach(d=>{
+        const ll=[Number(d.lat),Number(d.lng)];
+        latLngs.push(ll);
+        const score=dealzyScore(d).score;
+        const marker=L.marker(ll).addTo(map);
+        const price=Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
+        marker.bindPopup(
+          '<div class="dz-map-popup"><b>'+h(d.title)+'</b>'+
+          '<div class="meta">'+h(d.place||"")+'</div>'+
+          '<div class="meta">'+h(price)+(d.ratingValue?' · ★ '+h(d.ratingValue):"")+' · ✦ '+score+'</div>'+
+          '<button type="button" data-map-deal="'+d.id+'">'+h(tr("View deal"))+'</button></div>'
+        );
+        marker.on("popupopen",()=>{
+          const btn=mapRoot.querySelector('[data-map-deal="'+d.id+'"]');
+          if(btn) btn.onclick=()=>openDeal(d.id);
+        });
+      });
+
+      if(latLngs.length>1) map.fitBounds(latLngs,{padding:[26,26]});
+      else map.setView(latLngs[0],13);
+    }catch(_){
+      mapRoot.innerHTML='<div class="dz-map-empty">'+h(tr("Interactive map is temporarily unavailable."))+'</div>';
+    }
+  }
+
   renderExplore=async function(){
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
+
+    ensureExploreControls();
+    const prefs=readExplorePrefs();
+    const tools=document.getElementById("dealzyExploreTools");
+    if(tools){
+      const budget=tools.querySelector("#dzExploreBudget");
+      if(state.maxPrice&&!prefs.maxPrice&&budget) budget.value=String(state.maxPrice);
+    }
 
     $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
@@ -699,26 +917,55 @@
     if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
     if(count) count.textContent=tr("Live search");
 
+    const effectiveMax=prefs.maxPrice||state.maxPrice||null;
+    const previousMax=state.maxPrice;
+    state.maxPrice=effectiveMax;
+
     let list=[];
     try{
       list=state.filter==="All"?await fetchMixed(q,6):await fetchLive(state.filter,q,18);
     }catch(_){
       list=[];
+    }finally{
+      state.maxPrice=previousMax;
     }
 
-    if(state.maxPrice){
-      list=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
-    }
-    deals.splice(0,deals.length,...dedupe(list));
+    const effectivePrefs={...prefs,maxPrice:effectiveMax};
+    list=applyExploreFilters(dedupe(list),effectivePrefs);
+    deals.splice(0,deals.length,...list);
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
-      count.textContent=resultText+" · "+marketCityLabel()+(state.maxPrice?" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)}):"");
+      const extras=[];
+      if(effectiveMax) extras.push(tr("under {price}",{price:moneyFor(effectiveMax,market.currency)}));
+      if(prefs.minRating) extras.push("★ "+prefs.minRating+"+");
+      if(prefs.maxDistance&&state.coords&&coordsAllowedForMarket(state.coords,market.country)) extras.push("≤ "+prefs.maxDistance+" mi");
+      count.textContent=resultText+" · "+marketCityLabel()+(extras.length?" · "+extras.join(" · "):"");
     }
-    if(root){
-      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
-      bindCards(root);
+
+    let mapRoot=document.getElementById("dealzyExploreMap");
+    if(prefs.view==="map"){
+      if(root){
+        root.style.display="none";
+        root.innerHTML="";
+      }
+      if(!mapRoot){
+        mapRoot=document.createElement("div");
+        mapRoot.id="dealzyExploreMap";
+        mapRoot.className="dz-explore-map";
+        root.insertAdjacentElement("afterend",mapRoot);
+      }
+      mapRoot.style.display="block";
+      await renderExploreMap(list);
+    }else{
+      if(mapRoot) mapRoot.style.display="none";
+      if(root){
+        root.style.display="";
+        root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
+        bindCards(root);
+      }
     }
+
     renderFavs();
     renderTrips();
   };
