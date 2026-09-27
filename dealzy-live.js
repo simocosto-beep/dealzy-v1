@@ -51,6 +51,7 @@
     localStorage.removeItem("dealzyCoords");
     catalog.clear();
     homeDeals=[];
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
 
   const h=(value)=>String(value??"").replace(/[&<>"']/g,(m)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -86,7 +87,9 @@
       text:raw.text||"",
       partnerUrl:raw.partnerUrl||null,
       source,
+      provider:raw.provider||source.toLowerCase(),
       currency:raw.currency||market.currency,
+      reviewCount:reviews,
       live:true
     };
   }
@@ -94,6 +97,36 @@
   function remember(rows){
     rows.forEach((d)=>catalog.set(Number(d.id),d));
     return rows;
+  }
+
+  function getSavedSnapshots(){
+    try{return JSON.parse(localStorage.getItem("dealzyLiveSaved")||"{}")||{};}catch(_){return {};}
+  }
+
+  function saveSnapshots(snapshots){
+    localStorage.setItem("dealzyLiveSaved",JSON.stringify(snapshots||{}));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function loadSavedIntoCatalog(){
+    const saved=getSavedSnapshots();
+    Object.values(saved).forEach((d)=>{if(d&&d.id!=null) catalog.set(Number(d.id),d);});
+  }
+
+  function trackPartnerClick(d){
+    try{
+      const events=JSON.parse(localStorage.getItem("dealzyPartnerClicks")||"[]");
+      events.push({
+        provider:d.provider||d.source||"partner",
+        source:d.source||"",
+        title:d.title||"",
+        externalId:d.externalId||null,
+        market:{country:market.country,city:market.city,currency:market.currency},
+        clickedAt:new Date().toISOString()
+      });
+      localStorage.setItem("dealzyPartnerClicks",JSON.stringify(events.slice(-200)));
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    }catch(_){}
   }
 
   function dedupe(rows){
@@ -116,6 +149,11 @@
     });
     if(q) params.set("q",q);
     if(state.maxPrice) params.set("maxPrice",String(state.maxPrice));
+    if(state.coords){
+      params.set("lat",String(state.coords.lat));
+      params.set("lng",String(state.coords.lng));
+      params.set("radius","25");
+    }
     const response=await fetch("/api/search?"+params.toString(),{
       headers:{Accept:"application/json"},
       cache:"no-store"
@@ -147,9 +185,25 @@
     return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div><div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
 
+  toggleFav=function(id){
+    const numeric=Number(id);
+    const d=catalog.get(numeric)||deals.find((x)=>Number(x.id)===numeric);
+    const snapshots=getSavedSnapshots();
+    if(state.favorites.has(numeric)){
+      state.favorites.delete(numeric);
+      if(!state.trip.includes(numeric)) delete snapshots[String(numeric)];
+    }else{
+      state.favorites.add(numeric);
+      if(d) snapshots[String(numeric)]=d;
+    }
+    localStorage.setItem("dealzyFavs",JSON.stringify([...state.favorites]));
+    saveSnapshots(snapshots);
+    toast(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites");
+  };
+
   openDeal=function(id){
     const numericId=Number(id);
-    const d=catalog.get(numericId)||deals.find((x)=>Number(x.id)===numericId);
+    const d=catalog.get(numericId)||getSavedSnapshots()[String(numericId)]||deals.find((x)=>Number(x.id)===numericId);
     if(!d) return;
     const hasPrice=Number(d.price)>0;
     const hasDiscount=hasPrice&&Number(d.old)>Number(d.price);
@@ -164,20 +218,26 @@
     $("#detailText").textContent=d.text||"";
     $("#partnerBtn").textContent="Open on "+(d.source||"Partner")+" ↗";
     $("#partnerBtn").onclick=()=>{
-      if(d.partnerUrl) window.open(d.partnerUrl,"_blank","noopener,noreferrer");
-      else toast("Partner link is temporarily unavailable.");
+      if(d.partnerUrl){
+        trackPartnerClick(d);
+        window.open(d.partnerUrl,"_blank","noopener,noreferrer");
+      }else toast("Partner link is temporarily unavailable.");
     };
     $("#detailOverlay").classList.remove("hidden");
   };
 
   renderFavs=function(){
-    const list=[...state.favorites].map((id)=>catalog.get(Number(id))).filter(Boolean);
+    loadSavedIntoCatalog();
+    const snapshots=getSavedSnapshots();
+    const list=[...state.favorites].map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
     $("#favoritesGrid").innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">No favorites yet. Tap ♡ on a live result to save it.</div>';
     bindCards($("#favoritesGrid"));
   };
 
   renderTrips=function(){
-    const list=state.trip.map((id)=>catalog.get(Number(id))).filter(Boolean);
+    loadSavedIntoCatalog();
+    const snapshots=getSavedSnapshots();
+    const list=state.trip.map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
     $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
   };
 
@@ -227,7 +287,11 @@
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
     const countryName=market.country==="CA"?"Canada":"United States";
     const locationBtn=document.getElementById("locationBtn");
-    if(locationBtn) locationBtn.textContent=flag+" "+marketCityLabel();
+    if(locationBtn){
+      locationBtn.textContent=flag+" "+marketCityLabel();
+      locationBtn.onclick=()=>show("profile");
+      locationBtn.title="Change market";
+    }
 
     const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
     if(popularHeading) popularHeading.textContent="Popular in "+market.city;
@@ -280,8 +344,60 @@
     });
   }
 
+  function parseSmartQuery(q){
+    const original=String(q||"").trim();
+    const lower=original.toLowerCase();
+    let foundCountry=null,foundCity=null;
+
+    Object.entries(MARKET_CITIES).forEach(([country,cities])=>{
+      cities.forEach(({value,label})=>{
+        const variants=[value,label,value==="Montreal"?"Montréal":""].filter(Boolean);
+        if(variants.some((v)=>lower.includes(v.toLowerCase()))){
+          foundCountry=country;
+          foundCity=value;
+        }
+      });
+    });
+
+    if(foundCountry&&foundCity&&(market.country!==foundCountry||market.city!==foundCity)){
+      persistMarket(foundCountry,foundCity);
+      updateMarketUI();
+    }
+
+    state.filter=
+      /spa|massage|beauty|beauté|bien[- ]?être/.test(lower)?"Spa & Beauty":
+      /restaurant|dinner|food|brunch|café|cafe|manger|repas/.test(lower)?"Food & Drink":
+      /hotel|hôtel|travel|trip|voyage|stay/.test(lower)?"Travel":
+      /concert|event|événement|activity|activité|tour|things to do|museum|musée|cruise|boat/.test(lower)?"Things to Do":"All";
+
+    const budget=lower.match(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*(\d{1,5})/i);
+    state.maxPrice=budget?Number(budget[1]):null;
+
+    let cleaned=original
+      .replace(/date night|tonight|this weekend|near me|ce soir|ce week[- ]?end|près de moi/gi," ")
+      .replace(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*\d{1,5}/gi," ");
+
+    Object.values(MARKET_CITIES).flat().forEach(({value,label})=>{
+      [value,label,value==="Montreal"?"Montréal":""].filter(Boolean).forEach((name)=>{
+        cleaned=cleaned.split(name).join(" ");
+      });
+    });
+
+    cleaned=cleaned.replace(/\s+/g," ").trim();
+    return {query:cleaned};
+  }
+
+  aiSearch=function(q){
+    const parsed=parseSmartQuery(q);
+    $("#exploreQuery").value=parsed.query;
+    show("explore");
+    renderExplore();
+    toast("Dealzy AI · "+marketCityLabel()+(state.maxPrice?" · budget "+moneyFor(state.maxPrice,market.currency):""));
+  };
+
   async function hydrateHome(){
     updateMarketUI();
+    loadSavedIntoCatalog();
     deals.splice(0,deals.length);
     const popular=$("#popularGrid");
     if(popular) popular.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
@@ -319,6 +435,32 @@
 
   const exploreButton=document.getElementById("exploreSearch");
   if(exploreButton) exploreButton.onclick=()=>renderExplore();
+
+  const useLoc=document.getElementById("useLocationBtn");
+  if(useLoc){
+    useLoc.onclick=()=>{
+      if(typeof useLocation==="function"){
+        useLocation();
+        setTimeout(()=>{if(state.coords) hydrateHome();},1500);
+      }
+    };
+  }
+
+  const tripAdd=document.getElementById("tripAdd");
+  if(tripAdd){
+    tripAdd.onclick=()=>{
+      const snapshots=getSavedSnapshots();
+      state.trip=[...new Set([...state.trip,...state.favorites])];
+      state.trip.forEach((id)=>{
+        const d=catalog.get(Number(id));
+        if(d) snapshots[String(id)]=d;
+      });
+      localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
+      saveSnapshots(snapshots);
+      renderTrips();
+      toast("Favorites added to "+market.city+" Weekend");
+    };
+  }
 
   hydrateHome();
 })();
