@@ -206,16 +206,110 @@
     return null;
   }
 
-  function persistMarket(country,city){
-    const safeCity=String(city||"").trim().replace(/\s+/g," ").slice(0,80)||MARKET_CITIES[country][0].value;
-    market={country,city:safeCity,currency:country==="CA"?"CAD":"USD"};
+  function persistMarket(country,city,locationMode="manual"){
+    const safeCountry=country==="CA"?"CA":"US";
+    const safeCity=String(city||"").trim().replace(/\s+/g," ").slice(0,80)||MARKET_CITIES[safeCountry][0].value;
+    market={country:safeCountry,city:safeCity,currency:safeCountry==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
+    localStorage.setItem("dealzyLocationMode",locationMode);
     state.coords=null;
     localStorage.removeItem("dealzyCoords");
     catalog.clear();
     homeDeals=[];
     if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
+
+  async function reverseGpsLocation(lat,lng){
+    try{
+      const p=new URLSearchParams({
+        format:"jsonv2",
+        lat:String(lat),
+        lon:String(lng),
+        zoom:"10",
+        addressdetails:"1"
+      });
+      const response=await fetch("https://nominatim.openstreetmap.org/reverse?"+p.toString(),{
+        headers:{Accept:"application/json"}
+      });
+      if(!response.ok) return null;
+      const data=await response.json();
+      const address=data&&data.address?data.address:{};
+      const cc=String(address.country_code||"").toUpperCase();
+      const country=cc==="CA"?"CA":cc==="US"?"US":null;
+      if(!country) return {country:null,city:null,address};
+      const city=String(
+        address.city||address.town||address.municipality||address.village||
+        address.hamlet||address.county||""
+      ).trim();
+      return {country,city:city||MARKET_CITIES[country][0].value,address};
+    }catch(_){
+      return null;
+    }
+  }
+
+  async function applyGpsLocation(lat,lng,{refresh=true,silent=false}={}){
+    const coords={lat:Number(lat),lng:Number(lng),source:"gps"};
+    if(!Number.isFinite(coords.lat)||!Number.isFinite(coords.lng)) return null;
+
+    const detected=await reverseGpsLocation(coords.lat,coords.lng);
+    if(!detected||!detected.country){
+      state.coords=coords;
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      localStorage.setItem("dealzyLocationMode","gps");
+      if(!silent) toast(locale()==="fr"
+        ?"Position GPS détectée, mais Dealzy teste actuellement les marchés USA/Canada."
+        :"GPS detected, but Dealzy currently tests USA/Canada markets.");
+      if(typeof updateGeoUI==="function") updateGeoUI();
+      return {coords,country:null,city:null};
+    }
+
+    persistMarket(detected.country,detected.city,"gps");
+    state.coords=coords;
+    localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+    localStorage.setItem("dealzyLocationMode","gps");
+
+    updateMarketUI();
+    if(typeof updateGeoUI==="function") updateGeoUI();
+    window.dispatchEvent(new CustomEvent("dealzy:gpslocation",{detail:{
+      country:detected.country,city:detected.city,lat:coords.lat,lng:coords.lng
+    }}));
+
+    if(refresh){
+      await hydrateHome();
+      const explore=document.getElementById("exploreView");
+      if(explore&&!explore.classList.contains("hidden")) renderExplore();
+    }
+    if(!silent) toast((locale()==="fr"?"Position réelle : ":"Real location: ")+detected.city);
+    return {coords,country:detected.country,city:detected.city};
+  }
+
+  function useRealLocation({silent=false,refresh=true}={}){
+    if(!navigator.geolocation){
+      if(!silent) toast(locale()==="fr"?"La géolocalisation n’est pas disponible.":"Geolocation is unavailable.");
+      return Promise.resolve(null);
+    }
+    return new Promise(resolve=>{
+      navigator.geolocation.getCurrentPosition(
+        async pos=>{
+          try{
+            const result=await applyGpsLocation(pos.coords.latitude,pos.coords.longitude,{refresh,silent});
+            resolve(result);
+          }catch(_){resolve(null);}
+        },
+        ()=>{
+          if(!silent) toast(locale()==="fr"?"Autorisation de localisation refusée.":"Location permission was not granted.");
+          resolve(null);
+        },
+        {enableHighAccuracy:true,timeout:12000,maximumAge:120000}
+      );
+    });
+  }
+
+  window.DealzyLocation={
+    useRealLocation,
+    applyGpsLocation,
+    mode:()=>localStorage.getItem("dealzyLocationMode")||"gps"
+  };
 
   const h=(value)=>String(value??"").replace(/[&<>"']/g,(m)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 
@@ -1090,8 +1184,13 @@
     const locationBtn=document.getElementById("locationBtn");
     if(locationBtn){
       locationBtn.textContent=flag+" "+marketCityLabel();
-      locationBtn.onclick=()=>show("profile");
-      locationBtn.title=tr("Change market");
+      const gpsMode=localStorage.getItem("dealzyLocationMode")==="gps";
+      locationBtn.onclick=()=>gpsMode&&window.DealzyLocation
+        ? window.DealzyLocation.useRealLocation({silent:false,refresh:true})
+        : show("profile");
+      locationBtn.title=gpsMode
+        ? (locale()==="fr"?"Actualiser ma position":"Refresh my location")
+        : tr("Change market");
     }
 
     const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
@@ -1139,11 +1238,16 @@
             '<button type="button" class="dz-market-field" data-picker="language"><span class="dz-value">'+(currentLocale==="fr"?"🇫🇷 Français":"🇺🇸 English")+'</span><span class="dz-chevron">⌄</span></button>'+
           '</label>'+
         '</div>'+
+        '<button type="button" id="dzUseRealLocation" style="margin-top:12px;width:100%;border:0;border-radius:15px;padding:13px 14px;background:#eef2ff;color:#5145cd;font-weight:850;font:inherit">📍 '+h(locale()==="fr"?"Utiliser ma position réelle":"Use my real location")+'</button>'+
         '<div class="meta" style="margin-top:12px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
 
       card.querySelectorAll("[data-picker]").forEach(btn=>{
         btn.onclick=()=>openMarketPicker(btn.dataset.picker);
       });
+      const realLocationBtn=card.querySelector("#dzUseRealLocation");
+      if(realLocationBtn){
+        realLocationBtn.onclick=()=>window.DealzyLocation&&window.DealzyLocation.useRealLocation({silent:false,refresh:true});
+      }
     });
 
     const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
@@ -1324,4 +1428,11 @@
 
   hydrateHome();
   maybeShowFirstRunOnboarding();
+
+  // GPS is the primary local-discovery mode. Manual city selection remains
+  // available for browsing another destination.
+  setTimeout(()=>{
+    const mode=localStorage.getItem("dealzyLocationMode");
+    if(mode!=="manual") useRealLocation({silent:true,refresh:true});
+  },700);
 })();

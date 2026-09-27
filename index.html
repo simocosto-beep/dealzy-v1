@@ -94,26 +94,38 @@ $('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=
 $('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));if(window.DealzyCloud)window.DealzyCloud.queueSync();renderTrips();toast('Favorites added to Miami Weekend')};
 function updateGeoUI(){
   if(state.coords){
-    $('#locationBtn').textContent='📍 Near you';
-    if($('#geoTitle')) $('#geoTitle').textContent='Location enabled';
-    if($('#geoSub')) $('#geoSub').textContent='Nearby-ready · '+state.coords.lat.toFixed(3)+', '+state.coords.lng.toFixed(3);
-    if($('#useLocationBtn')) $('#useLocationBtn').textContent='Refresh';
+    let m={country:'US',city:'',currency:'USD'};
+    try{m={...m,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})}}catch(_){}
+    const flag=m.country==='CA'?'🇨🇦':'🇺🇸';
+    const gps=state.coords.source==='gps'||localStorage.getItem('dealzyLocationMode')==='gps';
+    if($('#locationBtn')&&gps&&m.city) $('#locationBtn').textContent=flag+' '+m.city;
+    if($('#geoTitle')) $('#geoTitle').textContent=gps?(window.DealzyI18n?.getLocale()==='fr'?'Position GPS active':'GPS location active'):'Location enabled';
+    if($('#geoSub')) $('#geoSub').textContent=(m.city?m.city+' · ':'')+state.coords.lat.toFixed(3)+', '+state.coords.lng.toFixed(3);
+    if($('#useLocationBtn')) $('#useLocationBtn').textContent=window.DealzyI18n?.getLocale()==='fr'?'Actualiser ma position':'Refresh my location';
   }
 }
-function useLocation(){
+async function useLocation(){
+  if($('#useLocationBtn')) $('#useLocationBtn').textContent=window.DealzyI18n?.getLocale()==='fr'?'Localisation…':'Locating…';
+  if(window.DealzyLocation&&window.DealzyLocation.useRealLocation){
+    const result=await window.DealzyLocation.useRealLocation({silent:false,refresh:true});
+    if(!result&&$('#useLocationBtn')) $('#useLocationBtn').textContent=window.DealzyI18n?.getLocale()==='fr'?'Réessayer':'Try again';
+    updateGeoUI();
+    return;
+  }
   if(!navigator.geolocation){toast('Location is not supported on this device.');return}
-  if($('#useLocationBtn')) $('#useLocationBtn').textContent='Locating…';
   navigator.geolocation.getCurrentPosition(
     p=>{
-      state.coords={lat:p.coords.latitude,lng:p.coords.longitude};
-      localStorage.setItem('dealzyCoords',JSON.stringify(state.coords));if(window.DealzyCloud)window.DealzyCloud.queueSync();
-      updateGeoUI();toast('Location enabled for nearby deals');
+      state.coords={lat:p.coords.latitude,lng:p.coords.longitude,source:'gps'};
+      localStorage.setItem('dealzyCoords',JSON.stringify(state.coords));
+      localStorage.setItem('dealzyLocationMode','gps');
+      updateGeoUI();
     },
     ()=>{if($('#useLocationBtn')) $('#useLocationBtn').textContent='Try again';toast('Location permission was not granted.')}
-  ,{enableHighAccuracy:true,timeout:10000,maximumAge:300000});
+  ,{enableHighAccuracy:true,timeout:12000,maximumAge:120000});
 }
 $('#locationBtn').onclick=useLocation;
 $('#useLocationBtn').onclick=useLocation;
+window.addEventListener('dealzy:gpslocation',updateGeoUI);
 const brandHome=$('#brandHome');
 if(brandHome){
   const goHome=()=>show('home');
