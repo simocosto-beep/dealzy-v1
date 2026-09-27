@@ -128,6 +128,7 @@
   }
 
   function milesBetween(a,b,c,d){
+    if([a,b,c,d].some(x=>x===null||x===undefined||x==="")) return null;
     const vals=[a,b,c,d].map(Number);
     if(vals.some(x=>!Number.isFinite(x))) return null;
     const toRad=v=>v*Math.PI/180;
@@ -427,7 +428,7 @@
       items:[],totalPrice:0,totalDuration:0,totalDistance:null,mapped:0,currency:market.currency
     };
 
-    const withCoords=source.filter(d=>Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    const withCoords=source.filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
     const withoutCoords=source.filter(d=>!withCoords.includes(d));
     let ordered=[];
 
@@ -553,7 +554,9 @@
   async function renderTripMap(plan){
     const root=document.getElementById("dealzyTripMap");
     if(!root) return;
-    const points=(plan?.items||[]).filter(d=>Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
+    const tripsView=document.getElementById("tripsView");
+    if(tripsView&&tripsView.classList.contains("hidden")) return;
+    const points=(plan?.items||[]).filter(d=>d.lat!==null&&d.lng!==null&&Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng)));
     if(!points.length){
       root.innerHTML='<div class="dz-trip-map-fallback">'+h(tr("Map will appear when saved places include coordinates."))+'</div>';
       return;
@@ -1126,6 +1129,11 @@
     renderAll();
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
   });
+
+  const tripNav=document.querySelector('.navBtn[data-view="trips"]');
+  if(tripNav){
+    tripNav.addEventListener("click",()=>setTimeout(()=>renderTrips(),30));
+  }
 
   const tripAdd=document.getElementById("tripAdd");
   if(tripAdd){
