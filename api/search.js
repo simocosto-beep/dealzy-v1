@@ -2,8 +2,42 @@ const deals = require('./_demoDeals');
 
 const VIATOR_BASE='https://api.viator.com/partner';
 const VIATOR_MIAMI_DESTINATION='662';
+let viatorDestinationsCache=null;
+let viatorDestinationsCacheAt=0;
 
-function normalizeViator(row){
+function normalizePlaceName(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+
+async function resolveViatorDestination(city,key){
+  if(!city) return VIATOR_MIAMI_DESTINATION;
+  if(normalizePlaceName(city)==='miami') return VIATOR_MIAMI_DESTINATION;
+  try{
+    if(!viatorDestinationsCache || Date.now()-viatorDestinationsCacheAt>21600000){
+      const r=await fetch(VIATOR_BASE+'/destinations',{
+        headers:{
+          'Accept':'application/json;version=2.0',
+          'Accept-Language':'en-US',
+          'exp-api-key':key
+        }
+      });
+      if(!r.ok) return null;
+      const data=await r.json();
+      const rows=Array.isArray(data)?data:(Array.isArray(data.destinations)?data.destinations:(Array.isArray(data.data)?data.data:[]));
+      viatorDestinationsCache=rows;
+      viatorDestinationsCacheAt=Date.now();
+    }
+    const needle=normalizePlaceName(city);
+    const exact=viatorDestinationsCache.find(x=>normalizePlaceName(x.name)===needle && String(x.type||'').toUpperCase()==='CITY')
+      ||viatorDestinationsCache.find(x=>normalizePlaceName(x.name)===needle)
+      ||viatorDestinationsCache.find(x=>normalizePlaceName(x.name).includes(needle) && String(x.type||'').toUpperCase()==='CITY');
+    return exact ? String(exact.destinationId||exact.id||'') || null : null;
+  }catch(_){
+    return null;
+  }
+}
+
+function normalizeViator(row,{city='Miami',countryCode='US',currency='USD'}={}){
   const summary=row && row.pricing && row.pricing.summary ? row.pricing.summary : {};
   const price=Number(summary.fromPrice||0);
   const old=Number(summary.fromPriceBeforeDiscount||price||0);
@@ -15,7 +49,7 @@ function normalizeViator(row){
     id:'viator-'+String(row.productCode||row.code||Math.random().toString(36).slice(2)),
     title:row.title||'Viator experience',
     category:'Things to Do',
-    place:'Miami, FL',
+    place:city+', '+countryCode,
     lat:null,
     lng:null,
     price,
@@ -27,22 +61,25 @@ function normalizeViator(row){
     partnerUrl:row.productUrl||null,
     source:'Viator',
     provider:'viator',
-    currency:(row.pricing&&row.pricing.currency)||'USD',
+    currency:(row.pricing&&row.pricing.currency)||currency,
     savings:Math.max(0,old-price),
     discountPct:old?Math.round((1-price/old)*100):0,
     flags:Array.isArray(row.flags)?row.flags:[]
   };
 }
 
-async function searchViator({q,maxPrice,limit}){
+async function searchViator({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD'}){
   const key=process.env.VIATOR_PRODUCTION_API_KEY;
   if(!key) return {ok:false,reason:'production-key-not-configured',results:[]};
 
+  const destination=await resolveViatorDestination(city,key);
+  if(!destination) return {ok:false,reason:'destination-not-found',results:[]};
+
   const body={
-    filtering:{destination:VIATOR_MIAMI_DESTINATION},
+    filtering:{destination},
     sorting:{sort:'TRAVELER_RATING',order:'DESCENDING'},
     pagination:{start:1,count:Math.min(50,Math.max(limit*3,12))},
-    currency:'USD'
+    currency
   };
 
   const r=await fetch(VIATOR_BASE+'/products/search',{
@@ -63,7 +100,7 @@ async function searchViator({q,maxPrice,limit}){
   }
 
   const data=await r.json();
-  let rows=Array.isArray(data.products)?data.products.map(normalizeViator):[];
+  let rows=Array.isArray(data.products)?data.products.map(row=>normalizeViator(row,{city,countryCode,currency})):[];
   if(q){
     const needle=q.toLowerCase();
     rows=rows.filter(d=>(d.title+' '+d.text).toLowerCase().includes(needle));
@@ -79,7 +116,7 @@ function bestTicketmasterImage(images){
   return [...images].sort((a,b)=>(Number(b.width||0)*Number(b.height||0))-(Number(a.width||0)*Number(a.height||0)))[0]?.url||'';
 }
 
-function normalizeTicketmaster(row){
+function normalizeTicketmaster(row,defaultCurrency='USD'){
   const venue=row?._embedded?.venues?.[0]||{};
   const pr=Array.isArray(row.priceRanges)&&row.priceRanges.length?row.priceRanges[0]:{};
   const min=Number(pr.min||0), max=Number(pr.max||min||0);
@@ -101,7 +138,7 @@ function normalizeTicketmaster(row){
     partnerUrl:row.url||null,
     source:'Ticketmaster',
     provider:'ticketmaster',
-    currency:pr.currency||'USD',
+    currency:pr.currency||defaultCurrency,
     savings:0,
     discountPct:0,
     eventDate:localDate||null,
@@ -109,13 +146,13 @@ function normalizeTicketmaster(row){
   };
 }
 
-async function ticketmasterRequest({q,limit}){
+async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',currency='USD'}){
   const key=process.env.TICKETMASTER_API_KEY;
   if(!key) return {ok:false,reason:'not-configured',results:[]};
   const p=new URLSearchParams({
     apikey:key,
-    countryCode:'US',
-    city:'Miami',
+    countryCode,
+    city,
     size:String(Math.min(20,Math.max(1,limit))),
     sort:'date,asc'
   });
@@ -130,12 +167,12 @@ async function ticketmasterRequest({q,limit}){
   }
   const data=await r.json();
   const events=data?._embedded?.events||[];
-  return {ok:true,results:events.map(normalizeTicketmaster),total:Number(data?.page?.totalElements||events.length)};
+  return {ok:true,results:events.map(row=>normalizeTicketmaster(row,currency)),total:Number(data?.page?.totalElements||events.length)};
 }
 
-async function searchTicketmaster({q,maxPrice,limit}){
-  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10)});
-  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10)});
+async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD'}){
+  let live=await ticketmasterRequest({q,limit:Math.max(limit*2,10),city,countryCode,currency});
+  if(live.ok && !live.results.length && q) live=await ticketmasterRequest({q:'',limit:Math.max(limit*2,10),city,countryCode,currency});
   if(!live.ok) return live;
   let rows=live.results;
   if(maxPrice) rows=rows.filter(d=>!d.price||d.price<=maxPrice);
@@ -149,7 +186,7 @@ function yelpCategory(category){
   return '';
 }
 
-function normalizeYelp(row,category){
+function normalizeYelp(row,category,currency='USD'){
   const loc=row.location||{};
   const coords=row.coordinates||{};
   return {
@@ -169,7 +206,7 @@ function normalizeYelp(row,category){
     partnerUrl:row.url||null,
     source:'Yelp',
     provider:'yelp',
-    currency:'USD',
+    currency,
     savings:0,
     discountPct:0,
     phone:row.display_phone||null,
@@ -177,7 +214,7 @@ function normalizeYelp(row,category){
   };
 }
 
-async function searchYelp({q,category,limit,lat,lng}){
+async function searchYelp({q,category,limit,lat,lng,city='Miami',countryCode='US',currency='USD'}){
   const key=process.env.YELP_API_KEY;
   if(!key) return {ok:false,reason:'not-configured',results:[]};
   const categories=yelpCategory(category);
@@ -194,7 +231,7 @@ async function searchYelp({q,category,limit,lat,lng}){
     params.set('longitude',String(lng));
     params.set('radius','16000');
   }else{
-    params.set('location','Miami, FL');
+    params.set('location',city+', '+countryCode);
   }
 
   const r=await fetch('https://api.yelp.com/v3/businesses/search?'+params.toString(),{
@@ -206,7 +243,7 @@ async function searchYelp({q,category,limit,lat,lng}){
     return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
   }
   const data=await r.json();
-  const rows=Array.isArray(data.businesses)?data.businesses.map(x=>normalizeYelp(x,category)):[];
+  const rows=Array.isArray(data.businesses)?data.businesses.map(x=>normalizeYelp(x,category,currency)):[];
   return {ok:true,results:rows,total:Number(data.total||rows.length)};
 }
 
@@ -246,6 +283,11 @@ module.exports = async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({ok:false,error:'Method not allowed'});
 
   const demo=demoSearch(req);
+  const requestedCountry=String(req.query.country||'US').toUpperCase();
+  const countryCode=requestedCountry==='CA'?'CA':'US';
+  const defaultCity=countryCode==='CA'?'Toronto':'Miami';
+  const city=String(req.query.city||defaultCity).trim().slice(0,80)||defaultCity;
+  const currency=countryCode==='CA'?'CAD':'USD';
   const wantsTicketmaster=demo.category==='All'||demo.category==='Things to Do';
   const wantsViator=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
   const wantsYelp=demo.category==='Food & Drink'||demo.category==='Spa & Beauty';
@@ -259,7 +301,10 @@ module.exports = async function handler(req,res){
         category:demo.category,
         limit:demo.limit,
         lat:demo.hasCoords?demo.lat:null,
-        lng:demo.hasCoords?demo.lng:null
+        lng:demo.hasCoords?demo.lng:null,
+        city,
+        countryCode,
+        currency
       });
       if(yelp.ok && yelp.results.length){
         liveRows.push(...yelp.results);
@@ -270,7 +315,7 @@ module.exports = async function handler(req,res){
 
   if(wantsTicketmaster){
     try{
-      const tm=await searchTicketmaster({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
+      const tm=await searchTicketmaster({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency});
       if(tm.ok && tm.results.length){
         liveRows.push(...tm.results);
         liveProviders.push({name:'ticketmaster',status:'live'});
@@ -279,7 +324,7 @@ module.exports = async function handler(req,res){
   }
   if(wantsViator){
     try{
-      const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit});
+      const viator=await searchViator({q:demo.q,maxPrice:demo.maxPrice,limit:demo.limit,city,countryCode,currency});
       if(viator.ok && viator.results.length){
         if(demo.category==='Travel') liveRows.unshift(...viator.results);
         else liveRows.push(...viator.results);
@@ -293,7 +338,7 @@ module.exports = async function handler(req,res){
     return res.status(200).json({
       ok:true,
       mode:liveProviders.length>1?'live-multi-provider':'live-'+liveProviders[0].name,
-      query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:'Miami'},
+      query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,destination:city,country:countryCode,currency},
       count:results.length,
       providers:liveProviders,
       results,
@@ -304,7 +349,7 @@ module.exports = async function handler(req,res){
   return res.status(200).json({
     ok:true,
     mode:'demo-fallback',
-    query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,lat:demo.hasCoords?demo.lat:null,lng:demo.hasCoords?demo.lng:null,radius:demo.radius||null},
+    query:{q:demo.q,category:demo.category,maxPrice:demo.maxPrice||null,limit:demo.limit,lat:demo.hasCoords?demo.lat:null,lng:demo.hasCoords?demo.lng:null,radius:demo.radius||null,destination:city,country:countryCode,currency},
     count:demo.rows.length,
     providers:[
       {name:'demo',status:'active'},
