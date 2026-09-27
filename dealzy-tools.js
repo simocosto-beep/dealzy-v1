@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20260927d';
+    liveScript.src='/dealzy-live.js?v=20260927g';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -862,6 +862,11 @@
 
   // PWA shell registration.
   if('serviceWorker' in navigator){
-    window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
+    window.addEventListener('load',async()=>{
+      try{
+        const reg=await navigator.serviceWorker.register('/sw.js?v=20260927g');
+        await reg.update();
+      }catch(_){}
+    });
   }
 })();
