@@ -475,7 +475,7 @@
       if(showResult){
         showPanel('<h3>📉 Price Watch</h3><div class="dz-result"><b>'+((d.matches||[]).length)+' match'+((d.matches||[]).length===1?'':'es')+'</b><br>'+
           ((d.matches||[]).length?(d.matches||[]).map(x=>esc(x.deal.title)+' · '+money(x.deal.price)+' ≤ '+money(x.target)).join('<br>'):'No watched price target matched the current provider inventory.')+
-          '</div><div class="dz-small" style="margin-top:9px">Current check mode: '+esc(d.mode||'unknown')+'. Demo results are never presented as live partner offers.</div>');
+          '</div><div class="dz-small" style="margin-top:9px">Current check mode: '+esc(d.mode||'unknown')+'. Only verified provider results are presented as live partner offers.</div>');
       }
       return d;
     }catch(_){return {ok:false,reason:'api-error'}}
