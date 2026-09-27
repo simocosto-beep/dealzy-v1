@@ -9,7 +9,7 @@
     if(pg) pg.innerHTML='<div class="empty" style="grid-column:1/-1">Loading live deals…</div>';
   }catch(_){}
   const dealzyLiveScript=document.createElement('script');
-  dealzyLiveScript.src='/dealzy-live.js?v=20260927a';
+  dealzyLiveScript.src='/dealzy-live.js?v=20260927c';
   dealzyLiveScript.defer=true;
   document.head.appendChild(dealzyLiveScript);
 
@@ -69,7 +69,7 @@
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
-  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+  const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
   let cloudTimer=null;
 
   async function getCloudSession(){
@@ -165,12 +165,34 @@
   wrap.onclick = e => { if (e.target === wrap) close(); };
 
   function getDeals(){
-    try { return Array.isArray(deals) ? deals : []; } catch (_) { return []; }
+    try {
+      const current=Array.isArray(deals)?deals:[];
+      const saved=JSON.parse(localStorage.getItem('dealzyLiveSaved')||'{}');
+      const snapshots=Object.values(saved||{});
+      const byId=new Map();
+      [...current,...snapshots].forEach(d=>{if(d&&d.id!=null) byId.set(Number(d.id),d);});
+      return [...byId.values()];
+    } catch (_) { return []; }
   }
   function getFavorites(){
     try { return state && state.favorites ? [...state.favorites] : JSON.parse(localStorage.getItem('dealzyFavs')||'[]'); } catch (_) { return []; }
   }
-  function money(v){ return '$'+Number(v||0).toFixed(0); }
+  function money(v){
+    let currency='USD';
+    try{currency=(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{}).currency||'USD';}catch(_){}
+    const symbol=currency==='CAD'?'CA'+String.fromCharCode(36):String.fromCharCode(36);
+    return symbol+Number(v||0).toFixed(0);
+  }
+  function recordPartnerClick(provider,title){
+    try{
+      let market={country:'US',city:'Miami',currency:'USD'};
+      try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
+      const events=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]');
+      events.push({provider,title:title||'',market,clickedAt:new Date().toISOString()});
+      localStorage.setItem('dealzyPartnerClicks',JSON.stringify(events.slice(-200)));
+      queueCloudSync();
+    }catch(_){}
+  }
   function esc(s){ return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function showPanel(html){ panel.innerHTML = html; panel.classList.add('open'); panel.scrollIntoView({behavior:'smooth',block:'nearest'}); }
 
@@ -192,7 +214,7 @@
   }
 
   function budgetTool(){
-    const cats = ['All','Food & Drink','Things to Do','Spa & Beauty','Travel','Family'];
+    const cats = ['All','Food & Drink','Things to Do','Spa & Beauty','Travel'];
     showPanel(`<h3>🎯 Budget Finder</h3>
       <div class="dz-form">
         <label>Maximum budget<input id="dzBudget" type="number" min="1" value="${Number(prefs.budget)||100}"></label>
@@ -206,8 +228,8 @@
       prefs.category=panel.querySelector('#dzCategory').value;
       prefs.radius=Number(panel.querySelector('#dzRadius').value)||10;
       localStorage.setItem(stateKey,JSON.stringify(prefs)); queueCloudSync();
-      const list=getDeals().filter(d=>(prefs.category==='All'||d.cat===prefs.category)&&d.price<=prefs.budget).sort((a,b)=>a.price-b.price);
-      panel.querySelector('#dzBudgetResult').innerHTML='<div class="dz-result">'+(list.length?list.map(d=>'<div style="margin:6px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place)+'</div>').join(''):'No current demo deal matches this budget.')+'</div>';
+      const list=getDeals().filter(d=>(prefs.category==='All'||d.cat===prefs.category)&&Number(d.price)>0&&Number(d.price)<=prefs.budget).sort((a,b)=>a.price-b.price);
+      panel.querySelector('#dzBudgetResult').innerHTML='<div class="dz-result">'+(list.length?list.map(d=>'<div style="margin:6px 0"><b>'+esc(d.title)+'</b> · '+money(d.price)+' · '+esc(d.place)+'</div>').join(''):'No current live result matches this budget.')+'</div>';
     };
   }
 
@@ -310,7 +332,7 @@
         })
         .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
       const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
         const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
       };
       panel.querySelector('#dzSyncUp').onclick=async()=>{
@@ -422,7 +444,7 @@
       <div class="dz-result" style="margin:12px 0">
         <b>Expedia · Dealzy AI Travel Shop</b><br>
         <span class="dz-small">Hotels, packages and travel inspiration through Dealzy's official Expedia creator shop.</span><br>
-        <a class="dz-action" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a>
+        <a class="dz-action" id="dzExpediaShop" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a>
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
@@ -444,6 +466,8 @@
       </div>`);
 
     const form=panel.querySelector('#dzTravelForm');
+    const expediaLink=panel.querySelector('#dzExpediaShop');
+    if(expediaLink) expediaLink.onclick=()=>recordPartnerClick('Expedia','Dealzy AI Travel Shop');
 
     const saveSearch=(kind,data,summary)=>{
       saved.push({kind,data,summary,createdAt:new Date().toISOString()});
@@ -468,6 +492,7 @@
         if(!dest||!cin||!cout){showPanel('<h3>🏨 Hotels</h3><div class="dz-result">Enter destination, check-in and check-out dates.</div>');return}
         saveSearch('hotel',{dest,adults,cin,cout},dest+' · '+cin+' → '+cout);
         const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:'1'});
+        recordPartnerClick('Booking.com','Hotel search · '+dest);
         window.open('https://www.booking.com/searchresults.html?'+p.toString(),'_blank','noopener,noreferrer');
       };
     };
@@ -490,6 +515,7 @@
         saveSearch('flight',{origin:o,destination:d,out,back},o+' → '+d+' · '+out+(back?' → '+back:''));
         const p=new URLSearchParams({mediaPartnerId:'2850210',utm_term:'skyscanner_chatgpt_app_data',origin:o,destination:d,outboundDate:out,cabinclass:'economy'});
         if(back) p.set('inboundDate',back);
+        recordPartnerClick('Skyscanner','Flight search · '+o+' → '+d);
         window.open('https://skyscanner.net/g/referrals/v1/flights/day-view?'+p.toString(),'_blank','noopener,noreferrer');
       };
     };
@@ -510,6 +536,7 @@
         const age=Math.max(19,Number(form.querySelector('#dzCarAge').value)||30);
         if(!place||!cin||!cout){showPanel('<h3>🚗 Cars</h3><div class="dz-result">Enter pick-up location and rental dates.</div>');return}
         saveSearch('car',{place,cin,cout,age},place+' · '+cin+' → '+cout);
+        recordPartnerClick('Booking.com','Car search · '+place);
         window.open('https://www.booking.com/cars/','_blank','noopener,noreferrer');
       };
     };
@@ -526,6 +553,7 @@
         const date=form.querySelector('#dzActDate').value;
         if(!dest||!date){showPanel('<h3>🎟️ Things to do</h3><div class="dz-result">Enter destination and date.</div>');return}
         saveSearch('activity',{dest,date},dest+' · '+date);
+        recordPartnerClick('Booking.com','Attractions · '+dest);
         window.open('https://www.booking.com/attractions/','_blank','noopener,noreferrer');
       };
     };
@@ -547,7 +575,7 @@
       <button class="dz-action" id="dzWatchSave">Add watch</button>
       <button class="dz-action alt" id="dzWatchCheck">Check prices now</button>
       <div class="dz-result"><b>${items.length} watch${items.length===1?'':'es'}</b><br>${items.length?items.map((x,i)=>'<span class="dz-chip">'+esc(x.name)+' ≤ '+money(x.target)+' <button data-del-watch="'+i+'" style="border:0;background:none;cursor:pointer">×</button></span>').join(''):'Nothing watched yet.'}</div>
-      <div class="dz-small" style="margin-top:9px">Price observations are now stored in your private cloud history. The checker currently labels fallback inventory clearly; approved live feeds can plug into the same engine later.</div>`);
+      <div class="dz-small" style="margin-top:9px">Price observations are stored in your private cloud history and can use verified live sources as they are available.</div>`);
     panel.querySelector('#dzWatchSave').onclick=()=>{
       const name=panel.querySelector('#dzWatchName').value.trim();
       const target=Number(panel.querySelector('#dzWatchPrice').value)||0;
@@ -612,7 +640,7 @@
       <input id="dzImportFile" type="file" accept="application/json" style="display:none">
       <div class="dz-small" style="margin-top:10px">Exports only Dealzy data stored locally in this browser. It does not include passwords or payment data.</div>`);
     panel.querySelector('#dzExport').onclick=()=>{
-      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
+      const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
       const data={version:1,exportedAt:new Date().toISOString(),data:{}};
       keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) data.data[k]=v;});
       const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -666,7 +694,7 @@
       </div>
       <button class="dz-action" id="dzProviderGo">Search Dealzy</button>
       <div id="dzProviderResult"></div>
-      <div class="dz-small" style="margin-top:9px">Dealzy combines verified live sources when available. Yelp places without an exact price are shown as places, not fake deals. Demo inventory is clearly labeled when used as fallback.</div>`);
+      <div class="dz-small" style="margin-top:9px">Dealzy combines verified live sources. Yelp places without an exact price are shown as places, not fake deals.</div>`);
     panel.querySelector('#dzProviderGo').onclick=async()=>{
       const q=panel.querySelector('#dzProviderQ').value.trim();
       const category=panel.querySelector('#dzProviderCategory').value;
@@ -674,7 +702,9 @@
       const out=panel.querySelector('#dzProviderResult');
       out.innerHTML='<div class="dz-result">Searching live sources…</div>';
       try{
-        const p=new URLSearchParams({q,category});
+        let market={country:'US',city:'Miami',currency:'USD'};
+        try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
+        const p=new URLSearchParams({q,category,country:market.country||'US',city:market.city||'Miami'});
         if(max) p.set('maxPrice',String(max));
         const coords=getCoords();
         if(coords){p.set('lat',String(coords.lat));p.set('lng',String(coords.lng));p.set('radius',String(prefs.radius||10));}
@@ -682,8 +712,9 @@
         if(!r.ok) throw new Error('search failed');
         const data=await r.json();
         const providerNames=(data.providers||[]).filter(x=>x.status==='live').map(x=>x.name);
-        const modeLabel=data.mode==='demo-fallback'?'Demo fallback':(providerNames.length?'Live · '+providerNames.join(' + '):'Live source');
-        const rows=(data.results||[]).map(d=>{
+        const modeLabel=data.mode==='demo-fallback'?'No live provider result':(providerNames.length?'Live · '+providerNames.join(' + '):'Live source');
+        const liveResults=data.mode==='demo-fallback'?[]:(data.results||[]);
+        const rows=liveResults.map(d=>{
           const hasPrice=Number(d.price)>0;
           const priceText=hasPrice?money(d.price):(d.priceLabel?esc(d.priceLabel):'Price on provider');
           const rating=d.rating?('⭐ '+esc(d.rating)+(d.reviewCount?' ('+esc(d.reviewCount)+')':'')):'';
@@ -697,7 +728,7 @@
         }).join('');
         out.innerHTML='<div class="dz-small" style="margin:10px 0"><b>'+esc(modeLabel)+'</b> · '+(data.count||0)+' result'+((data.count||0)===1?'':'s')+'</div>'+
           (rows||'<div class="dz-result">No matching result found.</div>');
-      }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. The main app still works with local fallback data.</div>'}
+      }catch(_){out.innerHTML='<div class="dz-result">Dealzy search API is temporarily unavailable. Please try again shortly.</div>'}
     };
   }
 
@@ -708,7 +739,7 @@
       const r=await fetch('/api/providers',{cache:'no-store'});
       if(!r.ok) throw new Error('providers unavailable');
       const data=await r.json();
-      const rows=(data.providers||[]).map(x=>{
+      const rows=(data.providers||[]).filter(x=>x.name!=='Dealzy Demo Inventory').map(x=>{
         const status=String(x.status||'unknown');
         const isLive=/active|configured|live/i.test(status)&&!/pending/i.test(status);
         const label=status.replace(/-/g,' ').toUpperCase();
@@ -717,7 +748,7 @@
           'events-api':'Concerts, sports & events API',
           'local-places-api':'Restaurants, spa & local places API',
           'travel':'Travel source / clickout',
-          'fallback':'Safe demo fallback',
+          'fallback':'Internal safety fallback',
           'cloud':'Dealzy cloud engine',
           'device':'Device capability'
         }[x.kind]||String(x.kind||'Provider');
@@ -735,7 +766,7 @@
     showPanel(`<h3>📲 App & Share</h3>
       <button class="dz-action" id="dzInstall">Install Dealzy</button>
       <button class="dz-action alt" id="dzShare">Share Dealzy</button>
-      <div class="dz-small" style="margin-top:10px">Install availability depends on your browser. Dealzy V1.3 also includes an offline app shell.</div>`);
+      <div class="dz-small" style="margin-top:10px">Install availability depends on your browser. Dealzy includes an offline app shell and live provider connectivity.</div>`);
     panel.querySelector('#dzInstall').onclick=async()=>{
       if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch(_){} deferredInstall=null;}
       else showPanel('<h3>📲 Install Dealzy</h3><div class="dz-result">Use your browser menu → “Add to Home screen” or “Install app”.</div>');
