@@ -384,13 +384,22 @@
       .replace(/date night|tonight|this weekend|near me|ce soir|ce week[- ]?end|près de moi/gi," ")
       .replace(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*\d{1,5}/gi," ");
 
+    const removeInsensitive=(text,needle)=>{
+      if(!needle) return text;
+      let source=String(text), lower=source.toLowerCase(), target=String(needle).toLowerCase(), out="", start=0, index;
+      while((index=lower.indexOf(target,start))!==-1){
+        out+=source.slice(start,index)+" ";
+        start=index+target.length;
+      }
+      return out+source.slice(start);
+    };
     Object.values(MARKET_CITIES).flat().forEach(({value,label})=>{
       [value,label,value==="Montreal"?"Montréal":""].filter(Boolean).forEach((name)=>{
-        cleaned=cleaned.split(name).join(" ");
+        cleaned=removeInsensitive(cleaned,name);
       });
     });
 
-    cleaned=cleaned.replace(/\s+/g," ").trim();
+    cleaned=cleaned.replace(/\b(in|à|a|dans)\b/gi," ").replace(/\s+/g," ").trim();
     return {query:cleaned};
   }
 
