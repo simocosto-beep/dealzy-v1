@@ -123,6 +123,107 @@
     return Math.abs(hash>>>0)||1;
   }
 
+  function categoryInterestId(category){
+    return {"Food & Drink":"food","Things to Do":"activities","Spa & Beauty":"wellness","Travel":"travel"}[category]||null;
+  }
+
+  function milesBetween(a,b,c,d){
+    const vals=[a,b,c,d].map(Number);
+    if(vals.some(x=>!Number.isFinite(x))) return null;
+    const toRad=v=>v*Math.PI/180;
+    const R=3958.8;
+    const dLat=toRad(vals[2]-vals[0]);
+    const dLng=toRad(vals[3]-vals[1]);
+    const q=Math.sin(dLat/2)**2+Math.cos(toRad(vals[0]))*Math.cos(toRad(vals[2]))*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(q));
+  }
+
+  function dealzyScore(d){
+    const profile=readOnboarding();
+    const interests=Array.isArray(profile.interests)?profile.interests:[];
+    const preferredBudget=Math.max(10,Number(profile.budget)||100);
+    const interestId=categoryInterestId(d.cat);
+    let score=42;
+    const reasons=[];
+
+    if(interests.length&&interestId&&interests.includes(interestId)){
+      score+=20;
+      reasons.push(tr("Matches your interests"));
+    }
+
+    const price=Number(d.price||0);
+    if(price>0){
+      if(price<=preferredBudget){
+        score+=15;
+        reasons.push(tr("Within your preferred budget"));
+      }else if(price<=preferredBudget*1.25){
+        score+=6;
+      }
+    }else score+=2;
+
+    const rating=Number(d.ratingValue||0);
+    if(rating>=4.7){
+      score+=12;
+      reasons.push(tr("Strong customer rating"));
+    }else if(rating>=4.4){
+      score+=9;
+      reasons.push(tr("Strong customer rating"));
+    }else if(rating>=4.0){
+      score+=6;
+    }
+
+    const reviews=Number(d.reviewCount||0);
+    if(reviews>=500){
+      score+=8;
+      reasons.push(tr("Popular with reviewers"));
+    }else if(reviews>=100){
+      score+=6;
+      reasons.push(tr("Popular with reviewers"));
+    }else if(reviews>=20){
+      score+=3;
+    }
+
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      const distance=milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+      if(distance!==null){
+        if(distance<=3){
+          score+=12;
+          reasons.push(tr("Near your location"));
+        }else if(distance<=10){
+          score+=9;
+          reasons.push(tr("Near your location"));
+        }else if(distance<=25){
+          score+=5;
+        }
+      }
+    }
+
+    if(d.img) score+=3;
+    if(d.partnerUrl) score+=3;
+
+    score=Math.max(1,Math.min(99,Math.round(score)));
+    if(!reasons.length) reasons.push(tr("Relevant live provider result"));
+    return {score,reasons:reasons.slice(0,3),preferredBudget};
+  }
+
+  function personalizedHome(rows){
+    return (rows||[]).map((d,index)=>({d,index,s:dealzyScore(d).score}))
+      .sort((a,b)=>b.s-a.s||a.index-b.index)
+      .map(x=>x.d);
+  }
+
+  function orderedCategories(){
+    const profile=readOnboarding();
+    const interests=Array.isArray(profile.interests)?profile.interests:[];
+    if(!interests.length) return [...cats];
+    const priority=new Map(interests.map((id,index)=>[id,index]));
+    return [...cats].sort((a,b)=>{
+      const ai=priority.has(categoryInterestId(a[1]))?priority.get(categoryInterestId(a[1])):999;
+      const bi=priority.has(categoryInterestId(b[1]))?priority.get(categoryInterestId(b[1])):999;
+      return ai-bi;
+    });
+  }
+
   function toDeal(raw){
     const source=String(raw.source||raw.provider||"Partner");
     const price=Number(raw.price)>0?Number(raw.price):null;
@@ -136,6 +237,9 @@
       cat:raw.category||"Things to Do",
       place:raw.place||"",
       rating,
+      ratingValue:Number(raw.rating||0)||0,
+      lat:Number(raw.lat)||null,
+      lng:Number(raw.lng)||null,
       price,
       old,
       priceLabel:raw.priceLabel||null,
@@ -238,8 +342,10 @@
     const priceText=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
     const oldText=hasDiscount?'<span class="old">'+moneyFor(d.old,d.currency)+"</span>":"";
     const saveText=hasDiscount?'<span class="save">'+h(tr("Save {pct}%",{pct}))+"</span>":'<span class="save">'+h(d.source||"Live")+"</span>";
+    const scoreInfo=dealzyScore(d);
+    const scorePill='<span title="'+h(tr("Personalized relevance score"))+'" style="display:inline-flex;align-items:center;gap:5px;background:#f1efff;color:#5145cd;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:850;margin-top:9px">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI"))+'</span>';
     const bg=d.img?"background-image:url(&quot;"+h(d.img)+"&quot;)":"background:linear-gradient(135deg,#eef2ff,#f8f9fc)";
-    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div><div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
+    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
 
   toggleFav=function(id){
@@ -270,6 +376,15 @@
     $("#detailBadge").textContent=d.source||"Live";
     $("#detailTitle").textContent=d.title||"";
     $("#detailMeta").textContent=[d.place,d.rating].filter(Boolean).join(" · ");
+    const scoreInfo=dealzyScore(d);
+    let scoreBox=document.getElementById("dealzyScoreDetail");
+    if(!scoreBox){
+      scoreBox=document.createElement("div");
+      scoreBox.id="dealzyScoreDetail";
+      scoreBox.style.cssText="margin:12px 0;padding:12px 14px;border-radius:16px;background:#f8f7ff;border:1px solid #e5e1ff;color:#344054";
+      $("#detailMeta").insertAdjacentElement("afterend",scoreBox);
+    }
+    scoreBox.innerHTML='<b style="color:#5145cd">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI Score"))+'</b><div style="font-size:12px;margin-top:5px">'+h(scoreInfo.reasons.join(" · "))+'</div><div style="font-size:11px;color:#667085;margin-top:5px">'+h(tr("Personalized relevance score — not a provider rating or sponsored ranking."))+'</div>';
     $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider");
     $("#detailOld").textContent=hasDiscount?moneyFor(d.old,d.currency):"";
     $("#detailSave").textContent=hasDiscount?tr("Save {pct}%",{pct}):tr("Live partner");
@@ -335,9 +450,11 @@
   };
 
   renderAll=function(){
-    $("#cats").innerHTML=cats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
+    const visibleCats=orderedCategories();
+    $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
-    $("#popularGrid").innerHTML=homeDeals.length?homeDeals.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
+    const personalized=personalizedHome(homeDeals);
+    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
     bindCards($("#popularGrid"));
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
@@ -405,6 +522,7 @@
         '<div class="dz-profile-stat"><b>'+stats.clicks+'</b><span>'+h(tr("Partner clicks"))+'</span></div>'+
       '</div>'+
       '<div class="meta"><b>'+h(tr("Preferred budget"))+':</b> '+h(moneyFor(ob.budget||100,market.currency))+'</div>'+
+      '<div class="meta" style="margin-top:6px">'+h(tr("Dealzy AI reorders your Home using these preferences plus live rating, review, price and distance signals."))+'</div>'+
       '<div style="margin:8px 0">'+(interests.length?interests.map(x=>'<span class="dz-interest-chip">'+x.icon+' '+h(tr(x.label))+'</span>').join(""):'<span class="meta">'+h(tr("No interests selected yet."))+'</span>')+'</div>'+
       '<button class="pill" id="dealzyEditProfile" style="margin-top:8px">'+h(tr("Edit preferences"))+'</button>';
     const edit=card.querySelector("#dealzyEditProfile");
@@ -531,16 +649,20 @@
     }
 
     const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
-    if(popularHeading) popularHeading.textContent=tr("Popular in {city}",{city:market.city});
+    if(popularHeading){
+      const profile=readOnboarding();
+      popularHeading.textContent=profile.completed?tr("For you in {city}",{city:market.city}):tr("Popular in {city}",{city:market.city});
+    }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
     if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
 
     const query=document.getElementById("aiQuery");
     if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas/i.test(query.value))){
+      const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
-        ? "Dîner à "+market.city+" ce soir moins de "+(market.currency==="CAD"?"CA$100":"$100")
-        : "Date night in "+market.city+" tonight under "+(market.currency==="CAD"?"CA$100":"$100");
+        ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
+        : "Date night in "+market.city+" tonight under "+moneyFor(preferred,market.currency);
       query.dataset.marketTouched="1";
     }
 
