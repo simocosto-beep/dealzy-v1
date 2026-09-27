@@ -6,7 +6,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Dealzy AI"
+        android:label="Dealzy AI Test 2"\n        android:theme="@style/Theme.Dealzy"
         android:usesCleartextTraffic="false"
         android:hardwareAccelerated="true">
         <activity
