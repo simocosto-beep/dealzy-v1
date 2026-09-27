@@ -414,6 +414,137 @@
     $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
   };
 
+  function travelDateOffset(days){
+    const d=new Date();
+    d.setDate(d.getDate()+Number(days||0));
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,"0");
+    const day=String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+
+  function marketIata(){
+    const map={
+      "Miami":"MIA","New York":"NYC","Los Angeles":"LAX","Chicago":"CHI","Las Vegas":"LAS",
+      "Toronto":"YTO","Montreal":"YMQ","Vancouver":"YVR","Calgary":"YYC","Ottawa":"YOW",
+      "Edmonton":"YEA","Quebec City":"YQB","Winnipeg":"YWG","Halifax":"YHZ","Victoria":"YYJ",
+      "Niagara Falls":"IAG","Banff":"YYC"
+    };
+    return map[market.city]||"";
+  }
+
+  function saveExploreTravelSearch(kind,data,summary){
+    try{
+      const key="dealzyTravelSearches";
+      const rows=JSON.parse(localStorage.getItem(key)||"[]");
+      rows.push({kind,data,summary,market:{...market},createdAt:new Date().toISOString()});
+      localStorage.setItem(key,JSON.stringify(rows.slice(-30)));
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    }catch(_){}
+  }
+
+  function openExploreTravelPartner(provider,url,title){
+    trackPartnerClick({
+      provider:String(provider||"travel").toLowerCase(),
+      source:provider||"Travel",
+      title:title||provider||"Travel search",
+      externalId:null
+    });
+    if(location.hostname==="appassets.androidplatform.net"){
+      location.href=url;
+      return;
+    }
+    const popup=window.open(url,"_blank","noopener,noreferrer");
+    if(!popup) location.href=url;
+  }
+
+  function renderExploreTravelForm(kind){
+    const host=document.getElementById("dzExploreTravelForm");
+    if(!host) return;
+    const isFr=locale()==="fr";
+    const selectedCity=marketCityLabel();
+    const accent='style="margin-top:12px;width:100%;border:0;border-radius:14px;padding:13px 14px;background:linear-gradient(135deg,#6d5dfc,#3d8bfd);color:white;font-weight:850;font-size:15px"';
+    const inputStyle='style="width:100%;margin-top:6px;border:1px solid #dfe3eb;border-radius:13px;padding:12px;background:#fff;font:inherit"';
+
+    if(kind==="hotel"){
+      host.innerHTML=
+        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🏨 Booking.com</b><div class="meta">'+(isFr?"Recherche d’hôtel":"Hotel search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+            '<label class="meta" style="grid-column:1/-1">'+(isFr?"Destination":"Destination")+'<input id="dzHotelDest" '+inputStyle+' value="'+h(selectedCity)+'"></label>'+
+            '<label class="meta">'+(isFr?"Arrivée":"Check-in")+'<input id="dzHotelIn" type="date" '+inputStyle+' value="'+travelDateOffset(1)+'"></label>'+
+            '<label class="meta">'+(isFr?"Départ":"Check-out")+'<input id="dzHotelOut" type="date" '+inputStyle+' value="'+travelDateOffset(3)+'"></label>'+
+            '<label class="meta" style="grid-column:1/-1">'+(isFr?"Voyageurs":"Guests")+'<input id="dzHotelAdults" type="number" min="1" max="10" '+inputStyle+' value="2"></label>'+
+          '</div>'+
+          '<button id="dzHotelGo" '+accent+'>'+(isFr?"Voir les hôtels sur Booking.com ↗":"Search Booking.com hotels ↗")+'</button>'+
+        '</div>';
+      host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+      host.querySelector("#dzHotelGo").onclick=()=>{
+        const dest=host.querySelector("#dzHotelDest").value.trim();
+        const cin=host.querySelector("#dzHotelIn").value;
+        const cout=host.querySelector("#dzHotelOut").value;
+        const adults=Math.max(1,Math.min(10,Number(host.querySelector("#dzHotelAdults").value)||2));
+        if(!dest||!cin||!cout||cout<=cin){
+          toast(isFr?"Vérifie la destination et les dates.":"Check destination and dates.");
+          return;
+        }
+        const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:"1"});
+        saveExploreTravelSearch("hotel",{dest,cin,cout,adults},dest+" · "+cin+" → "+cout);
+        openExploreTravelPartner("Booking.com","https://www.booking.com/searchresults.html?"+p.toString(),"Hotel search · "+dest);
+      };
+      return;
+    }
+
+    if(kind==="flight"){
+      host.innerHTML=
+        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">✈️ Skyscanner</b><div class="meta">'+(isFr?"Comparateur de vols":"Flight search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+            '<label class="meta">'+(isFr?"Départ (IATA)":"From (IATA)")+'<input id="dzFlightFrom" maxlength="3" autocapitalize="characters" '+inputStyle+' placeholder="JFK"></label>'+
+            '<label class="meta">'+(isFr?"Destination":"To")+'<input id="dzFlightTo" maxlength="3" autocapitalize="characters" '+inputStyle+' value="'+h(marketIata())+'" placeholder="MIA"></label>'+
+            '<label class="meta">'+(isFr?"Aller":"Depart")+'<input id="dzFlightOut" type="date" '+inputStyle+' value="'+travelDateOffset(7)+'"></label>'+
+            '<label class="meta">'+(isFr?"Retour":"Return")+'<input id="dzFlightBack" type="date" '+inputStyle+' value="'+travelDateOffset(14)+'"></label>'+
+          '</div>'+
+          '<button id="dzFlightGo" '+accent+'>'+(isFr?"Comparer les vols sur Skyscanner ↗":"Compare flights on Skyscanner ↗")+'</button>'+
+        '</div>';
+      host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+      host.querySelector("#dzFlightGo").onclick=()=>{
+        const origin=host.querySelector("#dzFlightFrom").value.trim().toUpperCase();
+        const destination=host.querySelector("#dzFlightTo").value.trim().toUpperCase();
+        const out=host.querySelector("#dzFlightOut").value;
+        const back=host.querySelector("#dzFlightBack").value;
+        if(!/^[A-Z]{3}$/.test(origin)||!/^[A-Z]{3}$/.test(destination)||!out||(back&&back<=out)){
+          toast(isFr?"Entre des codes aéroport à 3 lettres et des dates valides.":"Enter valid 3-letter airport codes and dates.");
+          return;
+        }
+        const p=new URLSearchParams({
+          mediaPartnerId:"2850210",
+          utm_term:"skyscanner_chatgpt_app_data",
+          origin,
+          destination,
+          outboundDate:out,
+          cabinclass:"economy"
+        });
+        if(back) p.set("inboundDate",back);
+        saveExploreTravelSearch("flight",{origin,destination,out,back},origin+" → "+destination+" · "+out+(back?" → "+back:""));
+        openExploreTravelPartner("Skyscanner","https://skyscanner.net/g/referrals/v1/flights/day-view?"+p.toString(),"Flight search · "+origin+" → "+destination);
+      };
+      return;
+    }
+
+    host.innerHTML=
+      '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🧳 Expedia · Dealzy AI</b><div class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+        '<p class="meta" style="line-height:1.5">'+(isFr?"Hôtels, séjours et inspiration voyage via la boutique Expedia de Dealzy AI.":"Hotels, stays and travel inspiration through Dealzy AI’s Expedia shop.")+'</p>'+
+        '<button id="dzExpediaGo" '+accent+'>'+(isFr?"Ouvrir Expedia Dealzy ↗":"Open Expedia Dealzy ↗")+'</button>'+
+      '</div>';
+    host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+    host.querySelector("#dzExpediaGo").onclick=()=>{
+      saveExploreTravelSearch("expedia",{city:market.city},"Expedia · "+marketCityLabel());
+      openExploreTravelPartner("Expedia","https://expedia.com/shop/dealzy-ai","Dealzy AI Travel Shop");
+    };
+  }
+
   renderExplore=async function(){
     const root=$("#exploreGrid");
     const count=$("#resultCount");
@@ -458,18 +589,15 @@
       count.textContent=resultText+suffix;
     }
 
-    const city=encodeURIComponent(market.city);
-    const bookingUrl="https://www.booking.com/searchresults.html?ss="+city;
-    const skyscannerUrl="https://www.skyscanner.com/";
-    const expediaUrl="https://expedia.com/shop/dealzy-ai";
     const travelCards=
       '<div style="grid-column:1/-1;margin:2px 0 10px">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Accès rapide aux partenaires voyage":"Quick access to travel partners")+'</div></div></div>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
         '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+
-          '<a href="'+bookingUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></a>'+
-          '<a href="'+skyscannerUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></a>'+
-          '<a href="'+expediaUrl+'" target="_blank" rel="noopener noreferrer sponsored" style="text-decoration:none;color:inherit;background:#fff;border:1px solid #e7e9f0;border-radius:17px;padding:12px 10px;display:block;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05)"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></a>'+
+          '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'+
+          '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'+
+          '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'+
         '</div>'+
+        '<div id="dzExploreTravelForm" style="margin-top:10px"></div>'+
       '</div>';
 
     if(root){
@@ -477,6 +605,9 @@
         ? list.map(dealCard).join("")
         : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre avec prix exact pour ce filtre. Voici les partenaires voyage disponibles.":"No exact-price live offer matched this filter. Travel partners are still available below.")+'</div>';
       root.innerHTML=travelCards+liveHtml;
+      root.querySelectorAll("[data-explore-travel]").forEach(btn=>{
+        btn.onclick=()=>renderExploreTravelForm(btn.dataset.exploreTravel);
+      });
       bindCards(root);
     }
     renderFavs();
