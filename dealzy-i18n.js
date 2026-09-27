@@ -202,7 +202,23 @@
     "Keeping {city} for live searches.":"{city} reste utilisé pour les recherches en direct.",
     "Location outside selected market. Keeping {city}.":"Position hors du marché sélectionné. Dealzy conserve {city}.",
     "Partner click analytics":"Statistiques des clics partenaires",
-    "No partner clicks tracked yet.":"Aucun clic partenaire enregistré pour le moment."
+    "No partner clicks tracked yet.":"Aucun clic partenaire enregistré pour le moment.",
+    "Your Dealzy profile":"Votre profil Dealzy",
+    "Personalize Dealzy around your market, interests and preferred budget.":"Personnalisez Dealzy selon votre marché, vos centres d’intérêt et votre budget préféré.",
+    "Partner clicks":"Clics partenaires",
+    "Preferred budget":"Budget préféré",
+    "No interests selected yet.":"Aucun centre d’intérêt sélectionné.",
+    "Edit preferences":"Modifier les préférences",
+    "Personalize Dealzy":"Personnaliser Dealzy",
+    "Welcome to Dealzy":"Bienvenue sur Dealzy",
+    "Your preferences":"Vos préférences",
+    "Choose your market and what you like. You can change everything later.":"Choisissez votre marché et ce que vous aimez. Vous pourrez tout modifier plus tard.",
+    "What are you interested in?":"Qu’est-ce qui vous intéresse ?",
+    "Close":"Fermer",
+    "Cancel":"Annuler",
+    "Start exploring":"Commencer à explorer",
+    "Save preferences":"Enregistrer les préférences",
+    "Preferences saved":"Préférences enregistrées"
   };
 
   const EN=Object.fromEntries(Object.entries(FR).map(([k,v])=>[v,k]));
