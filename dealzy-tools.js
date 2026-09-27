@@ -1244,9 +1244,9 @@
         '<div class="dz-result" style="margin:0;text-align:center"><b style="font-size:22px">'+d.notifications+'</b><br><span class="dz-small">Local notifications</span></div>'+
       '</div>'+
       '<div class="dz-result"><b>Highlights</b><br>'+
-        '<span class="dz-chip">Top provider · '+esc(topProvider)+'</span>'+
-        '<span class="dz-chip">Top category · '+esc(topCategory)+'</span>'+
-        '<span class="dz-chip">Top city · '+esc(topCity)+'</span>'+
+        '<span class="dz-chip"><span>Top provider</span> · '+esc(topProvider)+'</span>'+
+        '<span class="dz-chip"><span>Top category</span> · '+esc(topCategory)+'</span>'+
+        '<span class="dz-chip"><span>Top city</span> · '+esc(topCity)+'</span>'+
       '</div>'+
       '<div class="dz-result"><b>Partner clicks by provider</b>'+analyticsBars(d.byProvider,'No partner clicks yet.')+'</div>'+
       '<div class="dz-result"><b>Explore activity by category</b>'+analyticsBars(d.byCategory,'No Explore searches tracked yet.')+'</div>'+
@@ -1263,8 +1263,8 @@
 
     const clear=panel.querySelector('#dzAnalyticsClear');
     if(clear) clear.onclick=()=>{
-      localStorage.removeItem('dealzyAnalyticsEvents');
-      localStorage.removeItem('dealzyPartnerClicks');
+      localStorage.setItem('dealzyAnalyticsEvents','[]');
+      localStorage.setItem('dealzyPartnerClicks','[]');
       queueCloudSync();
       analyticsTool();
     };
