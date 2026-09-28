@@ -10,6 +10,7 @@ let currentAdminPage='overview';
 
 const ADMIN_PAGES={
   overview:{title:'Overview',subtitle:'Dealzy at a glance.'},
+  analytics:{title:'Analytics',subtitle:'Usage, engagement and commerce trends.'},
   users:{title:'Users & Admins',subtitle:'Accounts, access, status and user history.'},
   orders:{title:'Orders & Bookings',subtitle:'Confirmed order records linked to Dealzy users.'},
   providers:{title:'Providers',subtitle:'Live inventory sources and provider health.'},
@@ -664,11 +665,12 @@ async function boot(){
 }
 
 async function loadAll(){
-  const [cfgRows,stats,health,audit,userRows,commercialData,orderRows]=await Promise.all([
+  const [cfgRows,stats,health,audit,analytics,userRows,commercialData,orderRows]=await Promise.all([
     api('/rest/v1/dealzy_runtime_config?select=key,value,updated_at&order=key.asc'),
     api('/rest/v1/rpc/dealzy_admin_dashboard_stats',{method:'POST',body:'{}'}),
     api('/rest/v1/dealzy_provider_health?select=provider_key,display_name,mode,enabled,healthy,last_checked_at,last_latency_ms,last_error_message&order=provider_key.asc'),
     api('/rest/v1/dealzy_admin_audit_log?select=id,action,target,created_at&order=created_at.desc&limit=20'),
+    api('/rest/v1/rpc/dealzy_admin_analytics_snapshot',{method:'POST',body:'{}'}),
     fetchUsers($('#userSearch')?.value||''),
     api('/rest/v1/rpc/dealzy_admin_commercial_snapshot',{method:'POST',body:'{}'}),
     fetchOrders($('#orderSearch')?.value||'')
@@ -677,11 +679,48 @@ async function loadAll(){
   users=userRows||[];
   commercial=commercialData||commercial;
   orders=orderRows||[];
-  renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
+  analyticsData=analytics||{};renderStats(stats||{});renderAnalytics(analyticsData);renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
   showAdminPage(currentAdminPage,{remember:false});
 }
 function renderStats(s){
   $('#stUsers').textContent=s.users??0;$('#stSaved').textContent=s.saved_deals??0;$('#stTrips').textContent=s.trips??0;$('#stSearches').textContent=s.searches??0;
+}
+
+function renderAnalytics(a){
+  const n=v=>Number(v||0).toLocaleString();
+  const money=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if($('#anActive7')) $('#anActive7').textContent=n(a.active_7d);
+  if($('#anUsers7')) $('#anUsers7').textContent=n(a.users_7d)+' new users';
+  if($('#anSearches7')) $('#anSearches7').textContent=n(a.searches_7d);
+  if($('#anSearches30')) $('#anSearches30').textContent=n(a.searches_30d)+' in 30d';
+  if($('#anSaved')) $('#anSaved').textContent=n(a.saved_total);
+  if($('#anSaved7')) $('#anSaved7').textContent=n(a.saved_7d)+' saved in 7d';
+  if($('#anOrders')) $('#anOrders').textContent=n(a.orders_total);
+  if($('#anOrders30')) $('#anOrders30').textContent=n(a.orders_30d)+' in 30d';
+  if($('#anActive30')) $('#anActive30').textContent=n(a.active_30d)+' active 30d';
+  if($('#anOrdersConfirmed')) $('#anOrdersConfirmed').textContent=n(a.orders_confirmed);
+  if($('#anOrderValue')) $('#anOrderValue').textContent=money(a.orders_value)+' recorded';
+  if($('#anTrips')) $('#anTrips').textContent=n(a.trips_total);
+  if($('#anUsersTotal')) $('#anUsersTotal').textContent=n(a.users_total);
+
+  const daily=Array.isArray(a.recent_daily_searches)?a.recent_daily_searches:[];
+  const max=Math.max(1,...daily.map(x=>Number(x.count||0)));
+  if($('#analyticsBars')){
+    $('#analyticsBars').innerHTML=daily.length?daily.map(x=>{
+      const h=Math.max(3,Math.round((Number(x.count||0)/max)*170));
+      const label=x.day?new Date(x.day+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+      return '<div class="analytics-bar-wrap" title="'+esc(label)+' · '+esc(x.count||0)+'"><div class="analytics-bar" style="height:'+h+'px"></div><div class="analytics-bar-label">'+esc(label)+'</div></div>';
+    }).join(''):'<div class="sub">No search activity yet.</div>';
+  }
+
+  const ranks=(id,rows,key)=>{
+    const el=$(id); if(!el) return;
+    el.innerHTML=Array.isArray(rows)&&rows.length?rows.map((x,i)=>
+      '<div class="analytics-rank"><span class="pill">'+(i+1)+'</span><span class="analytics-rank-name">'+esc(x[key]||'—')+'</span><span class="analytics-rank-count">'+n(x.count)+'</span></div>'
+    ).join(''):'<div class="sub">No data yet.</div>';
+  };
+  ranks('#analyticsTopSearches',a.top_searches,'query');
+  ranks('#analyticsTopCategories',a.top_categories,'category');
 }
 
 async function fetchUsers(search='',opts={}){
