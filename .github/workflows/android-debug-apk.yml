@@ -1,4 +1,4 @@
-name: Build Dealzy Android Test APK
+name: Build Dealzy Android RC APK
 
 on:
   push:
@@ -69,33 +69,70 @@ jobs:
           print("Interaction guard passed")
           PY
 
-      - name: Probe staging API
-        continue-on-error: true
+      - name: Gate RC on Railway staging
         run: |
-          BASE="https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app"
-          echo "== /api/providers =="
-          curl -L -sS -D /tmp/providers.headers -o /tmp/providers.body "$BASE/api/providers" || true
-          head -n 20 /tmp/providers.headers || true
-          head -c 2000 /tmp/providers.body || true
-          echo
-          echo "== /api/search New York =="
-          curl -L -sS -D /tmp/search.headers -o /tmp/search.body "$BASE/api/search?category=Food%20%26%20Drink&country=US&city=New%20York&limit=3" || true
-          head -n 20 /tmp/search.headers || true
-          head -c 3000 /tmp/search.body || true
-          echo
+          python3 - <<'PY'
+          import json, time, urllib.parse, urllib.request
+
+          BASE="https://dealzy-api-staging-production.up.railway.app"
+
+          def get(path, attempts=12):
+              last=None
+              for i in range(attempts):
+                  try:
+                      with urllib.request.urlopen(BASE+path, timeout=15) as r:
+                          if r.status != 200:
+                              raise RuntimeError(f"HTTP {r.status}")
+                          return json.load(r)
+                  except Exception as e:
+                      last=e
+                      if i+1 < attempts:
+                          time.sleep(5)
+              raise SystemExit(f"Railway staging unavailable: {last}")
+
+          health=get("/health")
+          assert health.get("ok") is True, health
+
+          providers=get("/api/providers")
+          assert providers.get("ok") is True, providers
+          assert int(providers.get("liveExternalProviders",0)) >= 3, providers
+
+          checks=[
+              ("Food & Drink","Los Angeles","US","Los Angeles"),
+              ("Things to Do","New York","US","New York"),
+              ("Things to Do","Toronto","CA","Toronto"),
+          ]
+          for category,city,country,expected in checks:
+              qs=urllib.parse.urlencode({
+                  "category":category,
+                  "city":city,
+                  "country":country,
+                  "limit":"5"
+              })
+              data=get("/api/search?"+qs)
+              query=data.get("query") or {}
+              assert query.get("destination")==expected, (expected,query)
+              assert data.get("mode","").startswith("live-"), data
+              assert int(data.get("count",0)) > 0, data
+              places=" | ".join(str(x.get("place","")) for x in data.get("results",[]))
+              assert expected.lower() in places.lower(), (expected,places)
+              print(f"PASS {city}: {data.get('mode')} · {data.get('count')} results")
+
+          print("Railway RC gate passed")
+          PY
 
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk Dealzy-AI-Personalized-Safe-Test.apk
-          ls -lh Dealzy-AI-Personalized-Safe-Test.apk
+          cp app/build/outputs/apk/debug/app-debug.apk Dealzy-AI-RC1.apk
+          ls -lh Dealzy-AI-RC1.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Dealzy-AI-Personalized-Safe-Test
-          path: Dealzy-AI-Personalized-Safe-Test.apk
+          name: Dealzy-AI-RC1
+          path: Dealzy-AI-RC1.apk
           if-no-files-found: error
           retention-days: 7

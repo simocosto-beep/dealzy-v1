@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(12000);
         conn.setReadTimeout(20000);
         conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-        conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.22-railway-staging");
+        conn.setRequestProperty("User-Agent", "Dealzy-Android-RC/1.0.0-rc1");
 
         ApiPayload payload = new ApiPayload();
         payload.status = conn.getResponseCode();
