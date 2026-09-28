@@ -11,7 +11,24 @@
       {value:"New York",label:"New York, NY"},
       {value:"Los Angeles",label:"Los Angeles, CA"},
       {value:"Chicago",label:"Chicago, IL"},
-      {value:"Las Vegas",label:"Las Vegas, NV"}
+      {value:"Las Vegas",label:"Las Vegas, NV"},
+      {value:"Orlando",label:"Orlando, FL"},
+      {value:"San Francisco",label:"San Francisco, CA"},
+      {value:"Boston",label:"Boston, MA"},
+      {value:"Seattle",label:"Seattle, WA"},
+      {value:"Washington",label:"Washington, DC"},
+      {value:"Dallas",label:"Dallas, TX"},
+      {value:"Houston",label:"Houston, TX"},
+      {value:"San Diego",label:"San Diego, CA"},
+      {value:"Philadelphia",label:"Philadelphia, PA"},
+      {value:"Atlanta",label:"Atlanta, GA"},
+      {value:"New Orleans",label:"New Orleans, LA"},
+      {value:"Austin",label:"Austin, TX"},
+      {value:"Denver",label:"Denver, CO"},
+      {value:"Nashville",label:"Nashville, TN"},
+      {value:"Phoenix",label:"Phoenix, AZ"},
+      {value:"Honolulu",label:"Honolulu, HI"},
+      {value:"Fort Lauderdale",label:"Fort Lauderdale, FL"}
     ],
     CA:[
       {value:"Toronto",label:"Toronto, ON"},
@@ -25,7 +42,21 @@
       {value:"Halifax",label:"Halifax, NS"},
       {value:"Victoria",label:"Victoria, BC"},
       {value:"Niagara Falls",label:"Niagara Falls, ON"},
-      {value:"Banff",label:"Banff, AB"}
+      {value:"Banff",label:"Banff, AB"},
+      {value:"Kelowna",label:"Kelowna, BC"},
+      {value:"Whistler",label:"Whistler, BC"},
+      {value:"Mississauga",label:"Mississauga, ON"},
+      {value:"Hamilton",label:"Hamilton, ON"},
+      {value:"Kitchener",label:"Kitchener, ON"},
+      {value:"Saskatoon",label:"Saskatoon, SK"},
+      {value:"Regina",label:"Regina, SK"},
+      {value:"St. John's",label:"St. John's, NL"},
+      {value:"Charlottetown",label:"Charlottetown, PE"},
+      {value:"Sherbrooke",label:"Sherbrooke, QC"},
+      {value:"Laval",label:"Laval, QC"},
+      {value:"Gatineau",label:"Gatineau, QC"},
+      {value:"Trois-Rivieres",label:"Trois-Rivières, QC"},
+      {value:"London",label:"London, ON"}
     ]
   };
 
@@ -65,7 +96,8 @@
     try{saved=JSON.parse(localStorage.getItem("dealzyMarket")||"null");}catch(_){}
     const country=saved&&saved.country==="CA"?"CA":"US";
     const cities=MARKET_CITIES[country];
-    const city=saved&&cities.some(x=>x.value===saved.city)?saved.city:cities[0].value;
+    const savedCity=saved&&String(saved.city||"").trim();
+    const city=savedCity?savedCity.slice(0,80):cities[0].value;
     return {country,city,currency:country==="CA"?"CAD":"USD"};
   }
 
@@ -101,15 +133,184 @@
     return contiguous||alaska||hawaii;
   }
 
-  function persistMarket(country,city){
-    market={country,city,currency:country==="CA"?"CAD":"USD"};
+  const MARKET_CITY_COORDS={
+    US:{
+      "Miami":[25.7617,-80.1918],"New York":[40.7128,-74.0060],"Los Angeles":[34.0522,-118.2437],
+      "Chicago":[41.8781,-87.6298],"Las Vegas":[36.1699,-115.1398],"Orlando":[28.5383,-81.3792],
+      "San Francisco":[37.7749,-122.4194],"Boston":[42.3601,-71.0589],"Seattle":[47.6062,-122.3321],
+      "Washington":[38.9072,-77.0369],"Dallas":[32.7767,-96.7970],"Houston":[29.7604,-95.3698],
+      "San Diego":[32.7157,-117.1611],"Philadelphia":[39.9526,-75.1652],"Atlanta":[33.7490,-84.3880],
+      "New Orleans":[29.9511,-90.0715],"Austin":[30.2672,-97.7431],"Denver":[39.7392,-104.9903],
+      "Nashville":[36.1627,-86.7816],"Phoenix":[33.4484,-112.0740],"Honolulu":[21.3099,-157.8581],
+      "Fort Lauderdale":[26.1224,-80.1373]
+    },
+    CA:{
+      "Toronto":[43.6532,-79.3832],"Montreal":[45.5017,-73.5673],"Vancouver":[49.2827,-123.1207],
+      "Calgary":[51.0447,-114.0719],"Ottawa":[45.4215,-75.6972],"Edmonton":[53.5461,-113.4938],
+      "Quebec City":[46.8139,-71.2080],"Winnipeg":[49.8951,-97.1384],"Halifax":[44.6488,-63.5752],
+      "Victoria":[48.4284,-123.3656],"Niagara Falls":[43.0896,-79.0849],"Banff":[51.1784,-115.5708],
+      "Kelowna":[49.8880,-119.4960],"Whistler":[50.1163,-122.9574],"Mississauga":[43.5890,-79.6441],
+      "Hamilton":[43.2557,-79.8711],"Kitchener":[43.4516,-80.4925],"Saskatoon":[52.1332,-106.6700],
+      "Regina":[50.4452,-104.6189],"St. John's":[47.5615,-52.7126],"Charlottetown":[46.2382,-63.1311],
+      "Sherbrooke":[45.4042,-71.8929],"Laval":[45.6066,-73.7124],"Gatineau":[45.4765,-75.7013],
+      "Trois-Rivieres":[46.3430,-72.5430],"London":[42.9849,-81.2453]
+    }
+  };
+
+  async function ensureMarketCityCoords(){
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)) return state.coords;
+
+    const known=(MARKET_CITY_COORDS[market.country]||{})[market.city];
+    if(known){
+      state.coords={lat:known[0],lng:known[1],source:"city"};
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      return state.coords;
+    }
+
+    let cache={};
+    try{cache=JSON.parse(localStorage.getItem("dealzyCityGeo")||"{}")||{};}catch(_){}
+    const cacheKey=market.country+"|"+market.city.toLowerCase();
+    const cached=cache[cacheKey];
+    if(cached&&coordsAllowedForMarket(cached,market.country)){
+      state.coords={lat:Number(cached.lat),lng:Number(cached.lng),source:"city"};
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      return state.coords;
+    }
+
+    try{
+      const countryName=market.country==="CA"?"Canada":"United States";
+      const p=new URLSearchParams({
+        format:"jsonv2",
+        limit:"1",
+        countrycodes:market.country.toLowerCase(),
+        q:market.city+", "+countryName
+      });
+      const response=await fetch("https://nominatim.openstreetmap.org/search?"+p.toString(),{
+        headers:{Accept:"application/json"}
+      });
+      if(response.ok){
+        const rows=await response.json();
+        const first=Array.isArray(rows)?rows[0]:null;
+        const lat=first?Number(first.lat):NaN;
+        const lng=first?Number(first.lon):NaN;
+        const next={lat,lng};
+        if(coordsAllowedForMarket(next,market.country)){
+          cache[cacheKey]=next;
+          localStorage.setItem("dealzyCityGeo",JSON.stringify(cache));
+          state.coords={lat,lng,source:"city"};
+          localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+          return state.coords;
+        }
+      }
+    }catch(_){}
+    return null;
+  }
+
+  function persistMarket(country,city,locationMode="manual"){
+    const safeCountry=country==="CA"?"CA":"US";
+    const safeCity=String(city||"").trim().replace(/\s+/g," ").slice(0,80)||MARKET_CITIES[safeCountry][0].value;
+    market={country:safeCountry,city:safeCity,currency:safeCountry==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
+    localStorage.setItem("dealzyLocationMode",locationMode);
     state.coords=null;
     localStorage.removeItem("dealzyCoords");
     catalog.clear();
     homeDeals=[];
+    exploreCache={key:"",rows:[]};
     if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
+
+  async function reverseGpsLocation(lat,lng){
+    try{
+      const p=new URLSearchParams({
+        format:"jsonv2",
+        lat:String(lat),
+        lon:String(lng),
+        zoom:"10",
+        addressdetails:"1"
+      });
+      const response=await fetch("https://nominatim.openstreetmap.org/reverse?"+p.toString(),{
+        headers:{Accept:"application/json"}
+      });
+      if(!response.ok) return null;
+      const data=await response.json();
+      const address=data&&data.address?data.address:{};
+      const cc=String(address.country_code||"").toUpperCase();
+      const country=cc==="CA"?"CA":cc==="US"?"US":null;
+      if(!country) return {country:null,city:null,address};
+      const city=String(
+        address.city||address.town||address.municipality||address.village||
+        address.hamlet||address.county||""
+      ).trim();
+      return {country,city:city||MARKET_CITIES[country][0].value,address};
+    }catch(_){
+      return null;
+    }
+  }
+
+  async function applyGpsLocation(lat,lng,{refresh=true,silent=false}={}){
+    const coords={lat:Number(lat),lng:Number(lng),source:"gps"};
+    if(!Number.isFinite(coords.lat)||!Number.isFinite(coords.lng)) return null;
+
+    const detected=await reverseGpsLocation(coords.lat,coords.lng);
+    if(!detected||!detected.country){
+      state.coords=coords;
+      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+      localStorage.setItem("dealzyLocationMode","gps");
+      if(!silent) toast(locale()==="fr"
+        ?"Position GPS détectée. Dealzy reste limité aux marchés USA/Canada."
+        :"GPS detected. Dealzy remains limited to USA/Canada markets.");
+      if(typeof updateGeoUI==="function") updateGeoUI();
+      return {coords,country:null,city:null};
+    }
+
+    persistMarket(detected.country,detected.city,"gps");
+    state.coords=coords;
+    localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
+    localStorage.setItem("dealzyLocationMode","gps");
+
+    updateMarketUI();
+    if(typeof updateGeoUI==="function") updateGeoUI();
+    window.dispatchEvent(new CustomEvent("dealzy:gpslocation",{detail:{
+      country:detected.country,city:detected.city,lat:coords.lat,lng:coords.lng
+    }}));
+
+    if(refresh){
+      await hydrateHome();
+      const explore=document.getElementById("exploreView");
+      if(explore&&!explore.classList.contains("hidden")) renderExplore();
+    }
+    if(!silent) toast((locale()==="fr"?"Position réelle : ":"Real location: ")+detected.city);
+    return {coords,country:detected.country,city:detected.city};
+  }
+
+  function useRealLocation({silent=false,refresh=true}={}){
+    if(!navigator.geolocation){
+      if(!silent) toast(locale()==="fr"?"La géolocalisation n’est pas disponible.":"Geolocation is unavailable.");
+      return Promise.resolve(null);
+    }
+    return new Promise(resolve=>{
+      navigator.geolocation.getCurrentPosition(
+        async pos=>{
+          try{
+            const result=await applyGpsLocation(pos.coords.latitude,pos.coords.longitude,{refresh,silent});
+            resolve(result);
+          }catch(_){resolve(null);}
+        },
+        ()=>{
+          if(!silent) toast(locale()==="fr"?"Autorisation de localisation refusée.":"Location permission was not granted.");
+          resolve(null);
+        },
+        {enableHighAccuracy:true,timeout:12000,maximumAge:120000}
+      );
+    });
+  }
+
+  window.DealzyLocation={
+    useRealLocation,
+    applyGpsLocation,
+    mode:()=>localStorage.getItem("dealzyLocationMode")||"gps"
+  };
 
   const h=(value)=>String(value??"").replace(/[&<>"']/g,(m)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 
@@ -251,6 +452,9 @@
       provider:raw.provider||source.toLowerCase(),
       currency:raw.currency||market.currency,
       reviewCount:reviews,
+      phone:raw.phone||null,
+      eventDate:raw.eventDate||null,
+      eventTime:raw.eventTime||null,
       live:true
     };
   }
@@ -300,7 +504,165 @@
     });
   }
 
+  let exploreCache={key:"",rows:[]};
+
+  function readExplorePrefs(){
+    try{
+      const saved=JSON.parse(localStorage.getItem("dealzyExplorePrefs")||"null");
+      if(saved&&typeof saved==="object"){
+        return {
+          sort:["best","nearest","rating","price"].includes(saved.sort)?saved.sort:"best",
+          radius:[0,5,10,25,50].includes(Number(saved.radius))?Number(saved.radius):25,
+          source:String(saved.source||"all").toLowerCase()
+        };
+      }
+    }catch(_){}
+    return {sort:"best",radius:25,source:"all"};
+  }
+
+  function saveExplorePrefs(next){
+    localStorage.setItem("dealzyExplorePrefs",JSON.stringify(next));
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+  }
+
+  function dealDistance(d){
+    if(!state.coords) return null;
+    return milesBetween(state.coords.lat,state.coords.lng,d.lat,d.lng);
+  }
+
+  function exploreRequestKey(q){
+    const c=state.coords&&coordsAllowedForMarket(state.coords,market.country)
+      ? Number(state.coords.lat).toFixed(3)+","+Number(state.coords.lng).toFixed(3)
+      : "none";
+    return [market.country,market.city,state.filter,state.maxPrice||"",q||"",c].join("|");
+  }
+
+  function applyExplorePrefs(rows,prefs){
+    let list=dedupe(rows||[]);
+    const source=String(prefs.source||"all").toLowerCase();
+    if(source!=="all"){
+      list=list.filter(d=>String(d.provider||d.source||"").toLowerCase()===source);
+    }
+
+    if(Number(prefs.radius)>0&&state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      list=list.filter(d=>{
+        const distance=dealDistance(d);
+        // Keep rows without coordinates; the radius is strict only where a
+        // provider supplies geolocation.
+        return distance===null||distance<=Number(prefs.radius);
+      });
+    }
+
+    if(prefs.sort==="nearest"){
+      list.sort((a,b)=>(dealDistance(a)??99999)-(dealDistance(b)??99999));
+    }else if(prefs.sort==="rating"){
+      list.sort((a,b)=>(Number(b.ratingValue)||0)-(Number(a.ratingValue)||0)||(Number(b.reviewCount)||0)-(Number(a.reviewCount)||0));
+    }else if(prefs.sort==="price"){
+      list.sort((a,b)=>{
+        const ap=Number(a.price)>0?Number(a.price):999999;
+        const bp=Number(b.price)>0?Number(b.price):999999;
+        return ap-bp;
+      });
+    }else{
+      list.sort((a,b)=>dealzyScore(b).score-dealzyScore(a).score);
+    }
+    return list;
+  }
+
+  function openExploreChoicePicker(kind){
+    ensureMarketPickerStyles();
+    const old=document.getElementById("dealzyExplorePicker");
+    if(old) old.remove();
+
+    const prefs=readExplorePrefs();
+    const isFr=locale()==="fr";
+    const options=kind==="sort"
+      ? [
+          {value:"best",label:isFr?"Meilleur":"Best"},
+          {value:"nearest",label:isFr?"Plus proche":"Nearest"},
+          {value:"rating",label:isFr?"Mieux noté":"Top rated"},
+          {value:"price",label:isFr?"Prix bas":"Price low"}
+        ]
+      : [
+          {value:"0",label:isFr?"Tout rayon":"Any radius"},
+          {value:"5",label:"5 mi"},
+          {value:"10",label:"10 mi"},
+          {value:"25",label:"25 mi"},
+          {value:"50",label:"50 mi"}
+        ];
+    const selected=kind==="sort"?prefs.sort:String(prefs.radius);
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyExplorePicker";
+    wrap.className="dz-picker-wrap";
+    wrap.innerHTML=
+      '<section class="dz-picker-card" role="dialog" aria-modal="true">'+
+        '<div class="dz-picker-head"><b>'+h(kind==="sort"?(isFr?"Trier":"Sort"):(isFr?"Rayon":"Radius"))+'</b>'+
+        '<button class="dz-picker-close" aria-label="Close">×</button></div>'+
+        '<div id="dzExplorePickerOptions">'+options.map(opt=>
+          '<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
+            '<span class="dz-opt-main"><span>'+h(opt.label)+'</span></span><span class="dz-check">✓</span>'+
+          '</button>'
+        ).join("")+'</div>'+
+      '</section>';
+    document.body.appendChild(wrap);
+    wrap.querySelector(".dz-picker-close").onclick=()=>wrap.remove();
+    wrap.onclick=e=>{if(e.target===wrap) wrap.remove();};
+    wrap.querySelectorAll("[data-value]").forEach(btn=>{
+      btn.onclick=()=>{
+        const next=readExplorePrefs();
+        if(kind==="sort") next.sort=btn.dataset.value;
+        else next.radius=Number(btn.dataset.value)||0;
+        saveExplorePrefs(next);
+        wrap.remove();
+        renderExplore(false);
+      };
+    });
+  }
+
+  function exploreControlsHtml(rows,prefs,isFr){
+    const counts={};
+    (rows||[]).forEach(d=>{
+      const key=String(d.provider||d.source||"partner").toLowerCase();
+      counts[key]=(counts[key]||0)+1;
+    });
+    const sourceLabels={yelp:"Yelp",viator:"Viator",ticketmaster:"Ticketmaster"};
+    const sourceChipStyle=(active)=>[
+      "flex:0 0 auto",
+      "border:1px solid "+(active?"#7768ff":"#e2e5ec"),
+      "background:"+(active?"#f0eeff":"#fff"),
+      "color:"+(active?"#5145cd":"#475467"),
+      "border-radius:999px",
+      "padding:8px 11px",
+      "font:inherit",
+      "font-size:12px",
+      "font-weight:800",
+      "white-space:nowrap",
+      "box-shadow:"+(active?"0 4px 12px rgba(81,69,205,.10)":"none")
+    ].join(";");
+    const sourceButtons=[
+      '<button data-source="all" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
+    ];
+    Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
+      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
+    });
+
+    const sortLabels={best:isFr?"Meilleur":"Best",nearest:isFr?"Plus proche":"Nearest",rating:isFr?"Mieux noté":"Top rated",price:isFr?"Prix bas":"Price low"};
+    const radiusLabel=Number(prefs.radius)>0?prefs.radius+" mi":(isFr?"Tout rayon":"Any radius");
+    const choiceStyle="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;font:inherit;color:#182230;text-align:left";
+
+    return '<div id="dzExplorePro" style="grid-column:1/-1;background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:12px;margin:0 0 10px;box-shadow:0 6px 18px rgba(17,24,39,.04)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px"><b style="font-size:14px">'+(isFr?"Affiner les résultats":"Refine results")+'</b><button id="dzExploreRefresh" style="border:0;background:#f4f5f8;border-radius:999px;padding:7px 11px;font:inherit;font-size:12px;font-weight:800;color:#475467">↻ '+(isFr?"Actualiser":"Refresh")+'</button></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+        '<label class="meta">'+(isFr?"Trier":"Sort")+'<button type="button" id="dzExploreSortBtn" style="'+choiceStyle+'"><span>'+h(sortLabels[prefs.sort]||sortLabels.best)+'</span><span>⌄</span></button></label>'+
+        '<label class="meta">'+(isFr?"Rayon":"Radius")+'<button type="button" id="dzExploreRadiusBtn" style="'+choiceStyle+'"><span>'+h(radiusLabel)+'</span><span>⌄</span></button></label>'+
+      '</div>'+
+      '<div id="dzExploreSources" style="display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;padding:9px 1px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch">'+sourceButtons.join("")+'</div>'+
+    '</div>';
+  }
+
   async function fetchLive(category,q="",limit=8){
+    await ensureMarketCityCoords();
     const params=new URLSearchParams({
       category,
       limit:String(limit),
@@ -313,7 +675,8 @@
     if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
       params.set("lat",String(state.coords.lat));
       params.set("lng",String(state.coords.lng));
-      params.set("radius","25");
+      const radius=Number(readExplorePrefs().radius)||25;
+      params.set("radius",String(Math.max(1,Math.min(50,radius))));
     }
     const response=await fetch("/api/search?"+params.toString(),{
       headers:{Accept:"application/json"},
@@ -322,16 +685,77 @@
     if(!response.ok) return [];
     const data=await response.json();
     if(!data||data.mode==="demo-fallback") return [];
-    return remember((data.results||[]).map(toDeal));
+
+    let raw=Array.isArray(data.results)?data.results:[];
+    const apiDestination=String(data?.query?.destination||"").trim();
+    const normalizeCityName=(value)=>String(value||"")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^a-z0-9]+/g," ")
+      .trim();
+    const selectedCity=normalizeCityName(market.city);
+    const returnedCity=normalizeCityName(apiDestination);
+    const destinationMatches=!returnedCity ||
+      returnedCity===selectedCity ||
+      returnedCity.startsWith(selectedCity+" ") ||
+      selectedCity.startsWith(returnedCity+" ");
+
+    // The current public fallback API is legacy and can explicitly report Miami
+    // even when the APK asked for another city. Never trust non-local provider
+    // rows in that case. Yelp remains eligible because it consumes the coordinates
+    // sent by the APK and supplies coordinates for each result.
+    if(!destinationMatches){
+      raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
+    }else if(!apiDestination&&market.city.toLowerCase()!=="miami"){
+      raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
+    }
+
+    let normalized=raw.map(toDeal);
+
+    // Apply a final locality sanity check to every result that has coordinates.
+    // This prevents stale/cross-city inventory from leaking into Home or Explore.
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      const requestedRadius=Number(readExplorePrefs().radius)||25;
+      const localityLimit=Math.max(35,Math.min(100,requestedRadius*2));
+      normalized=normalized.filter(d=>{
+        const distance=dealDistance(d);
+        if(distance!==null) return distance<=localityLimit;
+        // Coordinate-less rows (mainly Viator) are only safe when the server
+        // explicitly confirms the selected destination.
+        const provider=String(d.provider||d.source||"").toLowerCase();
+        if(provider==="viator"||provider==="ticketmaster") return destinationMatches&&!!apiDestination;
+        return true;
+      });
+    }
+
+    return remember(normalized);
   }
 
-  async function fetchMixed(q="",limitEach=5){
-    const groups=await Promise.all(LIVE_CATEGORIES.map((cat)=>fetchLive(cat,q,limitEach).catch(()=>[])));
+  async function fetchCategoryBoosted(category,q="",target=12){
+    const wanted=Math.max(4,Math.min(30,Number(target)||12));
+    let primary=[];
+    try{ primary=await fetchLive(category,q,wanted); }catch(_){ primary=[]; }
+
+    // If a strict query returns too little, keep those matches and add popular live
+    // inventory from the same category. Nothing synthetic is added here.
+    if(q && primary.length<Math.min(6,wanted)){
+      let broad=[];
+      try{ broad=await fetchLive(category,"",wanted); }catch(_){ broad=[]; }
+      primary=dedupe([...primary,...broad]);
+    }
+    return remember(primary.slice(0,wanted));
+  }
+
+  async function fetchMixed(q="",limitEach=10){
+    const perCategory=Math.max(6,Math.min(16,Number(limitEach)||10));
+    const groups=await Promise.all(
+      LIVE_CATEGORIES.map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
+    );
     const interleaved=[];
-    for(let i=0;i<limitEach;i++){
+    for(let i=0;i<perCategory;i++){
       groups.forEach((group)=>{ if(group[i]) interleaved.push(group[i]); });
     }
-    return remember(dedupe(interleaved));
+    return remember(dedupe(interleaved).slice(0,40));
   }
 
   dealCard=function(d){
@@ -343,9 +767,13 @@
     const oldText=hasDiscount?'<span class="old">'+moneyFor(d.old,d.currency)+"</span>":"";
     const saveText=hasDiscount?'<span class="save">'+h(tr("Save {pct}%",{pct}))+"</span>":'<span class="save">'+h(d.source||"Live")+"</span>";
     const scoreInfo=dealzyScore(d);
+    const distance=dealDistance(d);
+    const distanceText=distance!==null
+      ? (distance<0.1?"<0.1 mi":distance.toFixed(distance<10?1:0)+" mi")
+      : "";
     const scorePill='<span title="'+h(tr("Personalized relevance score"))+'" style="display:inline-flex;align-items:center;gap:5px;background:#f1efff;color:#5145cd;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:850;margin-top:9px">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI"))+'</span>';
     const bg=d.img?"background-image:url(&quot;"+h(d.img)+"&quot;)":"background:linear-gradient(135deg,#eef2ff,#f8f9fc)";
-    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
+    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(distanceText?" · 📍 "+h(distanceText):"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
 
   toggleFav=function(id){
@@ -365,17 +793,80 @@
     toast(tr(state.favorites.has(numeric)?"Saved to Favorites":"Removed from Favorites"));
   };
 
+  function addDealToTrip(d){
+    if(!d) return false;
+    const numeric=Number(d.id);
+    if(!state.trip.includes(numeric)) state.trip.push(numeric);
+    localStorage.setItem("dealzyTrip",JSON.stringify(state.trip));
+    const snapshots=getSavedSnapshots();
+    snapshots[String(numeric)]=d;
+    saveSnapshots(snapshots);
+    renderTrips();
+    renderProfileInsights();
+    if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    return true;
+  }
+
+  function dealDirectionsUrl(d){
+    if(Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lng))){
+      return "https://www.google.com/maps/dir/?api=1&destination="+
+        encodeURIComponent(String(d.lat)+","+String(d.lng));
+    }
+    const query=[d.place,d.title,market.city].filter(Boolean).join(" ");
+    return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(query);
+  }
+
+  async function shareDeal(d){
+    const price=Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"");
+    const shareText=[d.title,price,d.place,d.source?"via "+d.source:""].filter(Boolean).join(" · ");
+    const shareData={title:d.title||"Dealzy AI",text:shareText};
+    if(d.partnerUrl) shareData.url=d.partnerUrl;
+    try{
+      if(navigator.share){
+        await navigator.share(shareData);
+        return true;
+      }
+    }catch(e){
+      if(e&&e.name==="AbortError") return false;
+    }
+    try{
+      const text=[shareText,d.partnerUrl||""].filter(Boolean).join("\n");
+      await navigator.clipboard.writeText(text);
+      toast(locale()==="fr"?"Lien copié":"Link copied");
+      return true;
+    }catch(_){
+      toast(locale()==="fr"?"Partage indisponible sur cet appareil.":"Sharing is unavailable on this device.");
+      return false;
+    }
+  }
+
+  function ensureDetailActions(){
+    let host=document.getElementById("dealzyDetailActions");
+    if(host) return host;
+    host=document.createElement("div");
+    host.id="dealzyDetailActions";
+    host.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0";
+    const text=document.getElementById("detailText");
+    if(text) text.insertAdjacentElement("afterend",host);
+    return host;
+  }
+
   openDeal=function(id){
     const numericId=Number(id);
     const d=catalog.get(numericId)||getSavedSnapshots()[String(numericId)]||deals.find((x)=>Number(x.id)===numericId);
     if(!d) return;
+
     const hasPrice=Number(d.price)>0;
     const hasDiscount=hasPrice&&Number(d.old)>Number(d.price);
     const pct=hasDiscount?Math.round((1-d.price/d.old)*100):0;
+    const distance=dealDistance(d);
+    const distanceText=distance!==null?(distance<0.1?"<0.1 mi":distance.toFixed(distance<10?1:0)+" mi"):"";
+
     $("#detailHero").style.backgroundImage=d.img?'url("'+String(d.img).replace(/"/g,"%22")+'")':"none";
     $("#detailBadge").textContent=d.source||"Live";
     $("#detailTitle").textContent=d.title||"";
-    $("#detailMeta").textContent=[d.place,d.rating].filter(Boolean).join(" · ");
+    $("#detailMeta").textContent=[d.place,distanceText?("📍 "+distanceText):"",d.rating].filter(Boolean).join(" · ");
+
     const scoreInfo=dealzyScore(d);
     let scoreBox=document.getElementById("dealzyScoreDetail");
     if(!scoreBox){
@@ -384,11 +875,46 @@
       scoreBox.style.cssText="margin:12px 0;padding:12px 14px;border-radius:16px;background:#f8f7ff;border:1px solid #e5e1ff;color:#344054";
       $("#detailMeta").insertAdjacentElement("afterend",scoreBox);
     }
-    scoreBox.innerHTML='<b style="color:#5145cd">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI Score"))+'</b><div style="font-size:12px;margin-top:5px">'+h(scoreInfo.reasons.join(" · "))+'</div><div style="font-size:11px;color:#667085;margin-top:5px">'+h(tr("Personalized relevance score — not a provider rating or sponsored ranking."))+'</div>';
-    $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider");
+    scoreBox.innerHTML=
+      '<b style="color:#5145cd">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI Score"))+'</b>'+
+      '<div style="font-size:12px;margin-top:5px">'+h(scoreInfo.reasons.join(" · "))+'</div>'+
+      '<div style="font-size:11px;color:#667085;margin-top:5px">'+h(tr("Personalized relevance score — not a provider rating or sponsored ranking."))+'</div>';
+
+    $("#detailPrice").textContent=hasPrice?moneyFor(d.price,d.currency):(d.priceLabel||tr("Price on provider"));
     $("#detailOld").textContent=hasDiscount?moneyFor(d.old,d.currency):"";
     $("#detailSave").textContent=hasDiscount?tr("Save {pct}%",{pct}):tr("Live partner");
-    $("#detailText").textContent=d.text||"";
+
+    const detailBits=[];
+    if(d.text) detailBits.push(d.text);
+    if(d.eventDate) detailBits.push((locale()==="fr"?"Date : ":"Date: ")+d.eventDate+(d.eventTime?" · "+d.eventTime:""));
+    $("#detailText").textContent=detailBits.join("\n\n");
+
+    const actions=ensureDetailActions();
+    const favorite=state.favorites.has(numericId);
+    const inTrip=state.trip.includes(numericId);
+    const hasPhone=!!String(d.phone||"").trim();
+    actions.innerHTML=
+      '<button id="dzDetailFav" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(favorite?"♥ ":"♡ ")+h(locale()==="fr"?(favorite?"Favori":"Ajouter aux favoris"):(favorite?"Saved":"Save"))+'</button>'+
+      '<button id="dzDetailTrip" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(inTrip?"✓ ":"✈ ")+h(locale()==="fr"?(inTrip?"Dans le voyage":"Ajouter au voyage"):(inTrip?"In trip":"Add to trip"))+'</button>'+
+      '<button id="dzDetailDirections" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">🗺 '+h(locale()==="fr"?"Itinéraire":"Directions")+'</button>'+
+      '<button id="dzDetailShare" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">↗ '+h(locale()==="fr"?"Partager":"Share")+'</button>'+
+      (hasPhone?'<button id="dzDetailCall" style="grid-column:1/-1;border:1px solid #dfe3eb;background:#f8f9fc;border-radius:14px;padding:12px;font-weight:800">📞 '+h(locale()==="fr"?"Appeler":"Call")+'</button>':"");
+
+    actions.querySelector("#dzDetailFav").onclick=()=>{
+      toggleFav(numericId);
+      openDeal(numericId);
+      renderFavs();
+    };
+    actions.querySelector("#dzDetailTrip").onclick=()=>{
+      addDealToTrip(d);
+      toast(locale()==="fr"?"Ajouté au voyage":"Added to trip");
+      openDeal(numericId);
+    };
+    actions.querySelector("#dzDetailDirections").onclick=()=>window.open(dealDirectionsUrl(d),"_blank","noopener,noreferrer");
+    actions.querySelector("#dzDetailShare").onclick=()=>shareDeal(d);
+    const call=actions.querySelector("#dzDetailCall");
+    if(call) call.onclick=()=>{location.href="tel:"+String(d.phone).replace(/[^+\d]/g,"");};
+
     $("#partnerBtn").textContent=tr("Open on {source} ↗",{source:d.source||"Partner"});
     $("#partnerBtn").onclick=()=>{
       if(d.partnerUrl){
@@ -396,6 +922,7 @@
         window.open(d.partnerUrl,"_blank","noopener,noreferrer");
       }else toast(tr("Partner link is temporarily unavailable."));
     };
+
     $("#detailOverlay").classList.remove("hidden");
   };
 
@@ -414,35 +941,235 @@
     $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
   };
 
-  renderExplore=async function(){
+  function travelDateOffset(days){
+    const d=new Date();
+    d.setDate(d.getDate()+Number(days||0));
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,"0");
+    const day=String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+
+  function marketIata(){
+    const map={
+      "Miami":"MIA","New York":"NYC","Los Angeles":"LAX","Chicago":"CHI","Las Vegas":"LAS",
+      "Orlando":"MCO","San Francisco":"SFO","Boston":"BOS","Seattle":"SEA","Washington":"WAS",
+      "Dallas":"DFW","Houston":"HOU","San Diego":"SAN","Philadelphia":"PHL","Atlanta":"ATL",
+      "New Orleans":"MSY","Austin":"AUS","Denver":"DEN","Nashville":"BNA","Phoenix":"PHX",
+      "Honolulu":"HNL","Fort Lauderdale":"FLL",
+      "Toronto":"YTO","Montreal":"YMQ","Vancouver":"YVR","Calgary":"YYC","Ottawa":"YOW",
+      "Edmonton":"YEA","Quebec City":"YQB","Winnipeg":"YWG","Halifax":"YHZ","Victoria":"YVR",
+      "Niagara Falls":"IAG","Banff":"YYC","Kelowna":"YLW","Whistler":"YVR","Mississauga":"YYZ",
+      "Hamilton":"YHM","Kitchener":"YKF","Saskatoon":"YXE","Regina":"YQR","St. John's":"YYT",
+      "Charlottetown":"YYG","Sherbrooke":"YSC","Laval":"YUL","Gatineau":"YOW",
+      "Trois-Rivieres":"YUL","London":"YXU"
+    };
+    return map[market.city]||"";
+  }
+
+  function saveExploreTravelSearch(kind,data,summary){
+    try{
+      const key="dealzyTravelSearches";
+      const rows=JSON.parse(localStorage.getItem(key)||"[]");
+      rows.push({kind,data,summary,market:{...market},createdAt:new Date().toISOString()});
+      localStorage.setItem(key,JSON.stringify(rows.slice(-30)));
+      if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    }catch(_){}
+  }
+
+  function openExploreTravelPartner(provider,url,title){
+    trackPartnerClick({
+      provider:String(provider||"travel").toLowerCase(),
+      source:provider||"Travel",
+      title:title||provider||"Travel search",
+      externalId:null
+    });
+    if(location.hostname==="appassets.androidplatform.net"){
+      location.href=url;
+      return;
+    }
+    const popup=window.open(url,"_blank","noopener,noreferrer");
+    if(!popup) location.href=url;
+  }
+
+  function renderExploreTravelForm(kind){
+    const host=document.getElementById("dzExploreTravelForm");
+    if(!host) return;
+    const isFr=locale()==="fr";
+    const selectedCity=marketCityLabel();
+    const accent='style="margin-top:12px;width:100%;border:0;border-radius:14px;padding:13px 14px;background:linear-gradient(135deg,#6d5dfc,#3d8bfd);color:white;font-weight:850;font-size:15px"';
+    const inputStyle='style="width:100%;margin-top:6px;border:1px solid #dfe3eb;border-radius:13px;padding:12px;background:#fff;font:inherit"';
+
+    if(kind==="hotel"){
+      host.innerHTML=
+        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🏨 Booking.com</b><div class="meta">'+(isFr?"Recherche d’hôtel":"Hotel search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+            '<label class="meta" style="grid-column:1/-1">'+(isFr?"Destination":"Destination")+'<input id="dzHotelDest" '+inputStyle+' value="'+h(selectedCity)+'"></label>'+
+            '<label class="meta">'+(isFr?"Arrivée":"Check-in")+'<input id="dzHotelIn" type="date" '+inputStyle+' value="'+travelDateOffset(1)+'"></label>'+
+            '<label class="meta">'+(isFr?"Départ":"Check-out")+'<input id="dzHotelOut" type="date" '+inputStyle+' value="'+travelDateOffset(3)+'"></label>'+
+            '<label class="meta" style="grid-column:1/-1">'+(isFr?"Voyageurs":"Guests")+'<input id="dzHotelAdults" type="number" min="1" max="10" '+inputStyle+' value="2"></label>'+
+          '</div>'+
+          '<button id="dzHotelGo" '+accent+'>'+(isFr?"Voir les hôtels sur Booking.com ↗":"Search Booking.com hotels ↗")+'</button>'+
+        '</div>';
+      host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+      host.querySelector("#dzHotelGo").onclick=()=>{
+        const dest=host.querySelector("#dzHotelDest").value.trim();
+        const cin=host.querySelector("#dzHotelIn").value;
+        const cout=host.querySelector("#dzHotelOut").value;
+        const adults=Math.max(1,Math.min(10,Number(host.querySelector("#dzHotelAdults").value)||2));
+        if(!dest||!cin||!cout||cout<=cin){
+          toast(isFr?"Vérifie la destination et les dates.":"Check destination and dates.");
+          return;
+        }
+        const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:"1"});
+        saveExploreTravelSearch("hotel",{dest,cin,cout,adults},dest+" · "+cin+" → "+cout);
+        openExploreTravelPartner("Booking.com","https://www.booking.com/searchresults.html?"+p.toString(),"Hotel search · "+dest);
+      };
+      return;
+    }
+
+    if(kind==="flight"){
+      host.innerHTML=
+        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">✈️ Skyscanner</b><div class="meta">'+(isFr?"Comparateur de vols":"Flight search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
+            '<label class="meta">'+(isFr?"Départ (IATA)":"From (IATA)")+'<input id="dzFlightFrom" maxlength="3" autocapitalize="characters" '+inputStyle+' placeholder="JFK"></label>'+
+            '<label class="meta">'+(isFr?"Destination":"To")+'<input id="dzFlightTo" maxlength="3" autocapitalize="characters" '+inputStyle+' value="'+h(marketIata())+'" placeholder="MIA"></label>'+
+            '<label class="meta">'+(isFr?"Aller":"Depart")+'<input id="dzFlightOut" type="date" '+inputStyle+' value="'+travelDateOffset(7)+'"></label>'+
+            '<label class="meta">'+(isFr?"Retour":"Return")+'<input id="dzFlightBack" type="date" '+inputStyle+' value="'+travelDateOffset(14)+'"></label>'+
+          '</div>'+
+          '<button id="dzFlightGo" '+accent+'>'+(isFr?"Comparer les vols sur Skyscanner ↗":"Compare flights on Skyscanner ↗")+'</button>'+
+        '</div>';
+      host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+      host.querySelector("#dzFlightGo").onclick=()=>{
+        const origin=host.querySelector("#dzFlightFrom").value.trim().toUpperCase();
+        const destination=host.querySelector("#dzFlightTo").value.trim().toUpperCase();
+        const out=host.querySelector("#dzFlightOut").value;
+        const back=host.querySelector("#dzFlightBack").value;
+        if(!/^[A-Z]{3}$/.test(origin)||!/^[A-Z]{3}$/.test(destination)||!out||(back&&back<=out)){
+          toast(isFr?"Entre des codes aéroport à 3 lettres et des dates valides.":"Enter valid 3-letter airport codes and dates.");
+          return;
+        }
+        const p=new URLSearchParams({
+          mediaPartnerId:"2850210",
+          utm_term:"skyscanner_chatgpt_app_data",
+          origin,
+          destination,
+          outboundDate:out,
+          cabinclass:"economy"
+        });
+        if(back) p.set("inboundDate",back);
+        saveExploreTravelSearch("flight",{origin,destination,out,back},origin+" → "+destination+" · "+out+(back?" → "+back:""));
+        openExploreTravelPartner("Skyscanner","https://skyscanner.net/g/referrals/v1/flights/day-view?"+p.toString(),"Flight search · "+origin+" → "+destination);
+      };
+      return;
+    }
+
+    host.innerHTML=
+      '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🧳 Expedia · Dealzy AI</b><div class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
+        '<p class="meta" style="line-height:1.5">'+(isFr?"Hôtels, séjours et inspiration voyage via la boutique Expedia de Dealzy AI.":"Hotels, stays and travel inspiration through Dealzy AI’s Expedia shop.")+'</p>'+
+        '<button id="dzExpediaGo" '+accent+'>'+(isFr?"Ouvrir Expedia Dealzy ↗":"Open Expedia Dealzy ↗")+'</button>'+
+      '</div>';
+    host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
+    host.querySelector("#dzExpediaGo").onclick=()=>{
+      saveExploreTravelSearch("expedia",{city:market.city},"Expedia · "+marketCityLabel());
+      openExploreTravelPartner("Expedia","https://expedia.com/shop/dealzy-ai","Dealzy AI Travel Shop");
+    };
+  }
+
+  renderExplore=async function(force=false){
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
+    const isFr=locale()==="fr";
+    const prefs=readExplorePrefs();
 
     $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
-    $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;renderExplore();});
+    $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;exploreCache={key:"",rows:[]};renderExplore(true);});
 
-    if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
-    if(count) count.textContent=tr("Live search");
+    const requestKey=exploreRequestKey(q);
+    let rawList=[];
+    let broadened=false;
+    let includesUnknownPrice=false;
 
-    let list=[];
-    try{
-      list=state.filter==="All"?await fetchMixed(q,6):await fetchLive(state.filter,q,18);
-    }catch(_){
-      list=[];
+    if(!force&&exploreCache.key===requestKey&&exploreCache.rows.length){
+      rawList=[...exploreCache.rows];
+    }else{
+      if(root) root.innerHTML='<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live results…"))+'</div>';
+      if(count) count.textContent=tr("Live search");
+      try{
+        rawList=state.filter==="All"?await fetchMixed(q,12):await fetchCategoryBoosted(state.filter,q,30);
+        if(rawList.length<8&&q){
+          broadened=true;
+          const broad=state.filter==="All"?await fetchMixed("",12):await fetchCategoryBoosted(state.filter,"",30);
+          rawList=dedupe([...rawList,...broad]);
+        }
+      }catch(_){
+        rawList=[];
+      }
+
+      if(state.maxPrice){
+        const exact=rawList.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
+        const unknown=rawList.filter((d)=>!(Number(d.price)>0));
+        includesUnknownPrice=unknown.length>0;
+        rawList=dedupe([...exact,...unknown]).slice(0,40);
+      }else{
+        rawList=dedupe(rawList).slice(0,40);
+      }
+      exploreCache={key:requestKey,rows:[...rawList]};
     }
 
-    if(state.maxPrice){
-      list=list.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
-    }
-    deals.splice(0,deals.length,...dedupe(list));
+    const sourceUniverse=applyExplorePrefs(rawList,{...prefs,source:"all"}).slice(0,40);
+    const list=prefs.source==="all"
+      ? [...sourceUniverse]
+      : sourceUniverse.filter(d=>String(d.provider||d.source||"").toLowerCase()===String(prefs.source||"").toLowerCase());
+    deals.splice(0,deals.length,...list);
 
     if(count){
       const resultText=tr(list.length===1?"{count} live result":"{count} live results",{count:list.length});
-      count.textContent=resultText+" · "+marketCityLabel()+(state.maxPrice?" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)}):"");
+      let suffix=" · "+marketCityLabel();
+      if(state.maxPrice) suffix+=" · "+tr("under {price}",{price:moneyFor(state.maxPrice,market.currency)});
+      if(Number(prefs.radius)>0) suffix+=" · "+prefs.radius+" mi";
+      if(broadened) suffix+=" · "+(isFr?"recherche élargie":"broadened search");
+      if(includesUnknownPrice) suffix+=" · "+(isFr?"certains prix non disponibles":"some prices unavailable");
+      count.textContent=resultText+suffix;
     }
+
+    const controls=exploreControlsHtml(sourceUniverse,prefs,isFr);
+    const travelCards=
+      '<div style="grid-column:1/-1;margin:2px 0 10px">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
+        '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+
+          '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'+
+          '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'+
+          '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'+
+        '</div>'+
+        '<div id="dzExploreTravelForm" style="margin-top:10px"></div>'+
+      '</div>';
+
     if(root){
-      root.innerHTML=list.length?list.map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("No live provider result found right now. Try another category or search."))+'</div>';
+      const liveHtml=list.length
+        ? list.map(dealCard).join("")
+        : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre ne correspond à ces filtres. Élargis le rayon ou choisis Toutes les sources.":"No offers match these filters. Increase the radius or choose All sources.")+'</div>';
+      root.innerHTML=controls+travelCards+liveHtml;
+
+      const sortBtn=root.querySelector("#dzExploreSortBtn");
+      const radiusBtn=root.querySelector("#dzExploreRadiusBtn");
+      if(sortBtn) sortBtn.onclick=()=>openExploreChoicePicker("sort");
+      if(radiusBtn) radiusBtn.onclick=()=>openExploreChoicePicker("radius");
+      root.querySelectorAll("#dzExploreSources [data-source]").forEach(btn=>{
+        btn.onclick=()=>{
+          const next=readExplorePrefs(); next.source=btn.dataset.source||"all"; saveExplorePrefs(next); renderExplore(false);
+        };
+      });
+      const refresh=root.querySelector("#dzExploreRefresh");
+      if(refresh) refresh.onclick=()=>{exploreCache={key:"",rows:[]};renderExplore(true);};
+
+      root.querySelectorAll("[data-explore-travel]").forEach(btn=>{
+        btn.onclick=()=>renderExploreTravelForm(btn.dataset.exploreTravel);
+      });
       bindCards(root);
     }
     renderFavs();
@@ -454,7 +1181,7 @@
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     const personalized=personalizedHome(homeDeals);
-    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,8).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
+    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,12).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
     bindCards($("#popularGrid"));
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
@@ -636,12 +1363,144 @@
   function maybeShowFirstRunOnboarding(){
     const current=readOnboarding();
     if(current.completed) return;
-    // Never block the whole app on first launch. Preferences remain available from Profile.
+    // Keep first launch non-blocking. Preferences remain available from Profile.
     setTimeout(()=>{
-      const existing=document.getElementById("dealzyOnboarding");
-      if(existing) existing.remove();
-      toast(tr("Personalize Dealzy"));
+      if(!document.getElementById("dealzyOnboarding")) toast(tr("Personalize Dealzy"));
     },700);
+  }
+
+  function ensureMarketPickerStyles(){
+    if(document.getElementById("dealzyMarketPickerStyles")) return;
+    const style=document.createElement("style");
+    style.id="dealzyMarketPickerStyles";
+    style.textContent=[
+      ".dz-market-grid{display:grid;gap:12px;margin-top:12px}",
+      ".dz-market-label{font-size:13px;color:#667085;font-weight:700;display:block}",
+      ".dz-market-field{width:100%;margin-top:7px;border:1px solid #e2e5ec;background:#fff;border-radius:16px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font:inherit;color:#182230;box-shadow:0 3px 10px rgba(17,24,39,.03);transition:border-color .18s ease,box-shadow .18s ease,transform .12s ease}",
+      ".dz-market-field:active{transform:scale(.992)}",
+      ".dz-market-field .dz-value{display:flex;align-items:center;gap:9px;font-weight:650}",
+      ".dz-market-field .dz-chevron{font-size:18px;color:#7b8497}",
+      ".dz-picker-wrap{position:fixed;inset:0;z-index:190;background:rgba(17,24,39,.48);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:14px}",
+      ".dz-picker-card{width:min(680px,100%);max-height:72vh;overflow:auto;background:#fff;border-radius:28px;padding:12px;box-shadow:0 24px 70px rgba(0,0,0,.30);animation:dzPickerUp .22s ease-out}",
+      "@keyframes dzPickerUp{from{transform:translateY(26px);opacity:.7}to{transform:translateY(0);opacity:1}}",
+      ".dz-picker-head{display:flex;align-items:center;justify-content:space-between;padding:8px 8px 12px 12px}",
+      ".dz-picker-head b{font-size:20px}.dz-picker-close{width:38px;height:38px;border:0;border-radius:50%;background:#f2f4f7;font-size:20px}",
+      ".dz-picker-option{width:100%;border:0;background:#fff;border-radius:18px;padding:14px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font:inherit;color:#182230;margin:3px 0}",
+      ".dz-picker-option .dz-opt-main{display:flex;align-items:center;gap:11px;font-size:16px;font-weight:650}",
+      ".dz-picker-option .dz-check{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#f2f4f7;color:transparent;font-weight:900}",
+      ".dz-picker-option.selected{background:#f3f0ff;color:#5b4be7}",
+      ".dz-picker-option.selected .dz-check{background:#6d5dfc;color:white}",
+      ".dz-picker-option:active{transform:scale(.992)}",
+      ".dz-picker-search{padding:0 8px 8px}.dz-picker-search input{width:100%;border:1px solid #dfe3eb;border-radius:16px;padding:13px 14px;font:inherit;background:#f8f9fc;outline:none}",
+      ".dz-picker-search input:focus{border-color:#8b7cff;box-shadow:0 0 0 3px rgba(109,93,252,.10);background:#fff}",
+      ".dz-picker-custom{margin:8px;border:1px dashed #c9c3ff;background:#f8f7ff;border-radius:16px;padding:12px 14px;color:#5145cd;font-weight:800;text-align:left;width:calc(100% - 16px)}",
+      ".dz-picker-empty{padding:18px 14px;color:#667085;text-align:center}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function closeMarketPicker(){
+    const picker=document.getElementById("dealzyMarketPicker");
+    if(picker) picker.remove();
+  }
+
+  function openMarketPicker(kind){
+    ensureMarketPickerStyles();
+    closeMarketPicker();
+
+    let title="",options=[],selected="";
+    if(kind==="country"){
+      title=tr("Country");
+      selected=market.country;
+      options=[
+        {value:"US",label:tr("United States"),icon:"🇺🇸"},
+        {value:"CA",label:tr("Canada"),icon:"🇨🇦"}
+      ];
+    }else if(kind==="city"){
+      title=tr("City");
+      selected=market.city;
+      options=(MARKET_CITIES[market.country]||[]).map(x=>({value:x.value,label:x.label,icon:market.country==="CA"?"🇨🇦":"🇺🇸"}));
+    }else{
+      title=tr("Language");
+      selected=locale();
+      options=[
+        {value:"en",label:"English",icon:"🇺🇸"},
+        {value:"fr",label:"Français",icon:"🇫🇷"}
+      ];
+    }
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyMarketPicker";
+    wrap.className="dz-picker-wrap";
+    const searchable=kind==="city";
+    wrap.innerHTML=
+      '<section class="dz-picker-card" role="dialog" aria-modal="true" aria-label="'+h(title)+'">'+
+        '<div class="dz-picker-head"><b>'+h(title)+'</b><button class="dz-picker-close" aria-label="'+h(tr("Close"))+'">×</button></div>'+
+        (searchable?'<div class="dz-picker-search"><input id="dzCitySearch" autocomplete="off" placeholder="'+h(locale()==="fr"?"Rechercher ou saisir une ville…":"Search or type a city…")+'"></div>':"")+
+        '<div id="dzPickerOptions"></div>'+
+      '</section>';
+
+    document.body.appendChild(wrap);
+    wrap.querySelector(".dz-picker-close").onclick=closeMarketPicker;
+    wrap.onclick=e=>{if(e.target===wrap) closeMarketPicker();};
+
+    const optionsHost=wrap.querySelector("#dzPickerOptions");
+    const chooseValue=(value)=>{
+      closeMarketPicker();
+      if(kind==="country"){
+        const nextCountry=value==="CA"?"CA":"US";
+        persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
+        updateMarketUI();
+        hydrateHome();
+        return;
+      }
+      if(kind==="city"){
+        persistMarket(market.country,value);
+        updateMarketUI();
+        hydrateHome();
+        return;
+      }
+      if(window.DealzyI18n) window.DealzyI18n.setLocale(value);
+      else localStorage.setItem("dealzyLocale",value);
+      updateMarketUI();
+      renderAll();
+    };
+
+    const renderOptions=(query="")=>{
+      const needle=String(query||"").trim().toLowerCase();
+      const filtered=needle
+        ? options.filter(opt=>(opt.label+" "+opt.value).toLowerCase().includes(needle))
+        : options;
+
+      optionsHost.innerHTML=filtered.map(opt=>'<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
+          '<span class="dz-opt-main"><span>'+opt.icon+'</span><span>'+h(opt.label)+'</span></span>'+
+          '<span class="dz-check">✓</span></button>').join("");
+
+      if(searchable&&needle){
+        const raw=String(query||"").trim().replace(/\s+/g," ").slice(0,80);
+        const exact=options.some(opt=>opt.value.toLowerCase()===raw.toLowerCase()||opt.label.toLowerCase()===raw.toLowerCase());
+        if(raw.length>=2&&!exact){
+          optionsHost.insertAdjacentHTML("beforeend",
+            '<button class="dz-picker-custom" data-custom-city="'+h(raw)+'">＋ '+h(locale()==="fr"?'Utiliser « '+raw+' »':'Use “'+raw+'”')+'</button>');
+        }else if(!filtered.length){
+          optionsHost.innerHTML='<div class="dz-picker-empty">'+h(locale()==="fr"?"Aucune ville trouvée.":"No city found.")+'</div>';
+        }
+      }
+
+      optionsHost.querySelectorAll(".dz-picker-option").forEach(btn=>{
+        btn.onclick=()=>chooseValue(btn.dataset.value);
+      });
+      const custom=optionsHost.querySelector("[data-custom-city]");
+      if(custom) custom.onclick=()=>chooseValue(custom.dataset.customCity);
+    };
+
+    renderOptions();
+
+    if(searchable){
+      const input=wrap.querySelector("#dzCitySearch");
+      input.oninput=()=>renderOptions(input.value);
+      setTimeout(()=>{try{input.focus();}catch(_){}},80);
+    }
   }
 
   function updateMarketUI(){
@@ -650,21 +1509,36 @@
     const locationBtn=document.getElementById("locationBtn");
     if(locationBtn){
       locationBtn.textContent=flag+" "+marketCityLabel();
-      locationBtn.onclick=()=>show("profile");
-      locationBtn.title=tr("Change market");
+      const gpsMode=localStorage.getItem("dealzyLocationMode")==="gps";
+      locationBtn.onclick=()=>gpsMode&&window.DealzyLocation
+        ? window.DealzyLocation.useRealLocation({silent:false,refresh:true})
+        : show("profile");
+      locationBtn.title=gpsMode
+        ? (locale()==="fr"?"Actualiser ma position":"Refresh my location")
+        : tr("Change market");
     }
 
-    const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
+    const popularHeading=document.getElementById("popularHeading");
     if(popularHeading){
       const profile=readOnboarding();
       popularHeading.textContent=profile.completed?tr("For you in {city}",{city:market.city}):tr("Popular in {city}",{city:market.city});
+    }
+
+    const geoTitle=document.getElementById("geoTitle");
+    const geoSub=document.getElementById("geoSub");
+    const geoButton=document.getElementById("useLocationBtn");
+    const locationMode=localStorage.getItem("dealzyLocationMode")||"manual";
+    if(locationMode==="manual"){
+      if(geoTitle) geoTitle.textContent=locale()==="fr"?"Marché sélectionné":"Selected market";
+      if(geoSub) geoSub.textContent=flag+" "+marketCityLabel();
+      if(geoButton) geoButton.textContent=locale()==="fr"?"Utiliser ma position réelle":"Use my real location";
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
     if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
 
     const query=document.getElementById("aiQuery");
-    if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas/i.test(query.value))){
+    if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas|Orlando|San Francisco|Boston|Seattle|Washington|Dallas|Houston|San Diego|Philadelphia|Atlanta|New Orleans|Austin|Denver|Nashville|Phoenix|Honolulu/i.test(query.value))){
       const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
         ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
@@ -685,41 +1559,30 @@
       if(!heading||!/^(Market|Marché)$/.test(heading.textContent.trim())) return;
       const cities=MARKET_CITIES[market.country];
       const currentLocale=locale();
+      ensureMarketPickerStyles();
+      const currentCity=(cities.find(x=>x.value===market.city)||{}).label||market.city;
       card.innerHTML='<h3 style="margin-top:0">'+h(tr("Market"))+'</h3>'+
-        '<div class="dz-form" style="margin-top:8px">'+
-          '<label>'+h(tr("Country"))+'<select id="dzMarketCountry">'+
-            '<option value="US" '+(market.country==="US"?"selected":"")+'>🇺🇸 '+h(tr("United States"))+'</option>'+
-            '<option value="CA" '+(market.country==="CA"?"selected":"")+'>🇨🇦 '+h(tr("Canada"))+'</option>'+
-          '</select></label>'+
-          '<label>'+h(tr("City"))+'<select id="dzMarketCity">'+cities.map(x=>'<option value="'+h(x.value)+'" '+(x.value===market.city?"selected":"")+'>'+h(x.label)+'</option>').join("")+'</select></label>'+
-          '<label>'+h(tr("Language"))+'<select id="dzMarketLanguage">'+
-            '<option value="en" '+(currentLocale==="en"?"selected":"")+'>English</option>'+
-            '<option value="fr" '+(currentLocale==="fr"?"selected":"")+'>Français</option>'+
-          '</select></label>'+
+        '<div class="dz-market-grid">'+
+          '<label class="dz-market-label">'+h(tr("Country"))+
+            '<button type="button" class="dz-market-field" data-picker="country"><span class="dz-value">'+flag+' '+h(tr(countryName))+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
+          '<label class="dz-market-label">'+h(tr("City"))+
+            '<button type="button" class="dz-market-field" data-picker="city"><span class="dz-value">'+flag+' '+h(currentCity)+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
+          '<label class="dz-market-label">'+h(tr("Language"))+
+            '<button type="button" class="dz-market-field" data-picker="language"><span class="dz-value">'+(currentLocale==="fr"?"🇫🇷 Français":"🇺🇸 English")+'</span><span class="dz-chevron">⌄</span></button>'+
+          '</label>'+
         '</div>'+
-        '<div class="meta" style="margin-top:10px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
+        '<button type="button" id="dzUseRealLocation" style="margin-top:12px;width:100%;border:0;border-radius:15px;padding:13px 14px;background:#eef2ff;color:#5145cd;font-weight:850;font:inherit">📍 '+h(locale()==="fr"?"Utiliser ma position réelle":"Use my real location")+'</button>'+
+        '<div class="meta" style="margin-top:12px"><b>'+flag+" "+h(tr(countryName))+'</b> · '+h(market.currency)+' · '+h(tr("Live provider search"))+'</div>';
 
-      const countrySelect=card.querySelector("#dzMarketCountry");
-      const citySelect=card.querySelector("#dzMarketCity");
-      const languageSelect=card.querySelector("#dzMarketLanguage");
-
-      countrySelect.onchange=()=>{
-        const nextCountry=countrySelect.value==="CA"?"CA":"US";
-        persistMarket(nextCountry,MARKET_CITIES[nextCountry][0].value);
-        updateMarketUI();
-        hydrateHome();
-      };
-      citySelect.onchange=()=>{
-        persistMarket(market.country,citySelect.value);
-        updateMarketUI();
-        hydrateHome();
-      };
-      languageSelect.onchange=()=>{
-        if(window.DealzyI18n) window.DealzyI18n.setLocale(languageSelect.value);
-        else localStorage.setItem("dealzyLocale",languageSelect.value);
-        updateMarketUI();
-        renderAll();
-      };
+      card.querySelectorAll("[data-picker]").forEach(btn=>{
+        btn.onclick=()=>openMarketPicker(btn.dataset.picker);
+      });
+      const realLocationBtn=card.querySelector("#dzUseRealLocation");
+      if(realLocationBtn){
+        realLocationBtn.onclick=()=>window.DealzyLocation&&window.DealzyLocation.useRealLocation({silent:false,refresh:true});
+      }
     });
 
     const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
@@ -809,7 +1672,7 @@
     const previousMaxPrice=state.maxPrice;
     state.maxPrice=null;
     try{
-      homeDeals=await fetchMixed("",4);
+      homeDeals=await fetchMixed("",8);
     }catch(_){
       homeDeals=[];
     }finally{
@@ -834,12 +1697,19 @@
       }
     });
 
-    // Preload Explore with live data so the hidden legacy grid can never reappear when the tab is opened.
-    await renderExplore();
+    // Explore is loaded only when the user opens that tab.
   }
 
   const exploreButton=document.getElementById("exploreSearch");
   if(exploreButton) exploreButton.onclick=()=>renderExplore();
+
+  const exploreNav=document.querySelector('.navBtn[data-view="explore"]');
+  if(exploreNav){
+    exploreNav.onclick=()=>{
+      show("explore");
+      setTimeout(()=>renderExplore(),0);
+    };
+  }
 
   const useLoc=document.getElementById("useLocationBtn");
   if(useLoc){
@@ -893,4 +1763,11 @@
 
   hydrateHome();
   maybeShowFirstRunOnboarding();
+
+  // GPS is the primary local-discovery mode. Manual city selection remains
+  // available for browsing another destination.
+  setTimeout(()=>{
+    const mode=localStorage.getItem("dealzyLocationMode");
+    if(mode!=="manual") useRealLocation({silent:true,refresh:true});
+  },700);
 })();
