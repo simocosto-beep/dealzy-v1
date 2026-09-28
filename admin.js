@@ -217,6 +217,13 @@ function renderUserDetail(detail){
     const summary=data.destination||data.city||data.query||data.origin||'Travel search';
     return '<div class="history-row"><b>'+esc(o.kind||'Travel')+'</b><div class="sub">'+esc(o.provider||'')+' · '+esc(summary)+'</div><div class="sub">'+esc(o.created_at?new Date(o.created_at).toLocaleString():'')+'</div></div>';
   }).join(''):'<div class="sub">No recent travel activity.</div>';
+
+  const adminHistory=detail?.admin_history||[];
+  $('#userAdminHistory').innerHTML=adminHistory.length?adminHistory.map(h=>{
+    const details=h.details||{};
+    const extra=details.status?(' · '+details.status):details.role?(' · '+details.role):'';
+    return '<div class="history-row"><b>'+esc(h.action||'Admin action')+'</b><div class="sub">'+esc(h.created_at?new Date(h.created_at).toLocaleString():'')+esc(extra)+'</div></div>';
+  }).join(''):'<div class="sub">No recorded admin actions for this account.</div>';
 }
 
 async function openUserModal(userId){
@@ -307,6 +314,80 @@ async function sendSelectedReset(){
     await adminEdge('send_password_reset',{target_user:selectedUser});
     modalMsg('Password reset email sent.');
   }catch(e){modalMsg(e.message,true)}
+}
+
+function openInviteUserModal(){
+  if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
+  $('#inviteUserEmail').value='';
+  $('#inviteUserName').value='';
+  $('#inviteUserRole').value='user';
+  $('#inviteUserMsg').innerHTML='';
+  $('#inviteUserModal').classList.remove('hidden');
+  setTimeout(()=>$('#inviteUserEmail').focus(),0);
+}
+
+function closeInviteUserModal(){
+  $('#inviteUserModal').classList.add('hidden');
+  $('#inviteUserMsg').innerHTML='';
+}
+
+async function inviteUser(){
+  if(admin?.role!=='superadmin') return;
+  const email=$('#inviteUserEmail').value.trim();
+  const display_name=$('#inviteUserName').value.trim();
+  const role=$('#inviteUserRole').value;
+  if(!email) return $('#inviteUserMsg').innerHTML='<div class="alert error">Email is required.</div>';
+  $('#sendInviteUserBtn').disabled=true;
+  $('#inviteUserMsg').innerHTML='<div class="alert">Sending invitation…</div>';
+  try{
+    await adminEdge('invite_user',{email,display_name,role});
+    $('#inviteUserMsg').innerHTML='<div class="alert">Invitation sent successfully.</div>';
+    users=await fetchUsers($('#userSearch').value||'');
+    renderUsers(users);
+    setTimeout(closeInviteUserModal,900);
+  }catch(e){
+    $('#inviteUserMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  }finally{
+    $('#sendInviteUserBtn').disabled=false;
+  }
+}
+
+function csvCell(v){
+  const s=String(v??'');
+  return '"'+s.replaceAll('"','""')+'"';
+}
+
+async function exportUsersCsv(){
+  if(admin?.role==='viewer') return flash('Viewer access is read only.',true);
+  try{
+    flash('Preparing user export…');
+    const search=$('#userSearch').value||'';
+    const all=[];
+    for(let offset=0;offset<5000;offset+=100){
+      const page=await api('/rest/v1/rpc/dealzy_admin_list_users',{
+        method:'POST',
+        body:JSON.stringify({search_text:String(search),page_size:100,page_offset:offset})
+      });
+      all.push(...(page||[]));
+      if(!page||page.length<100) break;
+    }
+    const headers=['user_id','display_name','email','phone','status','role','email_confirmed','created_at','last_sign_in_at'];
+    const lines=[headers.map(csvCell).join(',')];
+    for(const row of all){
+      lines.push([
+        row.user_id,row.display_name,row.email,row.phone,row.account_status||'active',
+        userRoleLabel(row),row.email_confirmed?'yes':'no',row.created_at,row.last_sign_in_at
+      ].map(csvCell).join(','));
+    }
+    const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='dealzy-users-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    flash(all.length+' users exported.');
+  }catch(e){flash(e.message,true)}
 }
 
 
@@ -563,6 +644,7 @@ async function boot(){
     admin=rows[0];
     $('#loginView').classList.add('hidden');$('#adminView').classList.remove('hidden');
     $('#adminRole').textContent=admin.role;
+    if($('#inviteUserBtn')) $('#inviteUserBtn').classList.toggle('hidden',admin.role!=='superadmin');
     initAdminNav();
     await loadAll();
     loadStripe().catch(e=>{
@@ -749,6 +831,11 @@ $('#sendResetBtn').onclick=requestPasswordReset;
 $('#savePasswordBtn').onclick=saveRecoveredPassword;
 $('#closeUserModal').onclick=closeUserModal;
 $('#userModal').addEventListener('click',e=>{if(e.target===$('#userModal')) closeUserModal()});
+$('#inviteUserBtn').onclick=openInviteUserModal;
+$('#exportUsersBtn').onclick=exportUsersCsv;
+$('#closeInviteUserModal').onclick=closeInviteUserModal;
+$('#inviteUserModal').addEventListener('click',e=>{if(e.target===$('#inviteUserModal')) closeInviteUserModal()});
+$('#sendInviteUserBtn').onclick=inviteUser;
 $('#saveUserIdentityBtn').onclick=saveSelectedIdentity;
 $('#saveUserRoleBtn').onclick=saveSelectedRole;
 $('#saveUserStatusBtn').onclick=saveSelectedStatus;

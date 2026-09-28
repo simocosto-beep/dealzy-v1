@@ -103,6 +103,8 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <div class="user-toolbar">
         <input id="userSearch" class="field" type="search" placeholder="Search email or name">
         <button id="userSearchBtn" class="btn btn-ghost">Search</button>
+        <button id="inviteUserBtn" class="btn btn-primary">+ Invite user</button>
+        <button id="exportUsersBtn" class="btn btn-ghost">Export CSV</button>
       </div>
       <div id="userRows" class="user-list"></div>
       <p class="sub" style="margin:12px 0 0">To promote someone, they must already have a Dealzy account. Only a superadmin can change roles or disable accounts.</p>
@@ -305,6 +307,29 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
   </main>
 </section>
 
+<div id="inviteUserModal" class="modal hidden">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-head">
+      <div><b style="font-size:18px">Invite Dealzy user</b><div class="sub">Creates the account and sends a secure invitation email.</div></div>
+      <button id="closeInviteUserModal" class="btn btn-ghost">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="inviteUserMsg"></div>
+      <div class="section-box">
+        <label>Email</label><input id="inviteUserEmail" class="field" type="email" autocomplete="off" placeholder="user@example.com">
+        <label>Name</label><input id="inviteUserName" class="field" type="text" maxlength="120" placeholder="Optional">
+        <label>Initial role</label>
+        <select id="inviteUserRole" class="field">
+          <option value="user">User</option>
+          <option value="viewer">Viewer — read only admin access</option>
+          <option value="admin">Admin — can manage Dealzy</option>
+        </select>
+        <button id="sendInviteUserBtn" class="btn btn-primary">Send invitation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="userModal" class="modal hidden">
   <div class="modal-card">
     <div class="modal-head">
@@ -384,8 +409,14 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <h3>Recent travel activity</h3>
         <div id="userTravelActivity"></div>
       </div>
+
+      <div class="section-box">
+        <h3>Admin history</h3>
+        <p class="sub">Role, status, identity and password actions recorded for this account.</p>
+        <div id="userAdminHistory"></div>
+      </div>
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260928e"></script>
+<script src="/admin.js?v=20260928f"></script>
 </body></html>
