@@ -6,6 +6,7 @@ const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
 let userPage={offset:0,size:20,total:0,hasMore:false};
 let orders=[], selectedOrder=null, orderPage={offset:0,size:25,total:0,hasMore:false};
+let notificationCampaigns=[];
 let currentAdminPage='overview';
 
 const ADMIN_PAGES={
@@ -13,6 +14,7 @@ const ADMIN_PAGES={
   analytics:{title:'Analytics',subtitle:'Usage, engagement and commerce trends.'},
   users:{title:'Users & Admins',subtitle:'Accounts, access, status and user history.'},
   orders:{title:'Orders & Bookings',subtitle:'Confirmed order records linked to Dealzy users.'},
+  notifications:{title:'Notifications',subtitle:'Send in-app messages and review recent campaigns.'},
   providers:{title:'Providers',subtitle:'Live inventory sources and provider health.'},
   markets:{title:'Markets & Categories',subtitle:'Control where and what Dealzy serves.'},
   payments:{title:'Payments',subtitle:'Stripe payments, customers, subscriptions, refunds and disputes.'},
@@ -42,6 +44,9 @@ function showAdminPage(page,{remember=true}={}){
   if($('#adminPageSubtitle')) $('#adminPageSubtitle').textContent=meta.subtitle;
   if(remember){try{localStorage.setItem('dealzy_admin_page_v1',page)}catch(_){}}
   window.scrollTo({top:0,behavior:'auto'});
+  if(page==='notifications'&&session?.access_token){
+    loadAdminNotifications().catch(e=>flash(e.message,true));
+  }
 }
 
 function initAdminNav(){
@@ -832,6 +837,125 @@ async function changeUserDisabled(userId,isDisabled){
   }
 }
 
+
+async function resolveNotificationUser(email){
+  const needle=String(email||'').trim().toLowerCase();
+  if(!needle) throw new Error('Enter a user email.');
+  const data=await api('/rest/v1/rpc/dealzy_admin_users_page',{
+    method:'POST',
+    body:JSON.stringify({
+      search_text:needle,
+      status_filter:'all',
+      role_filter:'all',
+      page_size:50,
+      page_offset:0
+    })
+  })||{};
+  const rows=Array.isArray(data.rows)?data.rows:[];
+  const exact=rows.find(x=>String(x.email||'').toLowerCase()===needle);
+  if(!exact) throw new Error('No Dealzy user found with that email.');
+  return exact;
+}
+
+function notificationAudienceLabel(row){
+  const scope=String(row.scope||'');
+  if(scope==='country') return row.country==='CA'?'Canada':'USA';
+  if(scope==='user') return 'One user';
+  return 'All users';
+}
+
+function renderNotificationHistory(rows){
+  notificationCampaigns=Array.isArray(rows)?rows:[];
+  if(!$('#notificationHistory')) return;
+  $('#notificationHistory').innerHTML=notificationCampaigns.length
+    ? notificationCampaigns.map(n=>
+        '<div class="history-row"><div class="user-top"><div><b>'+esc(n.title||'Notification')+'</b>'+
+        '<div class="sub">'+esc(notificationAudienceLabel(n))+' · '+esc(n.recipients||0)+' recipient'+(Number(n.recipients||0)===1?'':'s')+'</div></div>'+
+        '<span class="pill">'+esc(n.sent_at?new Date(n.sent_at).toLocaleString():'')+'</span></div>'+
+        '<div class="sub" style="margin-top:7px">'+esc(n.body||'')+'</div></div>'
+      ).join('')
+    : '<div class="sub">No admin notification campaigns yet.</div>';
+}
+
+async function loadAdminNotifications(){
+  const rows=await api('/rest/v1/rpc/dealzy_admin_notification_history',{
+    method:'POST',
+    body:JSON.stringify({limit_count:50})
+  });
+  renderNotificationHistory(rows||[]);
+  const readonly=admin?.role==='viewer';
+  ['notificationScope','notificationUserEmail','notificationKind','notificationTitle','notificationBody','sendNotificationBtn']
+    .forEach(id=>{const el=$('#'+id);if(el) el.disabled=readonly;});
+}
+
+function syncNotificationScope(){
+  const scope=$('#notificationScope')?.value||'all';
+  if($('#notificationUserWrap')) $('#notificationUserWrap').classList.toggle('hidden',scope!=='user');
+}
+
+async function sendAdminNotification(){
+  if(admin?.role==='viewer') return flash('Viewer access is read only.',true);
+  const scopeChoice=$('#notificationScope').value;
+  const title=$('#notificationTitle').value.trim();
+  const body=$('#notificationBody').value.trim();
+  if(!title||!body){
+    $('#notificationMsg').innerHTML='<div class="alert error">Title and message are required.</div>';
+    return;
+  }
+
+  let target_scope='all', target_country=null, target_user=null;
+  if(scopeChoice==='country-us'){target_scope='country';target_country='US';}
+  else if(scopeChoice==='country-ca'){target_scope='country';target_country='CA';}
+  else if(scopeChoice==='user'){
+    target_scope='user';
+    const row=await resolveNotificationUser($('#notificationUserEmail').value);
+    target_user=row.user_id;
+  }
+
+  const audience=scopeChoice==='all'?'ALL Dealzy users':
+    scopeChoice==='country-us'?'USA users':
+    scopeChoice==='country-ca'?'Canada users':
+    $('#notificationUserEmail').value.trim();
+
+  if(!confirm('Send this notification to '+audience+'?')) return;
+
+  $('#sendNotificationBtn').disabled=true;
+  $('#notificationMsg').innerHTML='<div class="alert">Sending…</div>';
+  try{
+    const result=await api('/rest/v1/rpc/dealzy_admin_send_notification',{
+      method:'POST',
+      body:JSON.stringify({
+        target_scope,
+        target_user,
+        target_country,
+        notification_kind:$('#notificationKind').value,
+        notification_title:title,
+        notification_body:body,
+        notification_payload:{}
+      })
+    });
+    $('#notificationMsg').innerHTML='<div class="alert">Sent to '+esc(result?.recipients||0)+' recipient'+(Number(result?.recipients||0)===1?'':'s')+'.</div>';
+    $('#notificationTitle').value='';
+    $('#notificationBody').value='';
+    await loadAdminNotifications();
+  }catch(e){
+    $('#notificationMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  }finally{
+    $('#sendNotificationBtn').disabled=admin?.role==='viewer';
+  }
+}
+
+function messageSelectedUser(){
+  if(!selectedUserDetail?.user) return;
+  const u=selectedUserDetail.user;
+  closeUserModal();
+  showAdminPage('notifications');
+  $('#notificationScope').value='user';
+  syncNotificationScope();
+  $('#notificationUserEmail').value=u.email||'';
+  $('#notificationTitle').focus();
+}
+
 async function fetchOrders(search='',opts={}){
   if(opts.reset) orderPage.offset=0;
   const data=await api('/rest/v1/rpc/dealzy_admin_orders_page',{
@@ -1014,6 +1138,16 @@ async function setMaintenance(enabled){
     await loadAll();
   }catch(e){flash(e.message,true);await loadAll()}
 }
+
+
+$('#notificationScope').onchange=syncNotificationScope;
+$('#sendNotificationBtn').onclick=()=>sendAdminNotification().catch(e=>{
+  $('#notificationMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  $('#sendNotificationBtn').disabled=admin?.role==='viewer';
+});
+$('#refreshNotificationsBtn').onclick=()=>loadAdminNotifications().catch(e=>flash(e.message,true));
+$('#messageUserBtn').onclick=messageSelectedUser;
+syncNotificationScope();
 
 $('#refreshStripeBtn').onclick=()=>loadStripe().catch(e=>flash(e.message,true));
 document.querySelectorAll('[data-refresh-commercial]').forEach(btn=>btn.onclick=()=>loadCommercial().catch(e=>flash(e.message,true)));

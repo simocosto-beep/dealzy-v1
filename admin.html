@@ -84,6 +84,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <button class="admin-tab" data-admin-tab="analytics">📊 Analytics</button>
       <button class="admin-tab" data-admin-tab="users">👥 Users</button>
       <button class="admin-tab" data-admin-tab="orders">📦 Orders</button>
+      <button class="admin-tab" data-admin-tab="notifications">📬 Notifications</button>
       <button class="admin-tab" data-admin-tab="providers">⚡ Providers</button>
       <button class="admin-tab" data-admin-tab="markets">🌎 Markets</button>
       <button class="admin-tab" data-admin-tab="payments">💳 Payments</button>
@@ -207,6 +208,48 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <button id="orderPrevBtn" class="btn btn-ghost">← Previous</button>
         <span id="orderPageInfo" class="sub">—</span>
         <button id="orderNextBtn" class="btn btn-ghost">Next →</button>
+      </div>
+    </section>
+
+
+    <section id="notificationsPanel" class="panel" data-admin-page="notifications">
+      <div class="panel-head">
+        <div><h2>Notifications</h2><p class="sub">Send in-app messages to one user, a market, or everyone signed up to Dealzy.</p></div>
+        <button id="refreshNotificationsBtn" class="btn btn-ghost">↻ Refresh</button>
+      </div>
+      <div class="form-grid">
+        <div class="section-box">
+          <h3>Compose message</h3>
+          <label>Audience</label>
+          <select id="notificationScope" class="field">
+            <option value="all">All users</option>
+            <option value="country-us">USA users</option>
+            <option value="country-ca">Canada users</option>
+            <option value="user">One user</option>
+          </select>
+          <div id="notificationUserWrap" class="hidden">
+            <label>User email</label>
+            <input id="notificationUserEmail" class="field" type="email" placeholder="user@example.com">
+          </div>
+          <label>Type</label>
+          <select id="notificationKind" class="field">
+            <option value="admin">General</option>
+            <option value="promo">Promotion</option>
+            <option value="alert">Alert</option>
+            <option value="system">System</option>
+          </select>
+          <label>Title</label>
+          <input id="notificationTitle" class="field" maxlength="160" placeholder="Dealzy update">
+          <label>Message</label>
+          <textarea id="notificationBody" class="textarea" maxlength="2000" placeholder="Write the message users will see in Dealzy…"></textarea>
+          <div id="notificationMsg"></div>
+          <button id="sendNotificationBtn" class="btn btn-primary">Send notification</button>
+          <p class="sub" style="margin:10px 0 0">This sends an in-app Dealzy notification. Native Android push notifications are a separate step.</p>
+        </div>
+        <div class="section-box">
+          <h3>Recent campaigns</h3>
+          <div id="notificationHistory"></div>
+        </div>
       </div>
     </section>
 
@@ -544,6 +587,12 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       </div>
 
       <div class="section-box">
+        <h3>Message user</h3>
+        <p class="sub">Open the notification composer with this account already selected.</p>
+        <button id="messageUserBtn" class="btn btn-ghost">📬 Message this user</button>
+      </div>
+
+      <div class="section-box">
         <h3>Activity</h3>
         <div id="userDetailStats" class="mini-grid"></div>
       </div>
@@ -572,5 +621,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260928ch"></script>
+<script src="/admin.js?v=20260928ci"></script>
 </body></html>
