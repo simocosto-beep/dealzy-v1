@@ -111,6 +111,7 @@ async function boot(){
     admin=rows[0];
     $('#loginView').classList.add('hidden');$('#adminView').classList.remove('hidden');
     $('#adminRole').textContent=admin.role;
+    $('#usersPanel').classList.toggle('hidden',admin.role==='viewer');
     await loadAll();
   }catch(e){
     localStorage.removeItem(SESSION_KEY);
@@ -136,6 +137,7 @@ function renderStats(s){
 }
 
 async function fetchUsers(search=''){
+  if(admin?.role==='viewer') return [];
   return api('/rest/v1/rpc/dealzy_admin_list_users',{
     method:'POST',
     body:JSON.stringify({search_text:String(search||''),page_size:50,page_offset:0})
