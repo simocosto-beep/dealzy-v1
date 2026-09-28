@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dealzy.ai.test18'
+        applicationId 'com.dealzy.ai.test19'
         minSdk 24
         targetSdk 35
-        versionCode 18
-        versionName '1.8-explore-polish'
+        versionCode 19
+        versionName '1.9-staging-api'
     }
 }
 

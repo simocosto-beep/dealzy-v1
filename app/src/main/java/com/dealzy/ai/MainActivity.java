@@ -35,7 +35,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
     private static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String API_ORIGIN = "https://dealzy-v1.vercel.app";
+    private static final String API_ORIGIN = "https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app";
 
     private WebView webView;
     private GeolocationPermissions.Callback geoCallback;
@@ -177,7 +177,7 @@ public class MainActivity extends Activity {
             conn.setConnectTimeout(12000);
             conn.setReadTimeout(20000);
             conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-            conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.1");
+            conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.19-staging");
 
             int status = conn.getResponseCode();
             InputStream input = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
