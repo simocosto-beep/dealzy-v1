@@ -4,6 +4,47 @@ const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
+let currentAdminPage='overview';
+
+const ADMIN_PAGES={
+  overview:{title:'Overview',subtitle:'Dealzy at a glance.'},
+  users:{title:'Users & Admins',subtitle:'Accounts, access, status and user history.'},
+  providers:{title:'Providers',subtitle:'Live inventory sources and provider health.'},
+  markets:{title:'Markets & Categories',subtitle:'Control where and what Dealzy serves.'},
+  commerce:{title:'Commercial',subtitle:'Stripe, partners, contracts, deals and billing.'},
+  system:{title:'System',subtitle:'Maintenance mode and admin activity.'}
+};
+
+function showAdminPage(page,{remember=true}={}){
+  if(!ADMIN_PAGES[page]) page='overview';
+  if(admin?.role==='viewer'&&page==='users') page='overview';
+  currentAdminPage=page;
+
+  document.querySelectorAll('[data-admin-page]').forEach(el=>{
+    el.classList.toggle('hidden',el.dataset.adminPage!==page);
+  });
+  document.querySelectorAll('[data-admin-tab]').forEach(btn=>{
+    const hideUsers=btn.dataset.adminTab==='users'&&admin?.role==='viewer';
+    btn.classList.toggle('hidden',hideUsers);
+    btn.classList.toggle('active',btn.dataset.adminTab===page);
+    btn.setAttribute('aria-selected',btn.dataset.adminTab===page?'true':'false');
+  });
+
+  const meta=ADMIN_PAGES[page];
+  if($('#adminPageTitle')) $('#adminPageTitle').textContent=meta.title;
+  if($('#adminPageSubtitle')) $('#adminPageSubtitle').textContent=meta.subtitle;
+  if(remember){try{localStorage.setItem('dealzy_admin_page_v1',page)}catch(_){}}
+  window.scrollTo({top:0,behavior:'auto'});
+}
+
+function initAdminNav(){
+  document.querySelectorAll('[data-admin-tab]').forEach(btn=>{
+    btn.onclick=()=>showAdminPage(btn.dataset.adminTab);
+  });
+  let wanted='overview';
+  try{wanted=localStorage.getItem('dealzy_admin_page_v1')||'overview'}catch(_){}
+  showAdminPage(wanted,{remember:false});
+}
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -519,7 +560,7 @@ async function boot(){
     admin=rows[0];
     $('#loginView').classList.add('hidden');$('#adminView').classList.remove('hidden');
     $('#adminRole').textContent=admin.role;
-    $('#usersPanel').classList.toggle('hidden',admin.role==='viewer');
+    initAdminNav();
     await loadAll();
     loadStripe().catch(e=>{
       $('#stripeStatus').textContent='Error';
@@ -546,6 +587,7 @@ async function loadAll(){
   users=userRows||[];
   commercial=commercialData||commercial;
   renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();
+  showAdminPage(currentAdminPage,{remember:false});
 }
 function renderStats(s){
   $('#stUsers').textContent=s.users??0;$('#stSaved').textContent=s.saved_deals??0;$('#stTrips').textContent=s.trips??0;$('#stSearches').textContent=s.searches??0;
