@@ -1,0 +1,9 @@
+{
+  "name": "dealzy-staging-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node railway-server.js"
+  }
+}
