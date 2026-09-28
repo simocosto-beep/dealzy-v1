@@ -3,7 +3,7 @@ const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
-let session=null, admin=null, config={};
+let session=null, admin=null, config={}, users=[];
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -120,24 +120,127 @@ async function boot(){
 }
 
 async function loadAll(){
-  const [cfgRows,stats,health,audit]=await Promise.all([
+  const [cfgRows,stats,health,audit,userRows]=await Promise.all([
     api('/rest/v1/dealzy_runtime_config?select=key,value,updated_at&order=key.asc'),
     api('/rest/v1/rpc/dealzy_admin_dashboard_stats',{method:'POST',body:'{}'}),
     api('/rest/v1/dealzy_provider_health?select=provider_key,display_name,mode,enabled,healthy,last_checked_at,last_latency_ms,last_error_message&order=provider_key.asc'),
-    api('/rest/v1/dealzy_admin_audit_log?select=id,action,target,created_at&order=created_at.desc&limit=20')
+    api('/rest/v1/dealzy_admin_audit_log?select=id,action,target,created_at&order=created_at.desc&limit=20'),
+    fetchUsers($('#userSearch')?.value||'')
   ]);
   config={}; for(const row of cfgRows||[]) config[row.key]=row.value||{};
-  renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);
+  users=userRows||[];
+  renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);
 }
 function renderStats(s){
   $('#stUsers').textContent=s.users??0;$('#stSaved').textContent=s.saved_deals??0;$('#stTrips').textContent=s.trips??0;$('#stSearches').textContent=s.searches??0;
 }
+
+async function fetchUsers(search=''){
+  return api('/rest/v1/rpc/dealzy_admin_list_users',{
+    method:'POST',
+    body:JSON.stringify({search_text:String(search||''),page_size:50,page_offset:0})
+  });
+}
+
+function userRoleLabel(row){
+  if(row.admin_enabled&&row.admin_role==='superadmin') return 'Superadmin';
+  if(row.admin_enabled&&row.admin_role==='admin') return 'Admin';
+  if(row.admin_enabled&&row.admin_role==='viewer') return 'Viewer';
+  return 'User';
+}
+
+function renderUsers(rows){
+  $('#userCountBadge').textContent=(rows||[]).length+' shown';
+  if(!rows||!rows.length){
+    $('#userRows').innerHTML='<div class="sub">No users found.</div>';
+    return;
+  }
+  const isSuper=admin?.role==='superadmin';
+  $('#userRows').innerHTML=rows.map(row=>{
+    const role=userRoleLabel(row);
+    const protectedAccount=row.admin_role==='superadmin'||row.is_self;
+    const display=row.display_name||row.email||'Dealzy user';
+    const created=row.created_at?new Date(row.created_at).toLocaleDateString():'—';
+    const last=row.last_sign_in_at?new Date(row.last_sign_in_at).toLocaleString():'Never';
+    const badges=[
+      '<span class="pill '+(row.account_disabled?'bad':'ok')+'">'+(row.account_disabled?'Disabled':'Active')+'</span>',
+      '<span class="pill '+(row.admin_role==='superadmin'?'protected':'')+'">'+esc(role)+'</span>',
+      row.email_confirmed?'<span class="pill ok">Email verified</span>':'<span class="pill">Email unverified</span>',
+      row.is_self?'<span class="pill protected">You</span>':''
+    ].join('');
+    let actions='';
+    if(isSuper&&!protectedAccount){
+      actions='<div class="user-actions">'+
+        '<select class="select" data-user-role="'+esc(row.user_id)+'">'+
+          '<option value="user" '+(role==='User'?'selected':'')+'>User</option>'+
+          '<option value="viewer" '+(role==='Viewer'?'selected':'')+'>Viewer</option>'+
+          '<option value="admin" '+(role==='Admin'?'selected':'')+'>Admin</option>'+
+        '</select>'+
+        '<button class="btn btn-ghost '+(row.account_disabled?'good':'danger')+'" data-user-disable="'+esc(row.user_id)+'" data-disabled="'+(row.account_disabled?'1':'0')+'">'+(row.account_disabled?'Enable account':'Disable account')+'</button>'+
+      '</div>';
+    }else if(protectedAccount){
+      actions='<div class="user-actions"><span class="sub">Protected superadmin account</span></div>';
+    }else{
+      actions='<div class="user-actions"><span class="sub">Read only</span></div>';
+    }
+    return '<div class="user-card">'+
+      '<div class="user-top"><div><div class="user-name">'+esc(display)+'</div><div class="user-email">'+esc(row.email||'')+'</div></div><div class="user-meta">'+badges+'</div></div>'+
+      '<div class="sub" style="margin-top:10px">Joined '+esc(created)+' · Last sign-in '+esc(last)+'</div>'+
+      actions+
+    '</div>';
+  }).join('');
+
+  document.querySelectorAll('[data-user-role]').forEach(el=>{
+    el.onchange=()=>changeUserRole(el.dataset.userRole,el.value);
+  });
+  document.querySelectorAll('[data-user-disable]').forEach(el=>{
+    el.onclick=()=>changeUserDisabled(el.dataset.userDisable,el.dataset.disabled==='1');
+  });
+}
+
+async function changeUserRole(userId,role){
+  if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
+  try{
+    await api('/rest/v1/rpc/dealzy_superadmin_set_staff',{
+      method:'POST',
+      body:JSON.stringify({target_user:userId,new_role:role})
+    });
+    flash('User role updated.');
+    users=await fetchUsers($('#userSearch').value||'');
+    renderUsers(users);
+  }catch(e){
+    flash(e.message,true);
+    users=await fetchUsers($('#userSearch').value||'');
+    renderUsers(users);
+  }
+}
+
+async function changeUserDisabled(userId,isDisabled){
+  if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
+  const action=isDisabled?'enable':'disable';
+  if(!confirm('Are you sure you want to '+action+' this account?')) return;
+  try{
+    await api('/rest/v1/rpc/dealzy_superadmin_set_user_disabled',{
+      method:'POST',
+      body:JSON.stringify({target_user:userId,disabled:!isDisabled})
+    });
+    flash('Account '+(isDisabled?'enabled':'disabled')+'.');
+    users=await fetchUsers($('#userSearch').value||'');
+    renderUsers(users);
+  }catch(e){
+    flash(e.message,true);
+    users=await fetchUsers($('#userSearch').value||'');
+    renderUsers(users);
+  }
+}
 function controlCard(key,label,desc,checked,group){
-  return '<div class="control"><div><b>'+esc(label)+'</b><small>'+esc(desc)+'</small></div><label class="switch"><input type="checkbox" data-group="'+esc(group)+'" data-key="'+esc(key)+'" '+(checked?'checked':'')+'><span class="slider"></span></label></div>';
+  const canManage=admin&&admin.role!=='viewer';
+  return '<div class="control '+(canManage?'':'readonly')+'"><div><b>'+esc(label)+'</b><small>'+esc(desc)+'</small></div><label class="switch"><input type="checkbox" data-group="'+esc(group)+'" data-key="'+esc(key)+'" '+(checked?'checked':'')+' '+(canManage?'':'disabled')+'><span class="slider"></span></label></div>';
 }
 function renderControls(){
   const app=config.app||{}, markets=config.markets||{}, providers=config.providers||{}, categories=config.categories||{};
   $('#maintenanceToggle').checked=!!app.maintenance;
+  $('#maintenanceToggle').disabled=admin?.role==='viewer';
   $('#prodState').innerHTML='<i class="dot '+(app.maintenance?'off':'')+'"></i> '+(app.maintenance?'MAINTENANCE':'LIVE');
   $('#maintenancePanel').classList.toggle('maintenance',!!app.maintenance);
   $('#markets').innerHTML=[
@@ -161,6 +264,7 @@ async function saveConfig(key,value){
   config[key]=value;
 }
 async function setToggle(group,key,enabled){
+  if(admin?.role==='viewer') return flash('Viewer access is read only.',true);
   try{
     const next=structuredClone(config[group]||{});
     next[key]={...(next[key]||{}),enabled};
@@ -169,6 +273,7 @@ async function setToggle(group,key,enabled){
   }catch(e){flash(e.message,true);await loadAll()}
 }
 async function setMaintenance(enabled){
+  if(admin?.role==='viewer') return flash('Viewer access is read only.',true);
   try{
     const next={...(config.app||{}),maintenance:enabled};
     await saveConfig('app',next);flash(enabled?'Maintenance enabled':'Dealzy is live');
@@ -193,6 +298,8 @@ $('#backToLoginBtn').onclick=()=>{
 };
 $('#sendResetBtn').onclick=requestPasswordReset;
 $('#savePasswordBtn').onclick=saveRecoveredPassword;
+$('#userSearchBtn').onclick=async()=>{try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(e){flash(e.message,true)}};
+$('#userSearch').addEventListener('keydown',async e=>{if(e.key==='Enter'){e.preventDefault();try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(err){flash(err.message,true)}}});
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>loadAll().catch(e=>flash(e.message,true));
 $('#maintenanceToggle').onchange=e=>setMaintenance(e.target.checked);
