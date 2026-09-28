@@ -35,7 +35,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
     private static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String STAGING_API_ORIGIN = "https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app";
+    private static final String STAGING_API_ORIGIN = "https://dealzy-api-staging-production.up.railway.app";
     private static final String FALLBACK_API_ORIGIN = "https://dealzy-v1.vercel.app";
 
     private WebView webView;
@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(12000);
         conn.setReadTimeout(20000);
         conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-        conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.20-staging-fallback");
+        conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.22-railway-staging");
 
         ApiPayload payload = new ApiPayload();
         payload.status = conn.getResponseCode();
