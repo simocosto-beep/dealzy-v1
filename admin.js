@@ -55,7 +55,7 @@ function stripeRow(title,meta,extra=''){
 }
 
 async function loadStripe(){
-  const r=await fetch('/api/stripe-admin',{
+  const r=await fetch('/api/cloud-status?view=stripe',{
     method:'GET',
     headers:{'Authorization':'Bearer '+session.access_token,'Accept':'application/json'},
     cache:'no-store'
