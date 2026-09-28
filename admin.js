@@ -2,6 +2,7 @@
 const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
+const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
 let session=null, admin=null, config={};
 
 const $=s=>document.querySelector(s);
@@ -16,6 +17,77 @@ async function api(path,opts={}){
   if(r.status===204) return null;
   const t=await r.text(); return t?JSON.parse(t):null;
 }
+
+async function requestPasswordReset(){
+  const email=$('#email').value.trim();
+  if(!email){
+    $('#loginMsg').innerHTML='<div class="alert error">Enter your email first.</div>';
+    return;
+  }
+  $('#sendResetBtn').disabled=true;
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/recover?redirect_to='+encodeURIComponent(ADMIN_URL),{
+      method:'POST',
+      headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    let data={}; try{data=await r.json()}catch(_){}
+    if(!r.ok) throw new Error(data.msg||data.error_description||'Could not send reset email');
+    $('#loginMsg').innerHTML='<div class="alert">Reset email sent. Check your inbox and spam folder.</div>';
+    $('#resetRequest').classList.add('hidden');
+  }catch(e){
+    $('#loginMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  }finally{
+    $('#sendResetBtn').disabled=false;
+  }
+}
+
+function readRecoverySession(){
+  const hash=new URLSearchParams(location.hash.replace(/^#/,''));
+  const access_token=hash.get('access_token');
+  const refresh_token=hash.get('refresh_token');
+  const type=hash.get('type');
+  if(type==='recovery'&&access_token){
+    return {access_token,refresh_token,type};
+  }
+  return null;
+}
+
+async function saveRecoveredPassword(){
+  const p=$('#newPassword').value;
+  const c=$('#confirmPassword').value;
+  if(p.length<8){
+    $('#resetMsg').innerHTML='<div class="alert error">Use at least 8 characters.</div>';
+    return;
+  }
+  if(p!==c){
+    $('#resetMsg').innerHTML='<div class="alert error">Passwords do not match.</div>';
+    return;
+  }
+  const recovery=readRecoverySession();
+  if(!recovery?.access_token){
+    $('#resetMsg').innerHTML='<div class="alert error">Reset link is invalid or expired.</div>';
+    return;
+  }
+  $('#savePasswordBtn').disabled=true;
+  try{
+    const r=await fetch(SB_URL+'/auth/v1/user',{
+      method:'PUT',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+recovery.access_token,'Content-Type':'application/json'},
+      body:JSON.stringify({password:p})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(data.msg||data.error_description||'Could not update password');
+    history.replaceState(null,'',location.pathname);
+    $('#resetMsg').innerHTML='<div class="alert">Password updated. You can sign in now.</div>';
+    setTimeout(()=>location.reload(),900);
+  }catch(e){
+    $('#resetMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  }finally{
+    $('#savePasswordBtn').disabled=false;
+  }
+}
+
 async function login(){
   $('#loginMsg').innerHTML='';
   const email=$('#email').value.trim(), password=$('#password').value;
@@ -105,9 +177,21 @@ async function setMaintenance(enabled){
   }catch(e){flash(e.message,true);await loadAll()}
 }
 
-$('#loginBtn').onclick=login;$('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+$('#loginBtn').onclick=login;
+$('#forgotBtn').onclick=()=>$('#resetRequest').classList.toggle('hidden');
+$('#sendResetBtn').onclick=requestPasswordReset;
+$('#savePasswordBtn').onclick=saveRecoveredPassword;
+$('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>loadAll().catch(e=>flash(e.message,true));
 $('#maintenanceToggle').onchange=e=>setMaintenance(e.target.checked);
-try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(_){}
-if(session?.access_token&&session?.user?.id) boot();
+
+const recovery=readRecoverySession();
+if(recovery){
+  $('#loginView').classList.add('hidden');
+  $('#adminView').classList.add('hidden');
+  $('#resetView').classList.remove('hidden');
+}else{
+  try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(_){}
+  if(session?.access_token&&session?.user?.id) boot();
+}
 })();

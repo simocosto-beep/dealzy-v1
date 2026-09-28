@@ -31,6 +31,23 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     <label>Email</label><input id="email" class="field" type="email" autocomplete="username">
     <label>Password</label><input id="password" class="field" type="password" autocomplete="current-password">
     <button id="loginBtn" class="btn btn-primary">Sign in</button>
+    <button id="forgotBtn" class="btn btn-ghost" style="width:100%;margin-top:10px">Forgot password?</button>
+    <div id="resetRequest" class="hidden" style="margin-top:14px">
+      <p class="sub">Enter your email and we’ll send you a secure password reset link.</p>
+      <button id="sendResetBtn" class="btn btn-primary">Send reset email</button>
+    </div>
+  </div>
+</section>
+
+<section id="resetView" class="login hidden">
+  <div class="login-card">
+    <div class="logo">D</div>
+    <h1 style="margin-top:18px">Choose a new password</h1>
+    <p class="sub">Set a new password for your Dealzy Admin account.</p>
+    <div id="resetMsg"></div>
+    <label>New password</label><input id="newPassword" class="field" type="password" autocomplete="new-password" minlength="8">
+    <label>Confirm password</label><input id="confirmPassword" class="field" type="password" autocomplete="new-password" minlength="8">
+    <button id="savePasswordBtn" class="btn btn-primary">Save new password</button>
   </div>
 </section>
 
