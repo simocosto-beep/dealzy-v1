@@ -1,5 +1,33 @@
 const deals = require('./_demoDeals');
 
+const DEALZY_SUPABASE_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
+const DEALZY_SUPABASE_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
+let dealzyRuntimeCache={at:0,data:{}};
+
+async function getDealzyRuntimeConfig(){
+  if(Date.now()-dealzyRuntimeCache.at<15000) return dealzyRuntimeCache.data;
+  try{
+    const r=await fetch(DEALZY_SUPABASE_URL+'/rest/v1/dealzy_runtime_config?select=key,value&public_read=eq.true',{
+      headers:{'apikey':DEALZY_SUPABASE_KEY,'Accept':'application/json'}
+    });
+    if(!r.ok) throw new Error('runtime-config-'+r.status);
+    const rows=await r.json();
+    const data={};
+    for(const row of Array.isArray(rows)?rows:[]) data[row.key]=row.value||{};
+    dealzyRuntimeCache={at:Date.now(),data};
+    return data;
+  }catch(_){
+    return dealzyRuntimeCache.data||{};
+  }
+}
+
+function runtimeEnabled(group,key,defaultValue=true){
+  const row=group&&group[key];
+  if(!row||typeof row!=='object'||typeof row.enabled!=='boolean') return defaultValue;
+  return row.enabled;
+}
+
+
 const VIATOR_BASE='https://api.viator.com/partner';
 const VIATOR_MIAMI_DESTINATION='662';
 let viatorDestinationsCache=null;
@@ -336,12 +364,61 @@ module.exports = async function handler(req,res){
   const defaultCity=countryCode==='CA'?'Toronto':'Miami';
   const city=String(req.query.city||defaultCity).trim().slice(0,80)||defaultCity;
   const currency=countryCode==='CA'?'CAD':'USD';
+
+  const runtime=await getDealzyRuntimeConfig();
+  const appConfig=runtime.app||{};
+  const marketConfig=runtime.markets||{};
+  const providerConfig=runtime.providers||{};
+  const categoryConfig=runtime.categories||{};
+
+  if(appConfig.maintenance===true){
+    return res.status(200).json({
+      ok:false,
+      maintenance:true,
+      mode:'maintenance',
+      message:String(appConfig.maintenance_message||'Dealzy is temporarily under maintenance.'),
+      query:{q:demo.q,category:demo.category,destination:city,country:countryCode,currency},
+      count:0,
+      providers:[],
+      results:[],
+      generatedAt:new Date().toISOString()
+    });
+  }
+
+  if(!runtimeEnabled(marketConfig,countryCode,true)){
+    return res.status(200).json({
+      ok:false,
+      marketDisabled:true,
+      mode:'market-disabled',
+      message:'This market is temporarily unavailable.',
+      query:{q:demo.q,category:demo.category,destination:city,country:countryCode,currency},
+      count:0,
+      providers:[],
+      results:[],
+      generatedAt:new Date().toISOString()
+    });
+  }
+
+  if(demo.category!=='All' && !runtimeEnabled(categoryConfig,demo.category,true)){
+    return res.status(200).json({
+      ok:false,
+      categoryDisabled:true,
+      mode:'category-disabled',
+      message:'This category is temporarily unavailable.',
+      query:{q:demo.q,category:demo.category,destination:city,country:countryCode,currency},
+      count:0,
+      providers:[],
+      results:[],
+      generatedAt:new Date().toISOString()
+    });
+  }
+
   const safeHasCoords=demo.hasCoords&&coordinatesAllowed(countryCode,demo.lat,demo.lng);
   const safeLat=safeHasCoords?demo.lat:null;
   const safeLng=safeHasCoords?demo.lng:null;
-  const wantsTicketmaster=demo.category==='All'||demo.category==='Things to Do';
-  const wantsViator=demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel';
-  const wantsYelp=demo.category==='Food & Drink'||demo.category==='Spa & Beauty';
+  const wantsTicketmaster=(demo.category==='All'||demo.category==='Things to Do')&&runtimeEnabled(providerConfig,'ticketmaster',true);
+  const wantsViator=(demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel')&&runtimeEnabled(providerConfig,'viator',true);
+  const wantsYelp=(demo.category==='Food & Drink'||demo.category==='Spa & Beauty')&&runtimeEnabled(providerConfig,'yelp',true);
   const liveRows=[];
   const liveProviders=[];
 
