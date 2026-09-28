@@ -3,7 +3,7 @@ const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
-let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]};
+let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -43,6 +43,76 @@ async function fetchUserDetail(userId){
 
 function miniStat(label,value){
   return '<div class="mini-stat"><span class="sub">'+esc(label)+'</span><b>'+esc(value??0)+'</b></div>';
+}
+
+function moneyList(rows){
+  if(!Array.isArray(rows)||!rows.length) return '—';
+  return rows.map(x=>Number(x.amount||0).toFixed(2)+' '+esc(x.currency||'')).join(' · ');
+}
+
+function stripeRow(title,meta,extra=''){
+  return '<div class="history-row"><div class="user-top"><div><b>'+esc(title)+'</b><div class="sub">'+meta+'</div></div>'+extra+'</div></div>';
+}
+
+async function loadStripe(){
+  const r=await fetch('/api/stripe-admin',{
+    method:'GET',
+    headers:{'Authorization':'Bearer '+session.access_token,'Accept':'application/json'},
+    cache:'no-store'
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||data.ok===false) throw new Error(data.error||('Stripe HTTP '+r.status));
+  stripeData=data;
+  renderStripe(data);
+  return data;
+}
+
+function renderStripe(data){
+  const configured=!!data?.configured;
+  $('#stripeStatus').textContent=configured?'LIVE':'Not connected';
+  $('#stripeStatus').className='pill '+(configured?'ok':'bad');
+
+  if(!configured){
+    $('#stripeNotice').innerHTML='<div class="alert">Stripe is not connected yet. Add the Stripe secret key to the Dealzy production environment; the key is never shown in this dashboard.</div>';
+    $('#stripeStats').innerHTML=[
+      miniStat('Available','—'),miniStat('Pending','—'),miniStat('Payments','—'),miniStat('Subscriptions','—')
+    ].join('');
+    ['stripePayments','stripeCustomers','stripeSubscriptions','stripeRefunds','stripeDisputes'].forEach(id=>$('#'+id).innerHTML='<div class="sub">Connect Stripe to load live data.</div>');
+    return;
+  }
+
+  $('#stripeNotice').innerHTML='';
+  const s=data.summary||{};
+  $('#stripeStats').innerHTML=[
+    miniStat('Available',moneyList(s.available)),
+    miniStat('Pending',moneyList(s.pending)),
+    miniStat('Recent payments',s.recent_payments||0),
+    miniStat('Active subscriptions',s.active_subscriptions||0),
+    miniStat('Customers',s.customers||0),
+    miniStat('Refunds',s.refunds||0),
+    miniStat('Disputes',s.disputes||0)
+  ].join('');
+
+  $('#stripePayments').innerHTML=(data.payments||[]).length?(data.payments||[]).map(p=>
+    stripeRow((p.amount||0).toFixed(2)+' '+esc(p.currency||''),esc(p.name||p.email||p.customer||'Stripe payment')+' · '+esc(p.status||'')+' · '+esc(p.created_at?new Date(p.created_at).toLocaleString():''),
+      p.receipt_url?'<a class="btn btn-ghost" target="_blank" rel="noopener" href="'+esc(p.receipt_url)+'">Receipt</a>':'')
+  ).join(''):'<div class="sub">No recent Stripe payments.</div>';
+
+  $('#stripeCustomers').innerHTML=(data.customers||[]).length?(data.customers||[]).map(c=>
+    stripeRow(c.name||c.email||c.id,esc(c.email||'')+(c.phone?' · '+esc(c.phone):'')+' · '+esc(c.created_at?new Date(c.created_at).toLocaleDateString():''))
+  ).join(''):'<div class="sub">No Stripe customers.</div>';
+
+  $('#stripeSubscriptions').innerHTML=(data.subscriptions||[]).length?(data.subscriptions||[]).map(su=>
+    stripeRow(su.id,esc(su.status||'')+' · '+Number(su.amount||0).toFixed(2)+' '+esc(su.currency||'')+(su.interval?' / '+esc(su.interval):'')+(su.cancel_at_period_end?' · cancels at period end':''))
+  ).join(''):'<div class="sub">No Stripe subscriptions.</div>';
+
+  $('#stripeRefunds').innerHTML=(data.refunds||[]).length?(data.refunds||[]).map(r=>
+    stripeRow((r.amount||0).toFixed(2)+' '+esc(r.currency||''),esc(r.status||'')+(r.reason?' · '+esc(r.reason):'')+' · '+esc(r.created_at?new Date(r.created_at).toLocaleString():''))
+  ).join(''):'<div class="sub">No recent refunds.</div>';
+
+  $('#stripeDisputes').innerHTML=(data.disputes||[]).length?(data.disputes||[]).map(d=>
+    stripeRow((d.amount||0).toFixed(2)+' '+esc(d.currency||''),esc(d.status||'')+(d.reason?' · '+esc(d.reason):'')+' · '+esc(d.created_at?new Date(d.created_at).toLocaleString():''))
+  ).join(''):'<div class="sub">No disputes.</div>';
 }
 
 function renderUserDetail(detail){
@@ -451,6 +521,11 @@ async function boot(){
     $('#adminRole').textContent=admin.role;
     $('#usersPanel').classList.toggle('hidden',admin.role==='viewer');
     await loadAll();
+    loadStripe().catch(e=>{
+      $('#stripeStatus').textContent='Error';
+      $('#stripeStatus').className='pill bad';
+      $('#stripeNotice').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+    });
   }catch(e){
     localStorage.removeItem(SESSION_KEY);
     $('#loginView').classList.remove('hidden');$('#adminView').classList.add('hidden');
@@ -602,6 +677,7 @@ async function setMaintenance(enabled){
   }catch(e){flash(e.message,true);await loadAll()}
 }
 
+$('#refreshStripeBtn').onclick=()=>loadStripe().catch(e=>flash(e.message,true));
 $('#refreshCommercialBtn').onclick=()=>loadCommercial().catch(e=>flash(e.message,true));
 $('#createPartnerBtn').onclick=createCommercialPartner;
 $('#createContractBtn').onclick=createCommercialContract;

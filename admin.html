@@ -104,6 +104,21 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <div id="categories" class="controls"></div>
     </section>
 
+
+    <section id="stripePanel" class="panel">
+      <div class="panel-head">
+        <div><h2>Stripe</h2><p class="sub">Payments, customers, subscriptions, refunds and disputes from your Stripe account.</p></div>
+        <div style="display:flex;gap:8px;align-items:center"><span id="stripeStatus" class="pill">Checking…</span><button id="refreshStripeBtn" class="btn btn-ghost">↻ Refresh</button></div>
+      </div>
+      <div id="stripeNotice"></div>
+      <div id="stripeStats" class="mini-grid"></div>
+      <div class="section-box"><h3>Recent payments</h3><div id="stripePayments"></div></div>
+      <div class="section-box"><h3>Customers</h3><div id="stripeCustomers"></div></div>
+      <div class="section-box"><h3>Subscriptions</h3><div id="stripeSubscriptions"></div></div>
+      <div class="section-box"><h3>Refunds</h3><div id="stripeRefunds"></div></div>
+      <div class="section-box"><h3>Disputes</h3><div id="stripeDisputes"></div></div>
+    </section>
+
     <section id="commercialPanel" class="panel">
       <div class="panel-head">
         <div><h2>Commercial & Deals</h2><p class="sub">Direct partners, contracts, deals, billing, refunds/credits and coupons.</p></div>
@@ -335,5 +350,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260928e"></script>
+<script src="/admin.js?v=20260928f"></script>
 </body></html>
