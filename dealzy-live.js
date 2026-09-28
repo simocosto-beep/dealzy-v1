@@ -5,6 +5,37 @@
   const catalog=new Map();
   let homeDeals=[];
 
+  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,checkedAt:0};
+  async function refreshDealzyProviderRuntime(force=false){
+    if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
+    try{
+      const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"}});
+      if(!r.ok) throw new Error("providers");
+      const data=await r.json();
+      const next={booking:true,skyscanner:true,expedia:true,checkedAt:Date.now()};
+      for(const row of Array.isArray(data.providers)?data.providers:[]){
+        const name=String(row.name||"").toLowerCase();
+        const status=String(row.status||"").toLowerCase();
+        const enabled=status!=="disabled-by-admin";
+        if(name.includes("booking.com")) next.booking=enabled;
+        if(name.includes("skyscanner")) next.skyscanner=enabled;
+        if(name.includes("expedia")) next.expedia=enabled;
+      }
+      dealzyProviderRuntime=next;
+    }catch(_){
+      dealzyProviderRuntime={...dealzyProviderRuntime,checkedAt:Date.now()};
+    }
+    return dealzyProviderRuntime;
+  }
+  function travelRuntimeKey(kind){
+    if(kind==="hotel"||kind==="car"||kind==="activity") return "booking";
+    if(kind==="flight") return "skyscanner";
+    return "expedia";
+  }
+  function travelRuntimeEnabled(kind){
+    return dealzyProviderRuntime[travelRuntimeKey(kind)]!==false;
+  }
+
   const MARKET_CITIES={
     US:[
       {value:"Miami",label:"Miami, FL"},
@@ -996,6 +1027,12 @@
     const host=document.getElementById("dzExploreTravelForm");
     if(!host) return;
     const isFr=locale()==="fr";
+    if(!travelRuntimeEnabled(kind)){
+      host.innerHTML='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:18px;padding:14px;color:#9a3412;font-weight:750">'+
+        (isFr?"Ce fournisseur est temporairement désactivé par Dealzy Admin.":"This provider is temporarily disabled by Dealzy Admin.")+
+        '</div>';
+      return;
+    }
     const selectedCity=marketCityLabel();
     const accent='style="margin-top:12px;width:100%;border:0;border-radius:14px;padding:13px 14px;background:linear-gradient(135deg,#6d5dfc,#3d8bfd);color:white;font-weight:850;font-size:15px"';
     const inputStyle='style="width:100%;margin-top:6px;border:1px solid #dfe3eb;border-radius:13px;padding:12px;background:#fff;font:inherit"';
@@ -1080,6 +1117,7 @@
   }
 
   renderExplore=async function(force=false){
+    await refreshDealzyProviderRuntime(false);
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
@@ -1138,16 +1176,24 @@
     }
 
     const controls=exploreControlsHtml(sourceUniverse,prefs,isFr);
-    const travelCards=
-      '<div style="grid-column:1/-1;margin:2px 0 10px">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
-        '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+
-          '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'+
-          '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'+
-          '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'+
-        '</div>'+
-        '<div id="dzExploreTravelForm" style="margin-top:10px"></div>'+
-      '</div>';
+    const travelButtons=[
+      dealzyProviderRuntime.booking!==false
+        ? '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'
+        : '',
+      dealzyProviderRuntime.skyscanner!==false
+        ? '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'
+        : '',
+      dealzyProviderRuntime.expedia!==false
+        ? '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'
+        : ''
+    ].filter(Boolean).join("");
+    const travelCards=travelButtons
+      ? '<div style="grid-column:1/-1;margin:2px 0 10px">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
+          '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+travelButtons+'</div>'+
+          '<div id="dzExploreTravelForm" style="margin-top:10px"></div>'+
+        '</div>'
+      : '';
 
     if(root){
       const liveHtml=list.length

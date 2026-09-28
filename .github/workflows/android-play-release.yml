@@ -48,14 +48,10 @@ jobs:
           from pathlib import Path
           p=Path("app/src/main/assets/dealzy-tools.js")
           s=p.read_text()
-          target="navigator.serviceWorker.register('/sw.js?v=20260928-prod1')"
-          if target in s:
-              s=s.replace(target,"Promise.reject(new Error('native-apk-service-worker-disabled'))")
-          else:
-              import re
-              s,n=re.subn(r"navigator\.serviceWorker\.register\([^\n;]+\)", "Promise.reject(new Error('native-apk-service-worker-disabled'))", s, count=1)
-              if n != 1:
-                  raise SystemExit("Service worker registration call not found")
+          import re
+          s,n=re.subn(r"navigator\.serviceWorker\.register\([^\n;]+\)", "Promise.reject(new Error('native-apk-service-worker-disabled'))", s, count=1)
+          if n != 1:
+              raise SystemExit("Service worker registration call not found")
           p.write_text(s)
           PY
 
@@ -73,8 +69,8 @@ jobs:
           assert 'https://dealzy-v1.vercel.app' in main
           assert 'dealzy-api-staging' not in main
           assert "applicationId 'com.dealzy.ai'" in gradle
-          assert "versionCode 1" in gradle
-          assert "versionName '1.0.0'" in gradle
+          assert "versionCode 2" in gradle
+          assert "versionName '1.0.1'" in gradle
           print("Production release guard passed")
           PY
 
@@ -108,16 +104,16 @@ jobs:
         run: |
           SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           mkdir -p play-release/signing-tools
-          cp app/build/outputs/apk/release/app-release-unsigned.apk play-release/Dealzy-AI-v1.0.0-unsigned.apk
-          cp app/build/outputs/bundle/release/app-release.aab play-release/Dealzy-AI-v1.0.0-unsigned.aab
+          cp app/build/outputs/apk/release/app-release-unsigned.apk play-release/Dealzy-AI-v1.0.1-unsigned.apk
+          cp app/build/outputs/bundle/release/app-release.aab play-release/Dealzy-AI-v1.0.1-unsigned.aab
           cp "$SDKROOT/build-tools/35.0.0/lib/apksigner.jar" play-release/signing-tools/apksigner.jar
-          sha256sum play-release/Dealzy-AI-v1.0.0-unsigned.apk play-release/Dealzy-AI-v1.0.0-unsigned.aab > play-release/SHA256SUMS.txt
+          sha256sum play-release/Dealzy-AI-v1.0.1-unsigned.apk play-release/Dealzy-AI-v1.0.1-unsigned.aab > play-release/SHA256SUMS.txt
           ls -lh play-release play-release/signing-tools
 
       - name: Upload unsigned release package
         uses: actions/upload-artifact@v4
         with:
-          name: Dealzy-Play-Release-Unsigned-v1
+          name: Dealzy-Play-Release-Unsigned-v1.0.1
           path: play-release/
           if-no-files-found: error
           retention-days: 7

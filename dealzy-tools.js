@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20260928-prod1';
+    liveScript.src='/dealzy-live.js?v=20260928-final1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -90,6 +90,29 @@
   .dz-status.live{background:#ecfdf3;color:#027a48}.dz-small{font-size:12px;color:#667085;line-height:1.55}.dz-chip{display:inline-block;padding:6px 9px;border-radius:999px;background:#f2f4f7;margin:3px;font-size:12px}
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
+
+
+  let dzRuntimeProviders={booking:true,skyscanner:true,expedia:true,checkedAt:0};
+  async function loadDzRuntimeProviders(force=false){
+    if(!force && Date.now()-Number(dzRuntimeProviders.checkedAt||0)<15000) return dzRuntimeProviders;
+    try{
+      const r=await fetch('/api/providers',{cache:'no-store',headers:{'Accept':'application/json'}});
+      if(!r.ok) throw new Error('providers');
+      const data=await r.json();
+      const next={booking:true,skyscanner:true,expedia:true,checkedAt:Date.now()};
+      for(const row of Array.isArray(data.providers)?data.providers:[]){
+        const name=String(row.name||'').toLowerCase();
+        const enabled=String(row.status||'').toLowerCase()!=='disabled-by-admin';
+        if(name.includes('booking.com')) next.booking=enabled;
+        if(name.includes('skyscanner')) next.skyscanner=enabled;
+        if(name.includes('expedia')) next.expedia=enabled;
+      }
+      dzRuntimeProviders=next;
+    }catch(_){
+      dzRuntimeProviders={...dzRuntimeProviders,checkedAt:Date.now()};
+    }
+    return dzRuntimeProviders;
+  }
 
   const CLOUD_KEYS=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches','dealzyExplorePrefs'];
   let cloudTimer=null;
@@ -481,7 +504,8 @@
     }catch(_){return {ok:false,reason:'api-error'}}
   }
 
-  function travelTool(){
+  async function travelTool(){
+    const runtime=await loadDzRuntimeProviders(false);
     const key='dealzyTravelSearches';
     let saved=[];
     try{saved=JSON.parse(localStorage.getItem(key)||'[]')}catch(_){}
@@ -490,17 +514,11 @@
     showPanel(`<h3>🧳 Travel Hub</h3>
       <div class="dz-small">Plan hotels, flights, cars and things to do. Dealzy saves your search details privately and opens official providers when public API access is not yet available.</div>
 
-      <div class="dz-result" style="margin:12px 0">
-        <b>Expedia · Dealzy AI Travel Shop</b><br>
-        <span class="dz-small">Hotels, packages and travel inspiration through Dealzy's official Expedia creator shop.</span><br>
-        <a class="dz-action" id="dzExpediaShop" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a>
-      </div>
+      ${runtime.expedia!==false?'<div class="dz-result" style="margin:12px 0"><b>Expedia · Dealzy AI Travel Shop</b><br><span class="dz-small">Hotels, packages and travel inspiration through Dealzy\'s official Expedia creator shop.</span><br><a class="dz-action" id="dzExpediaShop" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a></div>':''}
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
-        <button class="dz-action alt" data-travel-tab="hotel">🏨 Hotels</button>
-        <button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>
-        <button class="dz-action alt" data-travel-tab="car">🚗 Cars</button>
-        <button class="dz-action alt" data-travel-tab="activity">🎟️ Things to do</button>
+        ${runtime.booking!==false?'<button class="dz-action alt" data-travel-tab="hotel">🏨 Hotels</button><button class="dz-action alt" data-travel-tab="car">🚗 Cars</button><button class="dz-action alt" data-travel-tab="activity">🎟️ Things to do</button>':''}
+        ${runtime.skyscanner!==false?'<button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>':''}
       </div>
 
       <div id="dzTravelForm"></div>
@@ -525,6 +543,7 @@
     };
 
     const renderHotel=()=>{
+      if(runtime.booking===false){form.innerHTML='<div class="dz-result">Booking.com is temporarily disabled by Dealzy Admin.</div>';return;}
       form.innerHTML=`
         <div class="dz-form">
           <label>Destination<input id="dzHotelDest" placeholder="Miami"></label>
@@ -547,6 +566,7 @@
     };
 
     const renderFlight=()=>{
+      if(runtime.skyscanner===false){form.innerHTML='<div class="dz-result">Skyscanner is temporarily disabled by Dealzy Admin.</div>';return;}
       form.innerHTML=`
         <div class="dz-form">
           <label>From (IATA)<input id="dzFlightFrom" maxlength="3" placeholder="MIA"></label>
@@ -570,6 +590,7 @@
     };
 
     const renderCar=()=>{
+      if(runtime.booking===false){form.innerHTML='<div class="dz-result">Booking.com is temporarily disabled by Dealzy Admin.</div>';return;}
       form.innerHTML=`
         <div class="dz-form">
           <label>Pick-up location<input id="dzCarPlace" placeholder="Miami Airport"></label>
@@ -591,6 +612,7 @@
     };
 
     const renderActivity=()=>{
+      if(runtime.booking===false){form.innerHTML='<div class="dz-result">Booking.com is temporarily disabled by Dealzy Admin.</div>';return;}
       form.innerHTML=`
         <div class="dz-form">
           <label>Destination<input id="dzActDest" placeholder="Miami"></label>
@@ -610,7 +632,9 @@
     panel.querySelectorAll('[data-travel-tab]').forEach(b=>b.onclick=()=>{
       ({hotel:renderHotel,flight:renderFlight,car:renderCar,activity:renderActivity}[b.dataset.travelTab]||renderHotel)();
     });
-    renderHotel();
+    if(runtime.booking!==false) renderHotel();
+    else if(runtime.skyscanner!==false) renderFlight();
+    else form.innerHTML='<div class="dz-result">Travel clickout providers are temporarily disabled by Dealzy Admin.</div>';
   }
 
   function watchTool(){
