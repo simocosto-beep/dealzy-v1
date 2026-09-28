@@ -74,6 +74,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     <div class="admin-nav">
       <button class="admin-tab active" data-admin-tab="overview">⌂ Overview</button>
       <button class="admin-tab" data-admin-tab="users">👥 Users</button>
+      <button class="admin-tab" data-admin-tab="orders">📦 Orders</button>
       <button class="admin-tab" data-admin-tab="providers">⚡ Providers</button>
       <button class="admin-tab" data-admin-tab="markets">🌎 Markets</button>
       <button class="admin-tab" data-admin-tab="payments">💳 Payments</button>
@@ -126,6 +127,43 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <button id="userNextBtn" class="btn btn-ghost">Next →</button>
       </div>
       <p class="sub" style="margin:12px 0 0">To promote someone, they must already have a Dealzy account. Only a superadmin can change roles or disable accounts.</p>
+    </section>
+
+    <section id="ordersPanel" class="panel" data-admin-page="orders">
+      <div class="panel-head">
+        <div><h2>Orders & Bookings</h2><p class="sub">Confirmed Dealzy order records. Partner clicks are not counted as sales.</p></div>
+        <span id="orderCountBadge" class="pill">—</span>
+      </div>
+      <div class="user-toolbar">
+        <input id="orderSearch" class="field" type="search" placeholder="Search customer, title or reference">
+        <select id="orderStatusFilter" class="select" aria-label="Order status">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="refunded">Refunded</option>
+          <option value="failed">Failed</option>
+        </select>
+        <select id="orderProviderFilter" class="select" aria-label="Provider filter">
+          <option value="all">All providers</option>
+          <option value="viator">Viator</option>
+          <option value="ticketmaster">Ticketmaster</option>
+          <option value="yelp">Yelp</option>
+          <option value="booking.com">Booking.com</option>
+          <option value="skyscanner">Skyscanner</option>
+          <option value="expedia">Expedia</option>
+          <option value="manual">Manual</option>
+        </select>
+        <button id="orderSearchBtn" class="btn btn-ghost">Search</button>
+        <button id="newOrderBtn" class="btn btn-primary">+ Record order</button>
+      </div>
+      <div id="orderRows" class="user-list"></div>
+      <div class="user-pager">
+        <button id="orderPrevBtn" class="btn btn-ghost">← Previous</button>
+        <span id="orderPageInfo" class="sub">—</span>
+        <button id="orderNextBtn" class="btn btn-ghost">Next →</button>
+      </div>
     </section>
 
     <section id="maintenancePanel" class="panel" data-admin-page="system">
@@ -325,6 +363,60 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
   </main>
 </section>
 
+<div id="orderModal" class="modal hidden">
+  <div class="modal-card" style="max-width:720px">
+    <div class="modal-head">
+      <div><b id="orderModalTitle" style="font-size:18px">Record order</b><div class="sub">Use this only for a real order or booking record.</div></div>
+      <button id="closeOrderModal" class="btn btn-ghost">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="orderModalMsg"></div>
+      <div class="section-box">
+        <div class="form-grid">
+          <div><label>Customer email</label><input id="orderUserEmail" class="field" type="email" placeholder="user@example.com"></div>
+          <div><label>Provider</label><input id="orderProvider" class="field" list="orderProviders" placeholder="viator"></div>
+        </div>
+        <datalist id="orderProviders">
+          <option value="viator"><option value="ticketmaster"><option value="yelp"><option value="booking.com"><option value="skyscanner"><option value="expedia"><option value="manual">
+        </datalist>
+        <div class="form-grid">
+          <div><label>Order / booking reference</label><input id="orderExternalId" class="field" placeholder="External reference"></div>
+          <div><label>Kind</label>
+            <select id="orderKind" class="field">
+              <option value="booking">Booking</option>
+              <option value="activity">Activity</option>
+              <option value="hotel">Hotel</option>
+              <option value="flight">Flight</option>
+              <option value="car">Car</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <label>Title</label><input id="orderTitle" class="field" placeholder="What was booked?">
+        <div class="form-grid">
+          <div><label>Status</label>
+            <select id="orderStatus" class="field">
+              <option value="pending">Pending</option>
+              <option value="confirmed" selected>Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="refunded">Refunded</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div><label>Booked at</label><input id="orderBookedAt" class="field" type="datetime-local"></div>
+        </div>
+        <div class="form-grid">
+          <div><label>Amount</label><input id="orderAmount" class="field" type="number" min="0" step="0.01"></div>
+          <div><label>Currency</label><select id="orderCurrency" class="field"><option>USD</option><option>CAD</option></select></div>
+        </div>
+        <button id="saveOrderBtn" class="btn btn-primary">Save order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="inviteUserModal" class="modal hidden">
   <div class="modal-card" style="max-width:560px">
     <div class="modal-head">
@@ -436,5 +528,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260928g"></script>
+<script src="/admin.js?v=20260928h"></script>
 </body></html>
