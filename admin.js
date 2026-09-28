@@ -58,12 +58,20 @@ function renderUserDetail(detail){
   $('#editUserNotes').value=u.notes||'';
 
   const protectedAccount=!!u.protected_superadmin;
-  const writable=admin?.role==='superadmin'&&!protectedAccount;
-  ['editUserName','editUserEmail','editUserPhone','editUserRole','editUserStatus','editUserReason','editUserNotes','editUserPassword',
-   'saveUserIdentityBtn','saveUserRoleBtn','saveUserStatusBtn','setUserPasswordBtn','sendUserResetBtn']
-    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!writable;});
+  const isSelf=selectedUser===session?.user?.id;
+  const canEditIdentity=admin?.role==='superadmin'&&(!protectedAccount||isSelf);
+  const canEditRoleStatus=admin?.role==='superadmin'&&!protectedAccount;
 
-  if(protectedAccount) modalMsg('Protected superadmin account. Sensitive changes are disabled here.');
+  ['editUserName','editUserEmail','editUserPhone','editUserPassword',
+   'saveUserIdentityBtn','setUserPasswordBtn','sendUserResetBtn']
+    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditIdentity;});
+
+  ['editUserRole','editUserStatus','editUserReason','editUserNotes',
+   'saveUserRoleBtn','saveUserStatusBtn']
+    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditRoleStatus;});
+
+  if(protectedAccount&&isSelf) modalMsg('Your superadmin role and account status are protected. You can still update your identity and password.');
+  else if(protectedAccount) modalMsg('Protected superadmin account. Role, status and identity changes are locked.');
   else modalMsg('');
 
   $('#userDetailStats').innerHTML=[
