@@ -3,7 +3,7 @@ const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
-let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null;
+let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]};
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -195,6 +195,167 @@ async function sendSelectedReset(){
   }catch(e){modalMsg(e.message,true)}
 }
 
+
+function val(id){const el=$('#'+id);return el?el.value:''}
+function numOrNull(id){const v=val(id);return v===''?null:Number(v)}
+function isoOrNull(id){const v=val(id);return v?new Date(v).toISOString():null}
+function dateOrNull(id){const v=val(id);return v||null}
+
+async function loadCommercial(){
+  commercial=await api('/rest/v1/rpc/dealzy_admin_commercial_snapshot',{method:'POST',body:'{}'})||commercial;
+  renderCommercial();
+  return commercial;
+}
+
+function partnerOptions(includeEmpty=true){
+  const rows=commercial.partners||[];
+  return (includeEmpty?'<option value="">Select partner</option>':'')+
+    rows.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' · '+esc(p.business_type)+'</option>').join('');
+}
+function contractOptions(partnerId='',includeEmpty=true){
+  const rows=(commercial.contracts||[]).filter(c=>!partnerId||c.partner_id===partnerId);
+  return (includeEmpty?'<option value="">Select contract</option>':'')+
+    rows.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.contract_name)+' · '+esc(c.effective_status)+'</option>').join('');
+}
+function bindCommercialSelects(){
+  ['ccPartner','cdPartner','ctPartner','applyCouponPartner'].forEach(id=>{const el=$('#'+id);if(el){const old=el.value;el.innerHTML=partnerOptions(true);if([...el.options].some(o=>o.value===old))el.value=old;}});
+  const pairs=[['cdPartner','cdContract'],['ctPartner','ctContract'],['applyCouponPartner','applyCouponContract']];
+  for(const [p,c] of pairs){
+    const pe=$('#'+p), ce=$('#'+c); if(!pe||!ce) continue;
+    const update=()=>{const old=ce.value;ce.innerHTML=contractOptions(pe.value,true);if([...ce.options].some(o=>o.value===old))ce.value=old;};
+    pe.onchange=update;update();
+  }
+}
+
+function effectiveMoney(v){return Number(v||0).toFixed(2)}
+function commercialRow(title,meta,actions=''){
+  return '<div class="history-row"><div class="user-top"><div><b>'+esc(title)+'</b><div class="sub">'+meta+'</div></div>'+actions+'</div></div>';
+}
+function renderCommercial(){
+  const s=commercial.summary||{};
+  $('#commercialStats').innerHTML=[
+    miniStat('Partners',s.partners||0),
+    miniStat('Active contracts',s.active_contracts||0),
+    miniStat('Expiring ≤30d',s.expiring_30d||0),
+    miniStat('Live direct deals',s.live_direct_deals||0),
+    miniStat('Payments',effectiveMoney(s.payments_total||0)),
+    miniStat('Refunds',effectiveMoney(s.refunds_total||0)),
+    miniStat('Credits',effectiveMoney(s.credits_total||0)),
+    miniStat('Active coupons',s.active_coupons||0)
+  ].join('');
+  bindCommercialSelects();
+
+  const canWrite=admin?.role!=='viewer';
+  document.querySelectorAll('.commercial-write').forEach(el=>el.disabled=!canWrite);
+
+  $('#commercialPartners').innerHTML=(commercial.partners||[]).length?(commercial.partners||[]).map(p=>{
+    const a=canWrite?'<select class="select" data-partner-status="'+esc(p.id)+'"><option '+(p.status==='active'?'selected':'')+'>active</option><option '+(p.status==='inactive'?'selected':'')+'>inactive</option><option '+(p.status==='blacklisted'?'selected':'')+'>blacklisted</option></select>':'<span class="pill">'+esc(p.status)+'</span>';
+    return commercialRow(p.name,esc(p.partner_type)+' · '+esc(p.business_type)+' · '+esc(p.city||'')+' · '+esc(p.contract_count||0)+' contracts · '+esc(p.deal_count||0)+' deals',a);
+  }).join(''):'<div class="sub">No commercial partners yet.</div>';
+
+  $('#commercialContracts').innerHTML=(commercial.contracts||[]).length?(commercial.contracts||[]).map(c=>{
+    const end=c.ends_on?new Date(c.ends_on+'T00:00:00').toLocaleDateString():'No expiry';
+    const a=canWrite?'<select class="select" data-contract-status="'+esc(c.id)+'"><option '+(c.status==='active'?'selected':'')+'>active</option><option '+(c.status==='paused'?'selected':'')+'>paused</option><option '+(c.status==='cancelled'?'selected':'')+'>cancelled</option><option '+(c.status==='expired'?'selected':'')+'>expired</option><option '+(c.status==='draft'?'selected':'')+'>draft</option></select>':'<span class="pill">'+esc(c.effective_status)+'</span>';
+    return commercialRow(c.contract_name,esc(c.partner_name)+' · '+esc(c.effective_status)+' · ends '+esc(end)+' · '+esc(effectiveMoney(c.amount))+' '+esc(c.currency_code)+' · '+esc(c.billing_status),a);
+  }).join(''):'<div class="sub">No contracts yet.</div>';
+
+  $('#commercialDeals').innerHTML=(commercial.deals||[]).length?(commercial.deals||[]).map(d=>{
+    const state=d.live_now?'<span class="pill ok">LIVE</span>':'<span class="pill bad">OFF</span>';
+    const a=canWrite?state+' <button class="btn btn-ghost" data-deal-toggle="'+esc(d.id)+'" data-active="'+(d.active?'1':'0')+'">'+(d.active?'Disable':'Enable')+'</button>':state;
+    return commercialRow(d.title,esc(d.partner_name)+' · '+esc(d.category)+' · '+esc(d.city)+' · '+esc(effectiveMoney(d.price))+' '+esc(d.currency_code),a);
+  }).join(''):'<div class="sub">No direct deals yet.</div>';
+
+  $('#commercialTransactions').innerHTML=(commercial.transactions||[]).length?(commercial.transactions||[]).map(t=>
+    commercialRow((t.transaction_type||'transaction').toUpperCase(),esc(t.partner_name||'')+' · '+esc(t.contract_name||'')+' · '+esc(effectiveMoney(t.amount))+' '+esc(t.currency_code)+' · '+esc(t.payment_method||'')+' · '+esc(t.occurred_at?new Date(t.occurred_at).toLocaleString():''))
+  ).join(''):'<div class="sub">No billing transactions yet.</div>';
+
+  $('#commercialCoupons').innerHTML=(commercial.coupons||[]).length?(commercial.coupons||[]).map(c=>{
+    const benefit=c.discount_type==='free'?'100% free':c.discount_type==='percent'?esc(c.discount_value)+'%':esc(effectiveMoney(c.discount_value))+' '+esc(c.currency_code);
+    return commercialRow(c.code,benefit+' · '+esc(c.free_months||0)+' free months · '+esc(c.use_count||0)+(c.max_uses?'/'+esc(c.max_uses):'')+' uses · '+(c.active?'active':'inactive'));
+  }).join(''):'<div class="sub">No coupons yet.</div>';
+
+  document.querySelectorAll('[data-partner-status]').forEach(el=>el.onchange=()=>setCommercialPartnerStatus(el.dataset.partnerStatus,el.value));
+  document.querySelectorAll('[data-contract-status]').forEach(el=>el.onchange=()=>setCommercialContractStatus(el.dataset.contractStatus,el.value));
+  document.querySelectorAll('[data-deal-toggle]').forEach(el=>el.onclick=()=>setCommercialDealActive(el.dataset.dealToggle,el.dataset.active!=='1'));
+}
+
+async function commercialRpc(name,payload){
+  if(admin?.role==='viewer') throw new Error('Viewer access is read only.');
+  const out=await api('/rest/v1/rpc/'+name,{method:'POST',body:JSON.stringify(payload)});
+  await loadCommercial();
+  return out;
+}
+async function createCommercialPartner(){
+  try{
+    await commercialRpc('dealzy_admin_create_partner',{
+      p_name:val('cpName'),p_partner_type:val('cpPartnerType'),p_business_type:val('cpBusinessType'),p_provider_key:val('cpProviderKey'),
+      p_country_code:val('cpCountry'),p_city:val('cpCity'),p_contact_name:'',p_contact_email:val('cpEmail'),p_contact_phone:val('cpPhone'),
+      p_website_url:val('cpWebsite'),p_commission_type:val('cpCommissionType'),p_commission_value:numOrNull('cpCommissionValue'),
+      p_currency_code:'USD',p_notes:val('cpNotes')
+    });
+    flash('Partner created.');
+    ['cpName','cpProviderKey','cpCity','cpEmail','cpPhone','cpWebsite','cpCommissionValue','cpNotes'].forEach(id=>{$('#'+id).value=''});
+  }catch(e){flash(e.message,true)}
+}
+async function createCommercialContract(){
+  try{
+    if(!val('ccPartner')) throw new Error('Select a partner.');
+    await commercialRpc('dealzy_admin_create_contract',{
+      p_partner_id:val('ccPartner'),p_contract_name:val('ccName'),p_contract_type:val('ccType'),p_starts_on:dateOrNull('ccStart'),
+      p_duration_months:numOrNull('ccMonths'),p_ends_on:dateOrNull('ccEnd'),p_amount:numOrNull('ccAmount')||0,
+      p_currency_code:val('ccCurrency'),p_auto_disable:$('#ccAutoDisable').checked,p_notes:val('ccNotes')
+    });
+    flash('Contract created.');
+  }catch(e){flash(e.message,true)}
+}
+async function createCommercialDeal(){
+  try{
+    if(!val('cdPartner')) throw new Error('Select a partner.');
+    if(!val('cdTitle')||!val('cdCity')) throw new Error('Deal title and city are required.');
+    await commercialRpc('dealzy_admin_create_direct_deal',{
+      p_partner_id:val('cdPartner'),p_contract_id:val('cdContract')||null,p_title:val('cdTitle'),p_description:val('cdDescription'),
+      p_category:val('cdCategory'),p_country_code:val('cdCountry'),p_city:val('cdCity'),p_address:val('cdAddress'),
+      p_price:numOrNull('cdPrice'),p_old_price:numOrNull('cdOldPrice'),p_currency_code:val('cdCurrency'),
+      p_image_url:val('cdImage'),p_partner_url:val('cdUrl'),p_starts_at:isoOrNull('cdStart'),p_ends_at:isoOrNull('cdEnd'),
+      p_featured:val('cdFeatured')==='true'
+    });
+    flash('Direct deal published.');
+  }catch(e){flash(e.message,true)}
+}
+async function recordCommercialTransaction(){
+  try{
+    if(!val('ctPartner')) throw new Error('Select a partner.');
+    if(numOrNull('ctAmount')===null) throw new Error('Amount is required.');
+    await commercialRpc('dealzy_admin_record_transaction',{
+      p_partner_id:val('ctPartner'),p_contract_id:val('ctContract')||null,p_transaction_type:val('ctType'),p_amount:numOrNull('ctAmount'),
+      p_currency_code:val('ctCurrency'),p_payment_method:val('ctMethod'),p_external_reference:val('ctReference'),p_notes:val('ctNotes'),p_occurred_at:null
+    });
+    flash('Transaction recorded.');
+  }catch(e){flash(e.message,true)}
+}
+async function createCommercialCoupon(){
+  try{
+    await commercialRpc('dealzy_admin_create_commercial_coupon',{
+      p_code:val('couponCode'),p_description:val('couponDescription'),p_discount_type:val('couponType'),p_discount_value:numOrNull('couponValue')||0,
+      p_free_months:numOrNull('couponMonths')||0,p_currency_code:'USD',p_starts_at:isoOrNull('couponStart'),p_ends_at:isoOrNull('couponEnd'),
+      p_max_uses:numOrNull('couponMaxUses'),p_scope:'contract'
+    });
+    flash('Coupon created.');
+  }catch(e){flash(e.message,true)}
+}
+async function applyCommercialCoupon(){
+  try{
+    if(!val('applyCouponPartner')||!val('applyCouponContract')) throw new Error('Select partner and contract.');
+    await commercialRpc('dealzy_apply_commercial_coupon',{
+      p_code:val('applyCouponCode'),p_partner_id:val('applyCouponPartner'),p_contract_id:val('applyCouponContract')
+    });
+    flash('Coupon applied.');
+  }catch(e){flash(e.message,true)}
+}
+async function setCommercialPartnerStatus(id,status){try{await commercialRpc('dealzy_admin_set_partner_status',{p_partner_id:id,p_status:status});flash('Partner '+status+'.')}catch(e){flash(e.message,true);await loadCommercial()}}
+async function setCommercialContractStatus(id,status){try{await commercialRpc('dealzy_admin_set_contract_status',{p_contract_id:id,p_status:status});flash('Contract '+status+'.')}catch(e){flash(e.message,true);await loadCommercial()}}
+async function setCommercialDealActive(id,active){try{await commercialRpc('dealzy_admin_set_deal_active',{p_deal_id:id,p_active:active});flash(active?'Deal enabled.':'Deal disabled.')}catch(e){flash(e.message,true);await loadCommercial()}}
+
 async function requestPasswordReset(){
   const email=$('#resetEmail').value.trim();
   if(!email){
@@ -298,16 +459,18 @@ async function boot(){
 }
 
 async function loadAll(){
-  const [cfgRows,stats,health,audit,userRows]=await Promise.all([
+  const [cfgRows,stats,health,audit,userRows,commercialData]=await Promise.all([
     api('/rest/v1/dealzy_runtime_config?select=key,value,updated_at&order=key.asc'),
     api('/rest/v1/rpc/dealzy_admin_dashboard_stats',{method:'POST',body:'{}'}),
     api('/rest/v1/dealzy_provider_health?select=provider_key,display_name,mode,enabled,healthy,last_checked_at,last_latency_ms,last_error_message&order=provider_key.asc'),
     api('/rest/v1/dealzy_admin_audit_log?select=id,action,target,created_at&order=created_at.desc&limit=20'),
-    fetchUsers($('#userSearch')?.value||'')
+    fetchUsers($('#userSearch')?.value||''),
+    api('/rest/v1/rpc/dealzy_admin_commercial_snapshot',{method:'POST',body:'{}'})
   ]);
   config={}; for(const row of cfgRows||[]) config[row.key]=row.value||{};
   users=userRows||[];
-  renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);
+  commercial=commercialData||commercial;
+  renderStats(stats||{});renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();
 }
 function renderStats(s){
   $('#stUsers').textContent=s.users??0;$('#stSaved').textContent=s.saved_deals??0;$('#stTrips').textContent=s.trips??0;$('#stSearches').textContent=s.searches??0;
@@ -439,6 +602,13 @@ async function setMaintenance(enabled){
   }catch(e){flash(e.message,true);await loadAll()}
 }
 
+$('#refreshCommercialBtn').onclick=()=>loadCommercial().catch(e=>flash(e.message,true));
+$('#createPartnerBtn').onclick=createCommercialPartner;
+$('#createContractBtn').onclick=createCommercialContract;
+$('#createDirectDealBtn').onclick=createCommercialDeal;
+$('#recordTransactionBtn').onclick=recordCommercialTransaction;
+$('#createCouponBtn').onclick=createCommercialCoupon;
+$('#applyCouponBtn').onclick=applyCommercialCoupon;
 $('#loginBtn').onclick=login;
 $('#forgotBtn').onclick=()=>{
   $('#resetEmail').value=$('#email').value.trim();

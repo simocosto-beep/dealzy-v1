@@ -314,6 +314,61 @@ async function searchYelp({q,category,limit,lat,lng,city='Miami',countryCode='US
   return {ok:true,results:rows.slice(0,limit),total:Number(data.total||rows.length)};
 }
 
+
+async function searchDirectDeals({q,category,limit,city,countryCode,currency}){
+  try{
+    const p=new URLSearchParams({
+      select:'id,title,description,category,country_code,city,address,price,old_price,currency_code,image_url,partner_url,featured,created_at',
+      country_code:'eq.'+countryCode,
+      order:'featured.desc,created_at.desc',
+      limit:String(Math.min(100,Math.max(limit*4,24)))
+    });
+    const r=await fetch(DEALZY_SUPABASE_URL+'/rest/v1/dealzy_direct_deals?'+p.toString(),{
+      headers:{'apikey':DEALZY_SUPABASE_KEY,'Accept':'application/json'}
+    });
+    if(!r.ok) return {ok:false,reason:'http-'+r.status,results:[]};
+    const data=await r.json();
+    const cityNeedle=normalizePlaceName(city);
+    const qNeedle=String(q||'').toLowerCase().trim();
+    let rows=(Array.isArray(data)?data:[]).filter(row=>{
+      const rowCity=normalizePlaceName(row.city);
+      if(cityNeedle && rowCity!==cityNeedle && !rowCity.includes(cityNeedle) && !cityNeedle.includes(rowCity)) return false;
+      if(category!=='All' && row.category!==category) return false;
+      if(qNeedle){
+        const hay=(String(row.title||'')+' '+String(row.description||'')+' '+String(row.address||'')).toLowerCase();
+        if(!hay.includes(qNeedle)) return false;
+      }
+      return true;
+    }).slice(0,limit).map(row=>{
+      const price=Number(row.price||0);
+      const old=Number(row.old_price||price||0);
+      return {
+        id:'direct-'+row.id,
+        title:row.title||'Dealzy Direct deal',
+        category:row.category||category||'All',
+        place:[row.address,row.city].filter(Boolean).join(' • '),
+        lat:null,
+        lng:null,
+        price,
+        old,
+        rating:'',
+        image:row.image_url||'',
+        text:row.description||'Direct partner deal',
+        partnerUrl:row.partner_url||null,
+        source:'Dealzy Direct',
+        provider:'dealzy-direct',
+        currency:row.currency_code||currency,
+        savings:Math.max(0,old-price),
+        discountPct:old?Math.round((1-price/old)*100):0,
+        featured:!!row.featured
+      };
+    });
+    return {ok:true,results:rows};
+  }catch(_){
+    return {ok:false,reason:'unavailable',results:[]};
+  }
+}
+
 function coordinatesAllowed(countryCode,lat,lng){
   if(!Number.isFinite(lat)||!Number.isFinite(lng)) return false;
   if(countryCode==='CA') return lat>=41&&lat<=84&&lng>=-141&&lng<=-52;
@@ -421,6 +476,21 @@ module.exports = async function handler(req,res){
   const wantsYelp=(demo.category==='Food & Drink'||demo.category==='Spa & Beauty')&&runtimeEnabled(providerConfig,'yelp',true);
   const liveRows=[];
   const liveProviders=[];
+
+  try{
+    const direct=await searchDirectDeals({
+      q:demo.q,
+      category:demo.category,
+      limit:Math.min(40,Math.max(demo.limit,24)),
+      city,
+      countryCode,
+      currency
+    });
+    if(direct.ok && direct.results.length){
+      liveRows.push(...direct.results);
+      liveProviders.push({name:'dealzy-direct',status:'live'});
+    }
+  }catch(_){}
 
   if(wantsYelp){
     try{

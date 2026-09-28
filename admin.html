@@ -104,6 +104,143 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <div id="categories" class="controls"></div>
     </section>
 
+    <section id="commercialPanel" class="panel">
+      <div class="panel-head">
+        <div><h2>Commercial & Deals</h2><p class="sub">Direct partners, contracts, deals, billing, refunds/credits and coupons.</p></div>
+        <button id="refreshCommercialBtn" class="btn btn-ghost">↻ Refresh</button>
+      </div>
+
+      <div id="commercialStats" class="mini-grid"></div>
+
+      <div class="form-grid">
+        <div class="section-box commercial-form">
+          <h3>Add partner</h3>
+          <label>Name</label><input id="cpName" class="field" placeholder="Restaurant, hotel, City Pass, Expedia…">
+          <div class="form-grid">
+            <div><label>Partner type</label><select id="cpPartnerType" class="select field"><option value="direct">Direct contract</option><option value="affiliate">Affiliate</option><option value="api_provider">API provider</option><option value="merchant">Merchant</option></select></div>
+            <div><label>Business</label><select id="cpBusinessType" class="select field"><option value="restaurant">Restaurant</option><option value="hotel">Hotel</option><option value="city_pass">City Pass</option><option value="activity">Activity</option><option value="travel">Travel</option><option value="affiliate">Affiliate</option><option value="api">API</option><option value="other">Other</option></select></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Provider key</label><input id="cpProviderKey" class="field" placeholder="booking / expedia / custom"></div>
+            <div><label>Market</label><select id="cpCountry" class="select field"><option value="">Global/internal</option><option value="US">USA</option><option value="CA">Canada</option></select></div>
+          </div>
+          <label>City</label><input id="cpCity" class="field">
+          <div class="form-grid">
+            <div><label>Contact email</label><input id="cpEmail" class="field" type="email"></div>
+            <div><label>Contact phone</label><input id="cpPhone" class="field"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Commission</label><select id="cpCommissionType" class="select field"><option value="none">None</option><option value="percent">Percent</option><option value="fixed">Fixed</option></select></div>
+            <div><label>Value</label><input id="cpCommissionValue" class="field" type="number" step="0.01"></div>
+          </div>
+          <label>Website</label><input id="cpWebsite" class="field" type="url">
+          <label>Notes</label><textarea id="cpNotes" class="textarea"></textarea>
+          <button id="createPartnerBtn" class="btn btn-primary commercial-write">Create partner</button>
+        </div>
+
+        <div class="section-box commercial-form">
+          <h3>New contract</h3>
+          <label>Partner</label><select id="ccPartner" class="select field"></select>
+          <label>Contract name</label><input id="ccName" class="field" placeholder="3-month restaurant deal">
+          <div class="form-grid">
+            <div><label>Type</label><select id="ccType" class="select field"><option value="direct">Direct</option><option value="affiliate">Affiliate</option><option value="api_provider">API provider</option></select></div>
+            <div><label>Start</label><input id="ccStart" class="field" type="date"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Duration (months)</label><input id="ccMonths" class="field" type="number" min="1" value="3"></div>
+            <div><label>Custom end date</label><input id="ccEnd" class="field" type="date"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Amount</label><input id="ccAmount" class="field" type="number" step="0.01" value="0"></div>
+            <div><label>Currency</label><select id="ccCurrency" class="select field"><option>USD</option><option>CAD</option></select></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px"><input id="ccAutoDisable" type="checkbox" checked> Auto-disable when contract expires</label>
+          <label>Notes</label><textarea id="ccNotes" class="textarea"></textarea>
+          <button id="createContractBtn" class="btn btn-primary commercial-write">Create contract</button>
+        </div>
+
+        <div class="section-box commercial-form">
+          <h3>New direct deal</h3>
+          <label>Partner</label><select id="cdPartner" class="select field"></select>
+          <label>Contract</label><select id="cdContract" class="select field"></select>
+          <label>Title</label><input id="cdTitle" class="field" placeholder="20% off dinner">
+          <label>Description</label><textarea id="cdDescription" class="textarea"></textarea>
+          <div class="form-grid">
+            <div><label>Category</label><select id="cdCategory" class="select field"><option>Food & Drink</option><option>Things to Do</option><option>Spa & Beauty</option><option>Travel</option></select></div>
+            <div><label>Market</label><select id="cdCountry" class="select field"><option value="US">USA</option><option value="CA">Canada</option></select></div>
+          </div>
+          <label>City</label><input id="cdCity" class="field" placeholder="New York">
+          <label>Address</label><input id="cdAddress" class="field">
+          <div class="form-grid">
+            <div><label>Deal price</label><input id="cdPrice" class="field" type="number" step="0.01"></div>
+            <div><label>Old price</label><input id="cdOldPrice" class="field" type="number" step="0.01"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Currency</label><select id="cdCurrency" class="select field"><option>USD</option><option>CAD</option></select></div>
+            <div><label>Featured</label><select id="cdFeatured" class="select field"><option value="false">No</option><option value="true">Yes</option></select></div>
+          </div>
+          <label>Image URL</label><input id="cdImage" class="field" type="url">
+          <label>Booking / partner URL</label><input id="cdUrl" class="field" type="url">
+          <div class="form-grid">
+            <div><label>Deal starts</label><input id="cdStart" class="field" type="datetime-local"></div>
+            <div><label>Deal ends</label><input id="cdEnd" class="field" type="datetime-local"></div>
+          </div>
+          <button id="createDirectDealBtn" class="btn btn-primary commercial-write">Publish deal</button>
+        </div>
+
+        <div class="section-box commercial-form">
+          <h3>Payment / refund / credit</h3>
+          <label>Partner</label><select id="ctPartner" class="select field"></select>
+          <label>Contract</label><select id="ctContract" class="select field"></select>
+          <div class="form-grid">
+            <div><label>Type</label><select id="ctType" class="select field"><option value="payment">Payment</option><option value="refund">Refund</option><option value="credit">Credit / avoir</option><option value="adjustment">Adjustment</option></select></div>
+            <div><label>Amount</label><input id="ctAmount" class="field" type="number" min="0" step="0.01"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Currency</label><select id="ctCurrency" class="select field"><option>USD</option><option>CAD</option></select></div>
+            <div><label>Method</label><input id="ctMethod" class="field" placeholder="card / transfer / cash"></div>
+          </div>
+          <label>Reference</label><input id="ctReference" class="field">
+          <label>Notes</label><textarea id="ctNotes" class="textarea"></textarea>
+          <button id="recordTransactionBtn" class="btn btn-primary commercial-write">Record transaction</button>
+          <p class="sub" style="margin-top:8px">This records billing/refunds in Dealzy. Actual card charging/refund needs a payment processor connection.</p>
+        </div>
+
+        <div class="section-box commercial-form">
+          <h3>Coupon / free period</h3>
+          <label>Code</label><input id="couponCode" class="field" placeholder="FREE3MONTHS">
+          <label>Description</label><input id="couponDescription" class="field">
+          <div class="form-grid">
+            <div><label>Discount</label><select id="couponType" class="select field"><option value="free">100% Free</option><option value="percent">Percent</option><option value="fixed">Fixed amount</option></select></div>
+            <div><label>Value</label><input id="couponValue" class="field" type="number" min="0" step="0.01" value="0"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Free months</label><input id="couponMonths" class="field" type="number" min="0" value="0"></div>
+            <div><label>Max uses</label><input id="couponMaxUses" class="field" type="number" min="1"></div>
+          </div>
+          <div class="form-grid">
+            <div><label>Starts</label><input id="couponStart" class="field" type="datetime-local"></div>
+            <div><label>Ends</label><input id="couponEnd" class="field" type="datetime-local"></div>
+          </div>
+          <button id="createCouponBtn" class="btn btn-primary commercial-write">Create coupon</button>
+        </div>
+
+        <div class="section-box commercial-form">
+          <h3>Apply coupon</h3>
+          <label>Coupon code</label><input id="applyCouponCode" class="field">
+          <label>Partner</label><select id="applyCouponPartner" class="select field"></select>
+          <label>Contract</label><select id="applyCouponContract" class="select field"></select>
+          <button id="applyCouponBtn" class="btn btn-primary commercial-write">Apply to contract</button>
+        </div>
+      </div>
+
+      <div class="section-box"><h3>Partners</h3><div id="commercialPartners"></div></div>
+      <div class="section-box"><h3>Contracts</h3><div id="commercialContracts"></div></div>
+      <div class="section-box"><h3>Direct deals</h3><div id="commercialDeals"></div></div>
+      <div class="section-box"><h3>Billing history</h3><div id="commercialTransactions"></div></div>
+      <div class="section-box"><h3>Coupons</h3><div id="commercialCoupons"></div></div>
+    </section>
+
     <section class="panel">
       <div class="panel-head"><div><h2>Provider health</h2><p class="sub">Backend status recorded in Supabase.</p></div></div>
       <div style="overflow:auto"><table><thead><tr><th>Provider</th><th>Mode</th><th>Health</th><th>Latency</th><th>Last check</th></tr></thead><tbody id="healthRows"></tbody></table></div>
