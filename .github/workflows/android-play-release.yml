@@ -1,0 +1,123 @@
+name: Build Dealzy Play Release
+
+on:
+  push:
+    branches:
+      - release/play-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-play-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android platform
+        run: |
+          SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDKROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          fi
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare production web assets
+        run: |
+          mkdir -p app/src/main/assets
+          cp index.html dealzy-live.js dealzy-tools.js dealzy-providers.js dealzy-i18n.js app/src/main/assets/
+          cp icon.svg manifest.webmanifest privacy.html affiliate-disclosure.html app/src/main/assets/
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("app/src/main/assets/dealzy-tools.js")
+          s=p.read_text()
+          target="navigator.serviceWorker.register('/sw.js?v=20260928-prod1')"
+          if target in s:
+              s=s.replace(target,"Promise.reject(new Error('native-apk-service-worker-disabled'))")
+          else:
+              import re
+              s,n=re.subn(r"navigator\.serviceWorker\.register\([^\n;]+\)", "Promise.reject(new Error('native-apk-service-worker-disabled'))", s, count=1)
+              if n != 1:
+                  raise SystemExit("Service worker registration call not found")
+          p.write_text(s)
+          PY
+
+      - name: Validate production release
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          live=Path("app/src/main/assets/dealzy-live.js").read_text()
+          index=Path("app/src/main/assets/index.html").read_text()
+          main=Path("app/src/main/java/com/dealzy/ai/MainActivity.java").read_text()
+          gradle=Path("app/build.gradle").read_text()
+          assert "new MutationObserver" not in live
+          assert "showOnboarding(true)" not in live
+          assert "$$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view))" in index
+          assert 'https://dealzy-v1.vercel.app' in main
+          assert 'dealzy-api-staging' not in main
+          assert "applicationId 'com.dealzy.ai'" in gradle
+          assert "versionCode 1" in gradle
+          assert "versionName '1.0.0'" in gradle
+          print("Production release guard passed")
+          PY
+
+      - name: Probe production API
+        run: |
+          python3 - <<'PY'
+          import json, urllib.parse, urllib.request
+          BASE="https://dealzy-v1.vercel.app"
+          checks=[
+            ("Food & Drink","Los Angeles","US"),
+            ("Things to Do","New York","US"),
+            ("Food & Drink","Toronto","CA"),
+            ("Things to Do","Montreal","CA"),
+          ]
+          for category,city,country in checks:
+              qs=urllib.parse.urlencode({"category":category,"city":city,"country":country,"limit":"3"})
+              with urllib.request.urlopen(BASE+"/api/search?"+qs,timeout=20) as r:
+                  data=json.load(r)
+              assert data.get("ok") is True, data
+              assert data.get("query",{}).get("destination")==city, data
+              assert data.get("query",{}).get("country")==country, data
+              assert str(data.get("mode","")).startswith("live-"), data
+              assert int(data.get("count",0))>0, data
+              print("PASS",city,category,data.get("mode"))
+          PY
+
+      - name: Build unsigned release APK and AAB
+        run: gradle :app:assembleRelease :app:bundleRelease --stacktrace
+
+      - name: Package signing tools and artifacts
+        run: |
+          SDKROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          mkdir -p play-release/signing-tools
+          cp app/build/outputs/apk/release/app-release-unsigned.apk play-release/Dealzy-AI-v1.0.0-unsigned.apk
+          cp app/build/outputs/bundle/release/app-release.aab play-release/Dealzy-AI-v1.0.0-unsigned.aab
+          cp "$SDKROOT/build-tools/35.0.0/lib/apksigner.jar" play-release/signing-tools/apksigner.jar
+          sha256sum play-release/Dealzy-AI-v1.0.0-unsigned.apk play-release/Dealzy-AI-v1.0.0-unsigned.aab > play-release/SHA256SUMS.txt
+          ls -lh play-release play-release/signing-tools
+
+      - name: Upload unsigned release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dealzy-Play-Release-Unsigned-v1
+          path: play-release/
+          if-no-files-found: error
+          retention-days: 7

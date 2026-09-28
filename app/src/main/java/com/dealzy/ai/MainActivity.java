@@ -35,7 +35,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
     private static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String STAGING_API_ORIGIN = "https://dealzy-api-staging-production.up.railway.app";
+    private static final String STAGING_API_ORIGIN = "https://dealzy-v1.vercel.app";
     private static final String FALLBACK_API_ORIGIN = "https://dealzy-v1.vercel.app";
 
     private WebView webView;
@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(12000);
         conn.setReadTimeout(20000);
         conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-        conn.setRequestProperty("User-Agent", "Dealzy-Android-RC/1.0.0-rc1");
+        conn.setRequestProperty("User-Agent", "Dealzy-Android/1.0.0");
 
         ApiPayload payload = new ApiPayload();
         payload.status = conn.getResponseCode();
@@ -237,7 +237,7 @@ public class MainActivity extends Activity {
     private WebResourceResponse proxyApi(WebResourceRequest request) {
         try {
             if (!"GET".equalsIgnoreCase(request.getMethod())) {
-                byte[] body = "{\"ok\":false,\"error\":\"APK test proxy supports GET only\"}".getBytes("UTF-8");
+                byte[] body = "{\"ok\":false,\"error\":\"Dealzy API proxy supports GET only\"}".getBytes("UTF-8");
                 return new WebResourceResponse(
                         "application/json", "UTF-8", 405, "Method Not Allowed",
                         new HashMap<>(), new ByteArrayInputStream(body)
@@ -251,11 +251,11 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {}
 
             if (!shouldFallback(local, staging)) {
-                return toWebResponse(staging, "staging");
+                return toWebResponse(staging, "production");
             }
 
             ApiPayload fallback = fetchApiPayload(local, request, FALLBACK_API_ORIGIN);
-            return toWebResponse(fallback, "production-fallback");
+            return toWebResponse(fallback, "production");
         } catch (Exception e) {
             try {
                 byte[] body = "{\"ok\":false,\"error\":\"API proxy unavailable\"}".getBytes("UTF-8");

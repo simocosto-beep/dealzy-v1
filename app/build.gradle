@@ -7,11 +7,17 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.dealzy.ai.rc1'
+        applicationId 'com.dealzy.ai'
         minSdk 24
         targetSdk 35
-        versionCode 23
-        versionName '1.0.0-rc1'
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
     }
 }
 
