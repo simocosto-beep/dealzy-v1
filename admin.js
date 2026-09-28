@@ -3,12 +3,13 @@ const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
-let session=null, admin=null, config={}, users=[];
+let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null;
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const authHeaders=()=>({'apikey':SB_KEY,'Authorization':'Bearer '+session.access_token,'Content-Type':'application/json'});
 const flash=(msg,bad=false)=>{$('#flash').innerHTML='<div class="alert '+(bad?'error':'')+'">'+esc(msg)+'</div>';setTimeout(()=>{$('#flash').innerHTML=''},3500)};
+const modalMsg=(msg,bad=false)=>{$('#userModalMsg').innerHTML=msg?'<div class="alert '+(bad?'error':'')+'">'+esc(msg)+'</div>':''};
 
 async function api(path,opts={}){
   const r=await fetch(SB_URL+path,{...opts,headers:{...authHeaders(),...(opts.headers||{})}});
@@ -16,6 +17,174 @@ async function api(path,opts={}){
   if(!r.ok){const t=await r.text();throw new Error(t||('HTTP '+r.status));}
   if(r.status===204) return null;
   const t=await r.text(); return t?JSON.parse(t):null;
+}
+
+async function adminEdge(action,payload={}){
+  const r=await fetch(SB_URL+'/functions/v1/dealzy-admin-user-auth',{
+    method:'POST',
+    headers:{
+      'apikey':SB_KEY,
+      'Authorization':'Bearer '+session.access_token,
+      'Content-Type':'application/json'
+    },
+    body:JSON.stringify({action,...payload})
+  });
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok||data.ok===false) throw new Error(data.error||('HTTP '+r.status));
+  return data;
+}
+
+async function fetchUserDetail(userId){
+  return api('/rest/v1/rpc/dealzy_admin_user_detail',{
+    method:'POST',
+    body:JSON.stringify({target_user:userId})
+  });
+}
+
+function miniStat(label,value){
+  return '<div class="mini-stat"><span class="sub">'+esc(label)+'</span><b>'+esc(value??0)+'</b></div>';
+}
+
+function renderUserDetail(detail){
+  const u=detail?.user||{}, c=detail?.counts||{};
+  selectedUserDetail=detail;
+  $('#modalUserSubtitle').textContent=[u.display_name,u.email].filter(Boolean).join(' · ');
+  $('#editUserName').value=u.display_name||'';
+  $('#editUserEmail').value=u.email||'';
+  $('#editUserPhone').value=u.phone||'';
+  $('#editUserRole').value=['admin','viewer'].includes(u.role)?u.role:'user';
+  $('#editUserStatus').value=u.status||'active';
+  $('#editUserReason').value=u.status_reason||'';
+  $('#editUserNotes').value=u.notes||'';
+
+  const protectedAccount=!!u.protected_superadmin;
+  const writable=admin?.role==='superadmin'&&!protectedAccount;
+  ['editUserName','editUserEmail','editUserPhone','editUserRole','editUserStatus','editUserReason','editUserNotes','editUserPassword',
+   'saveUserIdentityBtn','saveUserRoleBtn','saveUserStatusBtn','setUserPasswordBtn','sendUserResetBtn']
+    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!writable;});
+
+  if(protectedAccount) modalMsg('Protected superadmin account. Sensitive changes are disabled here.');
+  else modalMsg('');
+
+  $('#userDetailStats').innerHTML=[
+    miniStat('Saved deals',c.saved_deals),
+    miniStat('Trips',c.trips),
+    miniStat('Searches',c.searches),
+    miniStat('Travel searches',c.travel_searches),
+    miniStat('Alerts',c.alerts),
+    miniStat('Orders',c.orders),
+    miniStat('Booked items',c.booked_trip_items)
+  ].join('');
+
+  const orders=detail?.orders||[];
+  $('#userOrders').innerHTML=orders.length?orders.map(o=>{
+    const money=o.amount==null?'—':(o.amount+' '+(o.currency_code||''));
+    return '<div class="history-row"><b>'+esc(o.title||o.kind||'Order')+'</b><div class="sub">'+esc(o.provider||'')+' · '+esc(o.status||'')+' · '+esc(money)+'</div><div class="sub">'+esc(o.external_order_id||'')+' '+esc(o.booked_at?new Date(o.booked_at).toLocaleString():'')+'</div></div>';
+  }).join(''):'<div class="sub">No recorded orders yet.</div>';
+
+  const booked=detail?.booked_items||[];
+  $('#userBookedItems').innerHTML=booked.length?booked.map(o=>{
+    const title=o.item_data?.title||o.deal_key||o.item_type||'Booked item';
+    const money=o.estimated_cost==null?'—':String(o.estimated_cost);
+    return '<div class="history-row"><b>'+esc(title)+'</b><div class="sub">'+esc(o.item_type||'')+' · Cost '+esc(money)+'</div><div class="sub">'+esc(o.starts_at?new Date(o.starts_at).toLocaleString():'')+'</div></div>';
+  }).join(''):'<div class="sub">No booked trip items.</div>';
+
+  const travel=detail?.recent_travel||[];
+  $('#userTravelActivity').innerHTML=travel.length?travel.map(o=>{
+    const data=o.search_data||{};
+    const summary=data.destination||data.city||data.query||data.origin||'Travel search';
+    return '<div class="history-row"><b>'+esc(o.kind||'Travel')+'</b><div class="sub">'+esc(o.provider||'')+' · '+esc(summary)+'</div><div class="sub">'+esc(o.created_at?new Date(o.created_at).toLocaleString():'')+'</div></div>';
+  }).join(''):'<div class="sub">No recent travel activity.</div>';
+}
+
+async function openUserModal(userId){
+  try{
+    selectedUser=userId;
+    $('#userModal').classList.remove('hidden');
+    modalMsg('Loading…');
+    const detail=await fetchUserDetail(userId);
+    renderUserDetail(detail);
+  }catch(e){
+    modalMsg(e.message,true);
+  }
+}
+
+function closeUserModal(){
+  $('#userModal').classList.add('hidden');
+  selectedUser=null;selectedUserDetail=null;
+  modalMsg('');
+}
+
+async function refreshSelectedUser(){
+  if(!selectedUser) return;
+  const detail=await fetchUserDetail(selectedUser);
+  renderUserDetail(detail);
+  users=await fetchUsers($('#userSearch').value||'');
+  renderUsers(users);
+}
+
+async function saveSelectedIdentity(){
+  if(!selectedUser||admin?.role!=='superadmin') return;
+  try{
+    modalMsg('Saving…');
+    await adminEdge('update_identity',{
+      target_user:selectedUser,
+      display_name:$('#editUserName').value.trim(),
+      email:$('#editUserEmail').value.trim(),
+      phone:$('#editUserPhone').value.trim()
+    });
+    modalMsg('Identity updated.');
+    await refreshSelectedUser();
+  }catch(e){modalMsg(e.message,true)}
+}
+
+async function saveSelectedRole(){
+  if(!selectedUser||admin?.role!=='superadmin') return;
+  try{
+    await api('/rest/v1/rpc/dealzy_superadmin_set_staff',{
+      method:'POST',
+      body:JSON.stringify({target_user:selectedUser,new_role:$('#editUserRole').value})
+    });
+    modalMsg('Role updated.');
+    await refreshSelectedUser();
+  }catch(e){modalMsg(e.message,true)}
+}
+
+async function saveSelectedStatus(){
+  if(!selectedUser||admin?.role!=='superadmin') return;
+  const status=$('#editUserStatus').value;
+  const word=status==='active'?'reactivate':status==='blacklisted'?'blacklist':'disable';
+  if(!confirm('Confirm: '+word+' this user?')) return;
+  try{
+    await adminEdge('set_status',{
+      target_user:selectedUser,
+      status,
+      reason:$('#editUserReason').value.trim(),
+      notes:$('#editUserNotes').value.trim()
+    });
+    modalMsg('Account status updated.');
+    await refreshSelectedUser();
+  }catch(e){modalMsg(e.message,true)}
+}
+
+async function setSelectedPassword(){
+  if(!selectedUser||admin?.role!=='superadmin') return;
+  const password=$('#editUserPassword').value;
+  if(password.length<12) return modalMsg('Temporary password must be at least 12 characters.',true);
+  if(!confirm('Set a new password for this user? Their current password will stop working.')) return;
+  try{
+    await adminEdge('set_password',{target_user:selectedUser,password});
+    $('#editUserPassword').value='';
+    modalMsg('Password changed.');
+  }catch(e){modalMsg(e.message,true)}
+}
+
+async function sendSelectedReset(){
+  if(!selectedUser||admin?.role!=='superadmin') return;
+  try{
+    await adminEdge('send_password_reset',{target_user:selectedUser});
+    modalMsg('Password reset email sent.');
+  }catch(e){modalMsg(e.message,true)}
 }
 
 async function requestPasswordReset(){
@@ -157,49 +326,28 @@ function renderUsers(rows){
     $('#userRows').innerHTML='<div class="sub">No users found.</div>';
     return;
   }
-  const isSuper=admin?.role==='superadmin';
   $('#userRows').innerHTML=rows.map(row=>{
     const role=userRoleLabel(row);
-    const protectedAccount=row.admin_role==='superadmin'||row.is_self;
-    const display=row.display_name||row.email||'Dealzy user';
+    const display=row.display_name||row.email||row.phone||'Dealzy user';
     const created=row.created_at?new Date(row.created_at).toLocaleDateString():'—';
     const last=row.last_sign_in_at?new Date(row.last_sign_in_at).toLocaleString():'Never';
+    const status=row.account_status||((row.auth_banned||row.account_disabled)?'disabled':'active');
+    const statusClass=status==='active'?'ok':'bad';
+    const statusLabel=status==='blacklisted'?'Blacklisted':status==='disabled'?'Disabled':'Active';
     const badges=[
-      '<span class="pill '+(row.account_disabled?'bad':'ok')+'">'+(row.account_disabled?'Disabled':'Active')+'</span>',
+      '<span class="pill '+statusClass+'">'+statusLabel+'</span>',
       '<span class="pill '+(row.admin_role==='superadmin'?'protected':'')+'">'+esc(role)+'</span>',
       row.email_confirmed?'<span class="pill ok">Email verified</span>':'<span class="pill">Email unverified</span>',
       row.is_self?'<span class="pill protected">You</span>':''
     ].join('');
-    let actions='';
-    if(isSuper&&!protectedAccount){
-      actions='<div class="user-actions">'+
-        '<select class="select" data-user-role="'+esc(row.user_id)+'">'+
-          '<option value="user" '+(role==='User'?'selected':'')+'>User</option>'+
-          '<option value="viewer" '+(role==='Viewer'?'selected':'')+'>Viewer</option>'+
-          '<option value="admin" '+(role==='Admin'?'selected':'')+'>Admin</option>'+
-        '</select>'+
-        '<button class="btn btn-ghost '+(row.account_disabled?'good':'danger')+'" data-user-disable="'+esc(row.user_id)+'" data-disabled="'+(row.account_disabled?'1':'0')+'">'+(row.account_disabled?'Enable account':'Disable account')+'</button>'+
-      '</div>';
-    }else if(protectedAccount){
-      actions='<div class="user-actions"><span class="sub">Protected superadmin account</span></div>';
-    }else{
-      actions='<div class="user-actions"><span class="sub">Read only</span></div>';
-    }
     return '<div class="user-card">'+
-      '<div class="user-top"><div><div class="user-name">'+esc(display)+'</div><div class="user-email">'+esc(row.email||'')+'</div></div><div class="user-meta">'+badges+'</div></div>'+
-      '<div class="sub" style="margin-top:10px">Joined '+esc(created)+' · Last sign-in '+esc(last)+'</div>'+
-      actions+
+      '<div class="user-top"><div><div class="user-name">'+esc(display)+'</div><div class="user-email">'+esc(row.email||'')+(row.phone?' · '+esc(row.phone):'')+'</div></div><div class="user-meta">'+badges+'</div></div>'+
+      '<div class="sub" style="margin-top:10px">Joined '+esc(created)+' · Last sign-in '+esc(last)+(row.status_reason?' · '+esc(row.status_reason):'')+'</div>'+
+      '<div class="user-actions"><button class="btn btn-ghost" data-user-manage="'+esc(row.user_id)+'">Manage</button></div>'+
     '</div>';
   }).join('');
-
-  document.querySelectorAll('[data-user-role]').forEach(el=>{
-    el.onchange=()=>changeUserRole(el.dataset.userRole,el.value);
-  });
-  document.querySelectorAll('[data-user-disable]').forEach(el=>{
-    el.onclick=()=>changeUserDisabled(el.dataset.userDisable,el.dataset.disabled==='1');
-  });
+  document.querySelectorAll('[data-user-manage]').forEach(el=>el.onclick=()=>openUserModal(el.dataset.userManage));
 }
-
 async function changeUserRole(userId,role){
   if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
   try{
@@ -300,6 +448,13 @@ $('#backToLoginBtn').onclick=()=>{
 };
 $('#sendResetBtn').onclick=requestPasswordReset;
 $('#savePasswordBtn').onclick=saveRecoveredPassword;
+$('#closeUserModal').onclick=closeUserModal;
+$('#userModal').addEventListener('click',e=>{if(e.target===$('#userModal')) closeUserModal()});
+$('#saveUserIdentityBtn').onclick=saveSelectedIdentity;
+$('#saveUserRoleBtn').onclick=saveSelectedRole;
+$('#saveUserStatusBtn').onclick=saveSelectedStatus;
+$('#setUserPasswordBtn').onclick=setSelectedPassword;
+$('#sendUserResetBtn').onclick=sendSelectedReset;
 $('#userSearchBtn').onclick=async()=>{try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(e){flash(e.message,true)}};
 $('#userSearch').addEventListener('keydown',async e=>{if(e.key==='Enter'){e.preventDefault();try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(err){flash(err.message,true)}}});
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});

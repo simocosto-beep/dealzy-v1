@@ -18,8 +18,9 @@ h1,h2,h3,p{margin-top:0}.sub{color:var(--muted)}label{display:block;font-weight:
 .switch{position:relative;width:46px;height:26px;flex:0 0 auto}.switch input{opacity:0;width:0;height:0}.slider{position:absolute;inset:0;border-radius:999px;background:#cdd1dc;cursor:pointer;transition:.2s}.slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 4px #0002}.switch input:checked+.slider{background:var(--brand)}.switch input:checked+.slider:before{transform:translateX(20px)}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}.pill{padding:4px 8px;border-radius:999px;background:#eef0f7;font-size:12px;font-weight:800}.pill.ok{background:#e7f7f0;color:#117d56}.pill.bad{background:#fdebee;color:#b83044}
 .alert{padding:12px 14px;border-radius:12px;margin:12px 0;background:#eef0ff;color:#4338ca}.error{background:#fdebee;color:#a92e40}.maintenance{border-color:#ffd7a0;background:#fffaf2}
-.user-toolbar{display:flex;gap:10px;margin-bottom:14px}.user-toolbar .field{flex:1}.user-list{display:grid;gap:10px}.user-card{border:1px solid var(--line);border-radius:14px;padding:14px}.user-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.user-name{font-weight:850;font-size:15px}.user-email{color:var(--muted);word-break:break-all}.user-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.user-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.select{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:750}.danger{border-color:#f0c3ca;color:#b83044}.good{border-color:#bfe4d5;color:#117d56}.protected{background:#f0edff;color:#5444db}.readonly{opacity:.62;pointer-events:none}
-@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr}.main{padding:14px}.top{padding:0 14px}}@media(max-width:480px){.login{align-items:start;padding-top:32px}.login-card{padding:22px;border-radius:20px}.logo{width:48px;height:48px;border-radius:14px}h1{font-size:28px}.field{padding:11px 13px}.grid{grid-template-columns:1fr 1fr}.stat b{font-size:22px}.top .btn span{display:none}}
+.user-toolbar{display:flex;gap:10px;margin-bottom:14px}.user-toolbar .field{flex:1}.user-list{display:grid;gap:10px}.user-card{border:1px solid var(--line);border-radius:14px;padding:14px}.user-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.user-name{font-weight:850;font-size:15px}.user-email{color:var(--muted);word-break:break-all}.user-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.user-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.select,.textarea{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:650}.textarea{width:100%;min-height:86px;resize:vertical}.danger{border-color:#f0c3ca;color:#b83044}.good{border-color:#bfe4d5;color:#117d56}.protected{background:#f0edff;color:#5444db}.readonly{opacity:.62;pointer-events:none}
+.modal{position:fixed;inset:0;background:#11182766;z-index:50;display:grid;place-items:center;padding:16px}.modal-card{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:22px;border:1px solid var(--line);box-shadow:0 28px 80px #0003}.modal-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:2}.modal-body{padding:20px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.section-box{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:14px}.section-box h3{margin-bottom:10px}.mini-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.mini-stat{border:1px solid var(--line);border-radius:12px;padding:10px}.mini-stat b{display:block;font-size:18px;margin-top:3px}.history-row{border-top:1px solid var(--line);padding:10px 0}.history-row:first-child{border-top:0}.status-blacklisted{background:#2a1720;color:#fff}.modal-actions{display:flex;gap:8px;flex-wrap:wrap}.modal-actions .btn-primary{width:auto;margin-top:0}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr}.main{padding:14px}.top{padding:0 14px}.form-grid{grid-template-columns:1fr}.mini-grid{grid-template-columns:1fr 1fr}}@media(max-width:480px){.login{align-items:start;padding-top:32px}.login-card{padding:22px;border-radius:20px}.logo{width:48px;height:48px;border-radius:14px}h1{font-size:28px}.field{padding:11px 13px}.grid{grid-template-columns:1fr 1fr}.stat b{font-size:22px}.top .btn span{display:none}}
 </style>
 </head>
 <body>
@@ -114,5 +115,88 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </section>
   </main>
 </section>
-<script src="/admin.js?v=20260928d"></script>
+
+<div id="userModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><b style="font-size:18px">User management</b><div id="modalUserSubtitle" class="sub"></div></div>
+      <button id="closeUserModal" class="btn btn-ghost">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="userModalMsg"></div>
+
+      <div class="section-box">
+        <h3>Account identity</h3>
+        <div class="form-grid">
+          <div><label>Name</label><input id="editUserName" class="field" type="text"></div>
+          <div><label>Email</label><input id="editUserEmail" class="field" type="email"></div>
+          <div><label>Phone</label><input id="editUserPhone" class="field" type="tel" placeholder="+1 ..."></div>
+          <div><label>Staff role</label>
+            <select id="editUserRole" class="field">
+              <option value="user">User</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top:12px">
+          <button id="saveUserIdentityBtn" class="btn btn-primary">Save identity</button>
+          <button id="saveUserRoleBtn" class="btn btn-ghost">Save role</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <h3>Access status</h3>
+        <div class="form-grid">
+          <div><label>Status</label>
+            <select id="editUserStatus" class="field">
+              <option value="active">Active</option>
+              <option value="disabled">Disabled</option>
+              <option value="blacklisted">Blacklisted</option>
+            </select>
+          </div>
+          <div><label>Reason</label><input id="editUserReason" class="field" type="text" placeholder="Optional reason"></div>
+        </div>
+        <label>Admin notes</label><textarea id="editUserNotes" class="textarea" placeholder="Internal notes only"></textarea>
+        <div class="modal-actions" style="margin-top:12px">
+          <button id="saveUserStatusBtn" class="btn btn-ghost danger">Apply status</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <h3>Password</h3>
+        <p class="sub">You can send a reset email, or set a temporary password directly. Existing passwords are never visible.</p>
+        <div class="form-grid">
+          <div><label>Temporary password</label><input id="editUserPassword" class="field" type="password" minlength="12" autocomplete="new-password" placeholder="12+ characters"></div>
+          <div class="modal-actions" style="align-items:end;padding-top:30px">
+            <button id="setUserPasswordBtn" class="btn btn-ghost danger">Set password</button>
+            <button id="sendUserResetBtn" class="btn btn-ghost">Send reset email</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <h3>Activity</h3>
+        <div id="userDetailStats" class="mini-grid"></div>
+      </div>
+
+      <div class="section-box">
+        <h3>Orders / bookings</h3>
+        <p class="sub">External partner purchases appear here only when Dealzy receives order or booking data from that provider.</p>
+        <div id="userOrders"></div>
+      </div>
+
+      <div class="section-box">
+        <h3>Booked trip items</h3>
+        <div id="userBookedItems"></div>
+      </div>
+
+      <div class="section-box">
+        <h3>Recent travel activity</h3>
+        <div id="userTravelActivity"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/admin.js?v=20260928e"></script>
 </body></html>
