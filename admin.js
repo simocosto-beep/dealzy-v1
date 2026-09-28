@@ -4,6 +4,7 @@ const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
+let userPage={offset:0,size:20,total:0,hasMore:false};
 let currentAdminPage='overview';
 
 const ADMIN_PAGES={
@@ -678,12 +679,24 @@ function renderStats(s){
   $('#stUsers').textContent=s.users??0;$('#stSaved').textContent=s.saved_deals??0;$('#stTrips').textContent=s.trips??0;$('#stSearches').textContent=s.searches??0;
 }
 
-async function fetchUsers(search=''){
+async function fetchUsers(search='',opts={}){
   if(admin?.role==='viewer') return [];
-  return api('/rest/v1/rpc/dealzy_admin_list_users',{
+  if(opts.reset) userPage.offset=0;
+  const data=await api('/rest/v1/rpc/dealzy_admin_users_page',{
     method:'POST',
-    body:JSON.stringify({search_text:String(search||''),page_size:50,page_offset:0})
-  });
+    body:JSON.stringify({
+      search_text:String(search||''),
+      status_filter:$('#userStatusFilter')?.value||'all',
+      role_filter:$('#userRoleFilter')?.value||'all',
+      page_size:userPage.size,
+      page_offset:userPage.offset
+    })
+  })||{};
+  userPage.total=Number(data.total||0);
+  userPage.hasMore=!!data.has_more;
+  userPage.offset=Number(data.page_offset??userPage.offset);
+  userPage.size=Number(data.page_size||userPage.size);
+  return Array.isArray(data.rows)?data.rows:[];
 }
 
 function userRoleLabel(row){
@@ -694,7 +707,8 @@ function userRoleLabel(row){
 }
 
 function renderUsers(rows){
-  $('#userCountBadge').textContent=(rows||[]).length+' shown';
+  $('#userCountBadge').textContent=userPage.total+' total';
+  renderUserPager(rows||[]);
   if(!rows||!rows.length){
     $('#userRows').innerHTML='<div class="sub">No users found.</div>';
     return;
@@ -720,6 +734,23 @@ function renderUsers(rows){
     '</div>';
   }).join('');
   document.querySelectorAll('[data-user-manage]').forEach(el=>el.onclick=()=>openUserModal(el.dataset.userManage));
+}
+
+function renderUserPager(rows){
+  const prev=$('#userPrevBtn'), next=$('#userNextBtn'), info=$('#userPageInfo');
+  if(!prev||!next||!info) return;
+  const start=userPage.total?userPage.offset+1:0;
+  const end=Math.min(userPage.offset+(rows?.length||0),userPage.total);
+  info.textContent=userPage.total?('Showing '+start+'–'+end+' of '+userPage.total):'No users';
+  prev.disabled=userPage.offset<=0;
+  next.disabled=!userPage.hasMore;
+}
+
+async function reloadUsers(reset=false){
+  try{
+    users=await fetchUsers($('#userSearch')?.value||'',{reset});
+    renderUsers(users);
+  }catch(e){flash(e.message,true)}
 }
 async function changeUserRole(userId,role){
   if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
@@ -841,8 +872,12 @@ $('#saveUserRoleBtn').onclick=saveSelectedRole;
 $('#saveUserStatusBtn').onclick=saveSelectedStatus;
 $('#setUserPasswordBtn').onclick=setSelectedPassword;
 $('#sendUserResetBtn').onclick=sendSelectedReset;
-$('#userSearchBtn').onclick=async()=>{try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(e){flash(e.message,true)}};
-$('#userSearch').addEventListener('keydown',async e=>{if(e.key==='Enter'){e.preventDefault();try{users=await fetchUsers($('#userSearch').value||'');renderUsers(users)}catch(err){flash(err.message,true)}}});
+$('#userSearchBtn').onclick=()=>reloadUsers(true);
+$('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();reloadUsers(true)}});
+$('#userStatusFilter').onchange=()=>reloadUsers(true);
+$('#userRoleFilter').onchange=()=>reloadUsers(true);
+$('#userPrevBtn').onclick=()=>{userPage.offset=Math.max(0,userPage.offset-userPage.size);reloadUsers(false)};
+$('#userNextBtn').onclick=()=>{if(!userPage.hasMore)return;userPage.offset+=userPage.size;reloadUsers(false)};
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>loadAll().catch(e=>flash(e.message,true));
 $('#maintenanceToggle').onchange=e=>setMaintenance(e.target.checked);
