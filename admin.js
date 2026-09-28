@@ -11,7 +11,10 @@ const ADMIN_PAGES={
   users:{title:'Users & Admins',subtitle:'Accounts, access, status and user history.'},
   providers:{title:'Providers',subtitle:'Live inventory sources and provider health.'},
   markets:{title:'Markets & Categories',subtitle:'Control where and what Dealzy serves.'},
-  commerce:{title:'Commercial',subtitle:'Stripe, partners, contracts, deals and billing.'},
+  payments:{title:'Payments',subtitle:'Stripe payments, customers, subscriptions, refunds and disputes.'},
+  partners:{title:'Partners',subtitle:'Partners and commercial contracts.'},
+  deals:{title:'Deals',subtitle:'Direct Dealzy offers and partner deals.'},
+  billing:{title:'Billing',subtitle:'Billing records, refunds, credits and coupons.'},
   system:{title:'System',subtitle:'Maintenance mode and admin activity.'}
 };
 
@@ -720,7 +723,7 @@ async function setMaintenance(enabled){
 }
 
 $('#refreshStripeBtn').onclick=()=>loadStripe().catch(e=>flash(e.message,true));
-$('#refreshCommercialBtn').onclick=()=>loadCommercial().catch(e=>flash(e.message,true));
+document.querySelectorAll('[data-refresh-commercial]').forEach(btn=>btn.onclick=()=>loadCommercial().catch(e=>flash(e.message,true)));
 $('#createPartnerBtn').onclick=createCommercialPartner;
 $('#createContractBtn').onclick=createCommercialContract;
 $('#createDirectDealBtn').onclick=createCommercialDeal;

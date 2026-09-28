@@ -76,7 +76,10 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <button class="admin-tab" data-admin-tab="users">👥 Users</button>
       <button class="admin-tab" data-admin-tab="providers">⚡ Providers</button>
       <button class="admin-tab" data-admin-tab="markets">🌎 Markets</button>
-      <button class="admin-tab" data-admin-tab="commerce">💳 Commercial</button>
+      <button class="admin-tab" data-admin-tab="payments">💳 Payments</button>
+      <button class="admin-tab" data-admin-tab="partners">🤝 Partners</button>
+      <button class="admin-tab" data-admin-tab="deals">🏷 Deals</button>
+      <button class="admin-tab" data-admin-tab="billing">🧾 Billing</button>
       <button class="admin-tab" data-admin-tab="system">⚙ System</button>
     </div>
   </nav>
@@ -129,7 +132,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </section>
 
 
-    <section id="stripePanel" class="panel" data-admin-page="commerce">
+    <section id="stripePanel" class="panel" data-admin-page="payments">
       <div class="panel-head">
         <div><h2>Stripe</h2><p class="sub">Payments, customers, subscriptions, refunds and disputes from your Stripe account.</p></div>
         <div style="display:flex;gap:8px;align-items:center"><span id="stripeStatus" class="pill">Checking…</span><button id="refreshStripeBtn" class="btn btn-ghost">↻ Refresh</button></div>
@@ -143,14 +146,12 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <div class="section-box"><h3>Disputes</h3><div id="stripeDisputes"></div></div>
     </section>
 
-    <section id="commercialPanel" class="panel" data-admin-page="commerce">
+    <section id="partnersPanel" class="panel" data-admin-page="partners">
       <div class="panel-head">
-        <div><h2>Commercial & Deals</h2><p class="sub">Direct partners, contracts, deals, billing, refunds/credits and coupons.</p></div>
-        <button id="refreshCommercialBtn" class="btn btn-ghost">↻ Refresh</button>
+        <div><h2>Partners & Contracts</h2><p class="sub">Direct partners, affiliate relationships and commercial contracts.</p></div>
+        <button class="btn btn-ghost" data-refresh-commercial>↻ Refresh</button>
       </div>
-
       <div id="commercialStats" class="mini-grid"></div>
-
       <div class="form-grid">
         <div class="section-box commercial-form">
           <h3>Add partner</h3>
@@ -176,7 +177,6 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <label>Notes</label><textarea id="cpNotes" class="textarea"></textarea>
           <button id="createPartnerBtn" class="btn btn-primary commercial-write">Create partner</button>
         </div>
-
         <div class="section-box commercial-form">
           <h3>New contract</h3>
           <label>Partner</label><select id="ccPartner" class="select field"></select>
@@ -197,7 +197,17 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <label>Notes</label><textarea id="ccNotes" class="textarea"></textarea>
           <button id="createContractBtn" class="btn btn-primary commercial-write">Create contract</button>
         </div>
+      </div>
+      <div class="section-box"><h3>Partners</h3><div id="commercialPartners"></div></div>
+      <div class="section-box"><h3>Contracts</h3><div id="commercialContracts"></div></div>
+    </section>
 
+    <section id="dealsPanel" class="panel" data-admin-page="deals">
+      <div class="panel-head">
+        <div><h2>Direct Deals</h2><p class="sub">Create and review partner deals published through Dealzy.</p></div>
+        <button class="btn btn-ghost" data-refresh-commercial>↻ Refresh</button>
+      </div>
+      <div class="form-grid">
         <div class="section-box commercial-form">
           <h3>New direct deal</h3>
           <label>Partner</label><select id="cdPartner" class="select field"></select>
@@ -226,7 +236,16 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           </div>
           <button id="createDirectDealBtn" class="btn btn-primary commercial-write">Publish deal</button>
         </div>
+      </div>
+      <div class="section-box"><h3>Direct deals</h3><div id="commercialDeals"></div></div>
+    </section>
 
+    <section id="billingPanel" class="panel" data-admin-page="billing">
+      <div class="panel-head">
+        <div><h2>Billing & Coupons</h2><p class="sub">Internal billing records, refunds, credits and promotional coupons.</p></div>
+        <button class="btn btn-ghost" data-refresh-commercial>↻ Refresh</button>
+      </div>
+      <div class="form-grid">
         <div class="section-box commercial-form">
           <h3>Payment / refund / credit</h3>
           <label>Partner</label><select id="ctPartner" class="select field"></select>
@@ -244,7 +263,6 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <button id="recordTransactionBtn" class="btn btn-primary commercial-write">Record transaction</button>
           <p class="sub" style="margin-top:8px">This records billing/refunds in Dealzy. Actual card charging/refund needs a payment processor connection.</p>
         </div>
-
         <div class="section-box commercial-form">
           <h3>Coupon / free period</h3>
           <label>Code</label><input id="couponCode" class="field" placeholder="FREE3MONTHS">
@@ -263,7 +281,6 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           </div>
           <button id="createCouponBtn" class="btn btn-primary commercial-write">Create coupon</button>
         </div>
-
         <div class="section-box commercial-form">
           <h3>Apply coupon</h3>
           <label>Coupon code</label><input id="applyCouponCode" class="field">
@@ -272,10 +289,6 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <button id="applyCouponBtn" class="btn btn-primary commercial-write">Apply to contract</button>
         </div>
       </div>
-
-      <div class="section-box"><h3>Partners</h3><div id="commercialPartners"></div></div>
-      <div class="section-box"><h3>Contracts</h3><div id="commercialContracts"></div></div>
-      <div class="section-box"><h3>Direct deals</h3><div id="commercialDeals"></div></div>
       <div class="section-box"><h3>Billing history</h3><div id="commercialTransactions"></div></div>
       <div class="section-box"><h3>Coupons</h3><div id="commercialCoupons"></div></div>
     </section>
@@ -374,5 +387,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260928d"></script>
+<script src="/admin.js?v=20260928e"></script>
 </body></html>
