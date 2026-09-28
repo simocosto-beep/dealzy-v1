@@ -687,19 +687,44 @@
     if(!data||data.mode==="demo-fallback") return [];
 
     let raw=Array.isArray(data.results)?data.results:[];
-    const apiHasDestination=!!(data.query&&data.query.destination);
+    const apiDestination=String(data?.query?.destination||"").trim();
+    const normalizeCityName=(value)=>String(value||"")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^a-z0-9]+/g," ")
+      .trim();
+    const selectedCity=normalizeCityName(market.city);
+    const returnedCity=normalizeCityName(apiDestination);
+    const destinationMatches=!returnedCity ||
+      returnedCity===selectedCity ||
+      returnedCity.startsWith(selectedCity+" ") ||
+      selectedCity.startsWith(returnedCity+" ");
 
-    // Current stable production API is legacy and hard-coded to Miami for
-    // Ticketmaster/Viator. Never present those as local results for another city.
-    if(!apiHasDestination&&market.city.toLowerCase()!=="miami"){
+    // The current public fallback API is legacy and can explicitly report Miami
+    // even when the APK asked for another city. Never trust non-local provider
+    // rows in that case. Yelp remains eligible because it consumes the coordinates
+    // sent by the APK and supplies coordinates for each result.
+    if(!destinationMatches){
+      raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
+    }else if(!apiDestination&&market.city.toLowerCase()!=="miami"){
       raw=raw.filter(item=>String(item.provider||item.source||"").toLowerCase()==="yelp");
     }
 
     let normalized=raw.map(toDeal);
-    if(!apiHasDestination&&market.city.toLowerCase()!=="miami"&&state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+
+    // Apply a final locality sanity check to every result that has coordinates.
+    // This prevents stale/cross-city inventory from leaking into Home or Explore.
+    if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
+      const requestedRadius=Number(readExplorePrefs().radius)||25;
+      const localityLimit=Math.max(35,Math.min(100,requestedRadius*2));
       normalized=normalized.filter(d=>{
         const distance=dealDistance(d);
-        return String(d.provider||"").toLowerCase()!=="yelp" || (distance!==null&&distance<=35);
+        if(distance!==null) return distance<=localityLimit;
+        // Coordinate-less rows (mainly Viator) are only safe when the server
+        // explicitly confirms the selected destination.
+        const provider=String(d.provider||d.source||"").toLowerCase();
+        if(provider==="viator"||provider==="ticketmaster") return destinationMatches&&!!apiDestination;
+        return true;
       });
     }
 
