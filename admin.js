@@ -19,7 +19,7 @@ async function api(path,opts={}){
 }
 
 async function requestPasswordReset(){
-  const email=$('#email').value.trim();
+  const email=$('#resetEmail').value.trim();
   if(!email){
     $('#loginMsg').innerHTML='<div class="alert error">Enter your email first.</div>';
     return;
@@ -34,7 +34,6 @@ async function requestPasswordReset(){
     let data={}; try{data=await r.json()}catch(_){}
     if(!r.ok) throw new Error(data.msg||data.error_description||'Could not send reset email');
     $('#loginMsg').innerHTML='<div class="alert">Reset email sent. Check your inbox and spam folder.</div>';
-    $('#resetRequest').classList.add('hidden');
   }catch(e){
     $('#loginMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
   }finally{
@@ -178,7 +177,20 @@ async function setMaintenance(enabled){
 }
 
 $('#loginBtn').onclick=login;
-$('#forgotBtn').onclick=()=>$('#resetRequest').classList.toggle('hidden');
+$('#forgotBtn').onclick=()=>{
+  $('#resetEmail').value=$('#email').value.trim();
+  $('#loginMsg').innerHTML='';
+  $('#signInMode').classList.add('hidden');
+  $('#resetRequest').classList.remove('hidden');
+  setTimeout(()=>$('#resetEmail').focus(),0);
+};
+$('#backToLoginBtn').onclick=()=>{
+  $('#email').value=$('#resetEmail').value.trim();
+  $('#loginMsg').innerHTML='';
+  $('#resetRequest').classList.add('hidden');
+  $('#signInMode').classList.remove('hidden');
+  setTimeout(()=>$('#email').focus(),0);
+};
 $('#sendResetBtn').onclick=requestPasswordReset;
 $('#savePasswordBtn').onclick=saveRecoveredPassword;
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
