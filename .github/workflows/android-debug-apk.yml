@@ -69,6 +69,21 @@ jobs:
           print("Interaction guard passed")
           PY
 
+      - name: Probe staging API
+        continue-on-error: true
+        run: |
+          BASE="https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app"
+          echo "== /api/providers =="
+          curl -L -sS -D /tmp/providers.headers -o /tmp/providers.body "$BASE/api/providers" || true
+          head -n 20 /tmp/providers.headers || true
+          head -c 2000 /tmp/providers.body || true
+          echo
+          echo "== /api/search New York =="
+          curl -L -sS -D /tmp/search.headers -o /tmp/search.body "$BASE/api/search?category=Food%20%26%20Drink&country=US&city=New%20York&limit=3" || true
+          head -n 20 /tmp/search.headers || true
+          head -c 3000 /tmp/search.body || true
+          echo
+
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 

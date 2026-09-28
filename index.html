@@ -31,7 +31,7 @@
 <section id="homeView">
 <div class="hero"><div class="heroInner"><div class="pill" style="display:inline-block;background:rgba(255,255,255,.16);color:white;border-color:rgba(255,255,255,.28)">🇺🇸 United States · 🇨🇦 Canada — LIVE</div><h1>Find amazing experiences with AI.</h1><p>Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.</p><div class="ask"><input id="aiQuery" placeholder="Ask Dealzy AI anything…" value="Date night in Miami tonight under $100"/><button id="askBtn">Search with AI ✦</button></div><div class="quick"><button data-q="Things to do near me under $50">📍 Near me</button><button data-q="Best deals this weekend">🗓 This weekend</button><button data-q="Fun experiences under $50">🏷 Under $50</button></div><div class="locationBar"><div><b id="geoTitle">Location not used yet</b><small id="geoSub">Use your location for nearby deals.</small></div><button id="useLocationBtn">Use my location</button></div></div></div>
 <div class="section"><div class="sectionHead"><h2>Explore categories</h2><span>Live providers</span></div><div class="cats" id="cats"></div></div>
-<div class="section"><div class="sectionHead"><h2>Popular in Miami</h2><span>Curated by Dealzy AI</span></div><div class="grid" id="popularGrid"></div></div>
+<div class="section"><div class="sectionHead"><h2 id="popularHeading">Popular in Miami</h2><span>Curated by Dealzy AI</span></div><div class="grid" id="popularGrid"></div></div>
 <div class="legal">Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.</div>
 </section>
 <section id="exploreView" class="hidden"><div class="sectionHead"><h2>Explore deals</h2><span id="resultCount"></span></div><div class="searchTop"><input id="exploreQuery" placeholder="Search: spa, dinner, boat tour…"><button class="pill" id="exploreSearch">Search ✦</button></div><div class="filters" id="filters"></div><div class="grid" id="exploreGrid" style="margin-top:14px"></div></section>
@@ -105,6 +105,9 @@ function show(v,opts){
 }
 window.DealzyHandleBack=function(){
   try{
+    const explorePicker=document.getElementById('dealzyExplorePicker');
+    if(explorePicker){explorePicker.remove();return true;}
+
     const marketPicker=document.getElementById('dealzyMarketPicker');
     if(marketPicker){marketPicker.remove();return true;}
 
@@ -136,15 +139,27 @@ function aiSearch(q){const t=q.toLowerCase();state.filter=t.includes('spa')||t.i
 $('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});
 $('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));if(window.DealzyCloud)window.DealzyCloud.queueSync();renderTrips();toast('Favorites added to Miami Weekend')};
 function updateGeoUI(){
+  let m={country:'US',city:'',currency:'USD'};
+  try{m={...m,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})}}catch(_){}
+  const flag=m.country==='CA'?'🇨🇦':'🇺🇸';
+  const isFr=window.DealzyI18n?.getLocale()==='fr';
+  const mode=localStorage.getItem('dealzyLocationMode')||'manual';
+
+  if(mode==='manual'){
+    if($('#geoTitle')) $('#geoTitle').textContent=isFr?'Marché sélectionné':'Selected market';
+    if($('#geoSub')) $('#geoSub').textContent=flag+' '+(m.city||'');
+    if($('#useLocationBtn')) $('#useLocationBtn').textContent=isFr?'Utiliser ma position réelle':'Use my real location';
+    return;
+  }
+
   if(state.coords){
-    let m={country:'US',city:'',currency:'USD'};
-    try{m={...m,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})}}catch(_){}
-    const flag=m.country==='CA'?'🇨🇦':'🇺🇸';
-    const gps=state.coords.source==='gps'||localStorage.getItem('dealzyLocationMode')==='gps';
-    if($('#locationBtn')&&gps&&m.city) $('#locationBtn').textContent=flag+' '+m.city;
-    if($('#geoTitle')) $('#geoTitle').textContent=gps?(window.DealzyI18n?.getLocale()==='fr'?'Position GPS active':'GPS location active'):'Location enabled';
-    if($('#geoSub')) $('#geoSub').textContent=(m.city?m.city+' · ':'')+state.coords.lat.toFixed(3)+', '+state.coords.lng.toFixed(3);
-    if($('#useLocationBtn')) $('#useLocationBtn').textContent=window.DealzyI18n?.getLocale()==='fr'?'Actualiser ma position':'Refresh my location';
+    if($('#geoTitle')) $('#geoTitle').textContent=isFr?'Position GPS détectée':'GPS detected';
+    if($('#geoSub')) $('#geoSub').textContent=(m.city?(isFr?'Navigation : ':'Browsing: ')+m.city+' · ':'')+
+      state.coords.lat.toFixed(3)+', '+state.coords.lng.toFixed(3);
+    if($('#useLocationBtn')) $('#useLocationBtn').textContent=isFr?'Actualiser ma position':'Refresh my location';
+  }else{
+    if($('#geoTitle')) $('#geoTitle').textContent=isFr?'Localisation non utilisée':'Location not used';
+    if($('#geoSub')) $('#geoSub').textContent=flag+' '+(m.city||'');
   }
 }
 async function useLocation(){

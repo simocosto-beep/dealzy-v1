@@ -569,6 +569,57 @@
     return list;
   }
 
+  function openExploreChoicePicker(kind){
+    ensureMarketPickerStyles();
+    const old=document.getElementById("dealzyExplorePicker");
+    if(old) old.remove();
+
+    const prefs=readExplorePrefs();
+    const isFr=locale()==="fr";
+    const options=kind==="sort"
+      ? [
+          {value:"best",label:isFr?"Meilleur":"Best"},
+          {value:"nearest",label:isFr?"Plus proche":"Nearest"},
+          {value:"rating",label:isFr?"Mieux noté":"Top rated"},
+          {value:"price",label:isFr?"Prix bas":"Price low"}
+        ]
+      : [
+          {value:"0",label:isFr?"Tout rayon":"Any radius"},
+          {value:"5",label:"5 mi"},
+          {value:"10",label:"10 mi"},
+          {value:"25",label:"25 mi"},
+          {value:"50",label:"50 mi"}
+        ];
+    const selected=kind==="sort"?prefs.sort:String(prefs.radius);
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyExplorePicker";
+    wrap.className="dz-picker-wrap";
+    wrap.innerHTML=
+      '<section class="dz-picker-card" role="dialog" aria-modal="true">'+
+        '<div class="dz-picker-head"><b>'+h(kind==="sort"?(isFr?"Trier":"Sort"):(isFr?"Rayon":"Radius"))+'</b>'+
+        '<button class="dz-picker-close" aria-label="Close">×</button></div>'+
+        '<div id="dzExplorePickerOptions">'+options.map(opt=>
+          '<button class="dz-picker-option '+(opt.value===selected?"selected":"")+'" data-value="'+h(opt.value)+'">'+
+            '<span class="dz-opt-main"><span>'+h(opt.label)+'</span></span><span class="dz-check">✓</span>'+
+          '</button>'
+        ).join("")+'</div>'+
+      '</section>';
+    document.body.appendChild(wrap);
+    wrap.querySelector(".dz-picker-close").onclick=()=>wrap.remove();
+    wrap.onclick=e=>{if(e.target===wrap) wrap.remove();};
+    wrap.querySelectorAll("[data-value]").forEach(btn=>{
+      btn.onclick=()=>{
+        const next=readExplorePrefs();
+        if(kind==="sort") next.sort=btn.dataset.value;
+        else next.radius=Number(btn.dataset.value)||0;
+        saveExplorePrefs(next);
+        wrap.remove();
+        renderExplore(false);
+      };
+    });
+  }
+
   function exploreControlsHtml(rows,prefs,isFr){
     const counts={};
     (rows||[]).forEach(d=>{
@@ -593,28 +644,18 @@
       '<button data-source="all" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
     ];
     Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
-      const active=prefs.source===key;
-      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(active)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
+      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
     });
-    const radiusOptions=[
-      [0,isFr?"Tout rayon":"Any"],
-      [5,"5 mi"],[10,"10 mi"],[25,"25 mi"],[50,"50 mi"]
-    ];
-    const sortOptions=[
-      ["best",isFr?"Meilleur":"Best"],
-      ["nearest",isFr?"Plus proche":"Nearest"],
-      ["rating",isFr?"Mieux noté":"Top rated"],
-      ["price",isFr?"Prix bas":"Price low"]
-    ];
+
+    const sortLabels={best:isFr?"Meilleur":"Best",nearest:isFr?"Plus proche":"Nearest",rating:isFr?"Mieux noté":"Top rated",price:isFr?"Prix bas":"Price low"};
+    const radiusLabel=Number(prefs.radius)>0?prefs.radius+" mi":(isFr?"Tout rayon":"Any radius");
+    const choiceStyle="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px 12px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;font:inherit;color:#182230;text-align:left";
+
     return '<div id="dzExplorePro" style="grid-column:1/-1;background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:12px;margin:0 0 10px;box-shadow:0 6px 18px rgba(17,24,39,.04)">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px"><b style="font-size:14px">'+(isFr?"Affiner les résultats":"Refine results")+'</b><button id="dzExploreRefresh" style="border:0;background:#f4f5f8;border-radius:999px;padding:7px 11px;font:inherit;font-size:12px;font-weight:800;color:#475467">↻ '+(isFr?"Actualiser":"Refresh")+'</button></div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-        '<label class="meta">'+(isFr?"Trier":"Sort")+'<select id="dzExploreSort" style="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px;background:#fff">'+
-          sortOptions.map(([v,l])=>'<option value="'+v+'" '+(prefs.sort===v?"selected":"")+'>'+l+'</option>').join("")+
-        '</select></label>'+
-        '<label class="meta">'+(isFr?"Rayon":"Radius")+'<select id="dzExploreRadius" style="width:100%;margin-top:4px;border:1px solid #dfe3eb;border-radius:12px;padding:10px;background:#fff">'+
-          radiusOptions.map(([v,l])=>'<option value="'+v+'" '+(Number(prefs.radius)===v?"selected":"")+'>'+l+'</option>').join("")+
-        '</select></label>'+
+        '<label class="meta">'+(isFr?"Trier":"Sort")+'<button type="button" id="dzExploreSortBtn" style="'+choiceStyle+'"><span>'+h(sortLabels[prefs.sort]||sortLabels.best)+'</span><span>⌄</span></button></label>'+
+        '<label class="meta">'+(isFr?"Rayon":"Radius")+'<button type="button" id="dzExploreRadiusBtn" style="'+choiceStyle+'"><span>'+h(radiusLabel)+'</span><span>⌄</span></button></label>'+
       '</div>'+
       '<div id="dzExploreSources" style="display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;padding:9px 1px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch">'+sourceButtons.join("")+'</div>'+
     '</div>';
@@ -1089,14 +1130,10 @@
         : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre ne correspond à ces filtres. Élargis le rayon ou choisis Toutes les sources.":"No offers match these filters. Increase the radius or choose All sources.")+'</div>';
       root.innerHTML=controls+travelCards+liveHtml;
 
-      const sort=root.querySelector("#dzExploreSort");
-      const radius=root.querySelector("#dzExploreRadius");
-      if(sort) sort.onchange=()=>{
-        const next=readExplorePrefs(); next.sort=sort.value; saveExplorePrefs(next); renderExplore(false);
-      };
-      if(radius) radius.onchange=()=>{
-        const next=readExplorePrefs(); next.radius=Number(radius.value)||0; saveExplorePrefs(next); renderExplore(false);
-      };
+      const sortBtn=root.querySelector("#dzExploreSortBtn");
+      const radiusBtn=root.querySelector("#dzExploreRadiusBtn");
+      if(sortBtn) sortBtn.onclick=()=>openExploreChoicePicker("sort");
+      if(radiusBtn) radiusBtn.onclick=()=>openExploreChoicePicker("radius");
       root.querySelectorAll("#dzExploreSources [data-source]").forEach(btn=>{
         btn.onclick=()=>{
           const next=readExplorePrefs(); next.source=btn.dataset.source||"all"; saveExplorePrefs(next); renderExplore(false);
@@ -1456,10 +1493,20 @@
         : tr("Change market");
     }
 
-    const popularHeading=document.querySelector("#homeView .section:nth-of-type(2) .sectionHead h2");
+    const popularHeading=document.getElementById("popularHeading");
     if(popularHeading){
       const profile=readOnboarding();
       popularHeading.textContent=profile.completed?tr("For you in {city}",{city:market.city}):tr("Popular in {city}",{city:market.city});
+    }
+
+    const geoTitle=document.getElementById("geoTitle");
+    const geoSub=document.getElementById("geoSub");
+    const geoButton=document.getElementById("useLocationBtn");
+    const locationMode=localStorage.getItem("dealzyLocationMode")||"manual";
+    if(locationMode==="manual"){
+      if(geoTitle) geoTitle.textContent=locale()==="fr"?"Marché sélectionné":"Selected market";
+      if(geoSub) geoSub.textContent=flag+" "+marketCityLabel();
+      if(geoButton) geoButton.textContent=locale()==="fr"?"Utiliser ma position réelle":"Use my real location";
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");

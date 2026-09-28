@@ -35,7 +35,8 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
     private static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String API_ORIGIN = "https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app";
+    private static final String STAGING_API_ORIGIN = "https://dealzy-v1-git-android-personali-371ee4-simocosto-5501s-projects.vercel.app";
+    private static final String FALLBACK_API_ORIGIN = "https://dealzy-v1.vercel.app";
 
     private WebView webView;
     private GeolocationPermissions.Callback geoCallback;
@@ -159,6 +160,80 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
+    private static class ApiPayload {
+        int status;
+        String reason;
+        String mime;
+        String charset;
+        Map<String, String> headers;
+        byte[] data;
+    }
+
+    private ApiPayload fetchApiPayload(Uri local, WebResourceRequest request, String origin) throws Exception {
+        URL remote = new URL(origin + local.getEncodedPath()
+                + (local.getEncodedQuery() == null ? "" : "?" + local.getEncodedQuery()));
+        HttpURLConnection conn = (HttpURLConnection) remote.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setInstanceFollowRedirects(true);
+        conn.setConnectTimeout(12000);
+        conn.setReadTimeout(20000);
+        conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
+        conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.20-staging-fallback");
+
+        ApiPayload payload = new ApiPayload();
+        payload.status = conn.getResponseCode();
+        InputStream input = payload.status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+        payload.data = readFully(input);
+
+        String contentType = conn.getContentType();
+        payload.mime = "application/json";
+        payload.charset = "UTF-8";
+        if (contentType != null) {
+            String[] parts = contentType.split(";");
+            if (parts.length > 0 && !parts[0].trim().isEmpty()) payload.mime = parts[0].trim();
+            for (String part : parts) {
+                String p = part.trim().toLowerCase();
+                if (p.startsWith("charset=")) payload.charset = part.substring(part.indexOf('=') + 1).trim();
+            }
+        }
+
+        payload.headers = new HashMap<>();
+        for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null && !entry.getValue().isEmpty()) {
+                payload.headers.put(entry.getKey(), entry.getValue().get(0));
+            }
+        }
+        payload.headers.put("Cache-Control", "no-store");
+        payload.reason = conn.getResponseMessage();
+        if (payload.reason == null || payload.reason.trim().isEmpty()) {
+            payload.reason = payload.status < 400 ? "OK" : "Error";
+        }
+        conn.disconnect();
+        return payload;
+    }
+
+    private boolean shouldFallback(Uri local, ApiPayload payload) {
+        if (payload == null || payload.status < 200 || payload.status >= 300) return true;
+        String body;
+        try {
+            body = new String(payload.data, "UTF-8").trim();
+        } catch (Exception e) {
+            return true;
+        }
+        if (!body.startsWith("{") && !body.startsWith("[")) return true;
+        String path = local.getPath() == null ? "" : local.getPath();
+        return path.equals("/api/search") && body.contains("\"mode\":\"demo-fallback\"");
+    }
+
+    private WebResourceResponse toWebResponse(ApiPayload payload, String source) {
+        if (payload == null) return null;
+        payload.headers.put("X-Dealzy-Api-Source", source);
+        return new WebResourceResponse(
+                payload.mime, payload.charset, payload.status, payload.reason,
+                payload.headers, new ByteArrayInputStream(payload.data)
+        );
+    }
+
     private WebResourceResponse proxyApi(WebResourceRequest request) {
         try {
             if (!"GET".equalsIgnoreCase(request.getMethod())) {
@@ -170,49 +245,20 @@ public class MainActivity extends Activity {
             }
 
             Uri local = request.getUrl();
-            URL remote = new URL(API_ORIGIN + local.getEncodedPath()
-                    + (local.getEncodedQuery() == null ? "" : "?" + local.getEncodedQuery()));
-            HttpURLConnection conn = (HttpURLConnection) remote.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(12000);
-            conn.setReadTimeout(20000);
-            conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-            conn.setRequestProperty("User-Agent", "Dealzy-Android-Test/0.19-staging");
+            ApiPayload staging = null;
+            try {
+                staging = fetchApiPayload(local, request, STAGING_API_ORIGIN);
+            } catch (Exception ignored) {}
 
-            int status = conn.getResponseCode();
-            InputStream input = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            byte[] data = readFully(input);
-
-            String contentType = conn.getContentType();
-            String mime = "application/json";
-            String charset = "UTF-8";
-            if (contentType != null) {
-                String[] parts = contentType.split(";");
-                if (parts.length > 0 && !parts[0].trim().isEmpty()) mime = parts[0].trim();
-                for (String part : parts) {
-                    String p = part.trim().toLowerCase();
-                    if (p.startsWith("charset=")) charset = part.substring(part.indexOf('=') + 1).trim();
-                }
+            if (!shouldFallback(local, staging)) {
+                return toWebResponse(staging, "staging");
             }
 
-            Map<String, String> headers = new HashMap<>();
-            for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-                if (entry.getKey() != null && entry.getValue() != null && !entry.getValue().isEmpty()) {
-                    headers.put(entry.getKey(), entry.getValue().get(0));
-                }
-            }
-            headers.put("Cache-Control", "no-store");
-
-            String reason = conn.getResponseMessage();
-            if (reason == null || reason.trim().isEmpty()) reason = status < 400 ? "OK" : "Error";
-            conn.disconnect();
-
-            return new WebResourceResponse(
-                    mime, charset, status, reason, headers, new ByteArrayInputStream(data)
-            );
+            ApiPayload fallback = fetchApiPayload(local, request, FALLBACK_API_ORIGIN);
+            return toWebResponse(fallback, "production-fallback");
         } catch (Exception e) {
             try {
-                byte[] body = ("{\"ok\":false,\"error\":\"API proxy unavailable\"}").getBytes("UTF-8");
+                byte[] body = "{\"ok\":false,\"error\":\"API proxy unavailable\"}".getBytes("UTF-8");
                 return new WebResourceResponse(
                         "application/json", "UTF-8", 503, "Service Unavailable",
                         new HashMap<>(), new ByteArrayInputStream(body)
