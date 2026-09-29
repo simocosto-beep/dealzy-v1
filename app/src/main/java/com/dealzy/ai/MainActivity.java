@@ -16,31 +16,19 @@ import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import androidx.webkit.WebViewAssetLoader;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 public class MainActivity extends Activity {
     private static final int LOCATION_REQUEST = 1001;
-    private static final String APP_HOST = "appassets.androidplatform.net";
-    private static final String STAGING_API_ORIGIN = "https://dealzy-v1.vercel.app";
-    private static final String FALLBACK_API_ORIGIN = "https://dealzy-v1.vercel.app";
+    private static final String PROD_ORIGIN = "https://dealzy-v1.vercel.app";
+    private static final String PROD_HOST = "dealzy-v1.vercel.app";
 
     private WebView webView;
     private GeolocationPermissions.Callback geoCallback;
     private String geoOrigin;
+    private boolean backEvaluationPending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,11 +48,10 @@ public class MainActivity extends Activity {
 
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);
-        FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
+        root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
-        );
-        root.addView(webView, webParams);
+        ));
         setContentView(root);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -93,40 +80,31 @@ public class MainActivity extends Activity {
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setUserAgentString(s.getUserAgentString() + " Dealzy-Android/1.0.1");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
-        WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                .setDomain(APP_HOST)
-                .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .build();
-
         webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                if (APP_HOST.equalsIgnoreCase(uri.getHost()) && uri.getPath() != null && uri.getPath().startsWith("/api/")) {
-                    return proxyApi(request);
-                }
-                return assetLoader.shouldInterceptRequest(uri);
-            }
-
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+                String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
 
                 if ("tel".equals(scheme) || "geo".equals(scheme) || "mailto".equals(scheme)) {
                     openExternal(uri);
                     return true;
                 }
 
-                if (("http".equals(scheme) || "https".equals(scheme)) && !APP_HOST.equalsIgnoreCase(uri.getHost())) {
+                if ("http".equals(scheme) || "https".equals(scheme)) {
+                    if (PROD_HOST.equals(host)) return false;
                     openExternal(uri);
                     return true;
                 }
-                return false;
+
+                openExternal(uri);
+                return true;
             }
         });
 
@@ -146,7 +124,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.loadUrl("https://" + APP_HOST + "/index.html");
+        webView.loadUrl(PROD_ORIGIN + "/?android=1&appVersion=1.0.1");
     }
 
     private boolean hasLocationPermission() {
@@ -160,125 +138,6 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
-    private static class ApiPayload {
-        int status;
-        String reason;
-        String mime;
-        String charset;
-        Map<String, String> headers;
-        byte[] data;
-    }
-
-    private ApiPayload fetchApiPayload(Uri local, WebResourceRequest request, String origin) throws Exception {
-        URL remote = new URL(origin + local.getEncodedPath()
-                + (local.getEncodedQuery() == null ? "" : "?" + local.getEncodedQuery()));
-        HttpURLConnection conn = (HttpURLConnection) remote.openConnection();
-        conn.setRequestMethod("GET");
-        conn.setInstanceFollowRedirects(true);
-        conn.setConnectTimeout(12000);
-        conn.setReadTimeout(20000);
-        conn.setRequestProperty("Accept", request.getRequestHeaders().getOrDefault("Accept", "application/json"));
-        conn.setRequestProperty("User-Agent", "Dealzy-Android/1.0.1");
-
-        ApiPayload payload = new ApiPayload();
-        payload.status = conn.getResponseCode();
-        InputStream input = payload.status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        payload.data = readFully(input);
-
-        String contentType = conn.getContentType();
-        payload.mime = "application/json";
-        payload.charset = "UTF-8";
-        if (contentType != null) {
-            String[] parts = contentType.split(";");
-            if (parts.length > 0 && !parts[0].trim().isEmpty()) payload.mime = parts[0].trim();
-            for (String part : parts) {
-                String p = part.trim().toLowerCase();
-                if (p.startsWith("charset=")) payload.charset = part.substring(part.indexOf('=') + 1).trim();
-            }
-        }
-
-        payload.headers = new HashMap<>();
-        for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
-            if (entry.getKey() != null && entry.getValue() != null && !entry.getValue().isEmpty()) {
-                payload.headers.put(entry.getKey(), entry.getValue().get(0));
-            }
-        }
-        payload.headers.put("Cache-Control", "no-store");
-        payload.reason = conn.getResponseMessage();
-        if (payload.reason == null || payload.reason.trim().isEmpty()) {
-            payload.reason = payload.status < 400 ? "OK" : "Error";
-        }
-        conn.disconnect();
-        return payload;
-    }
-
-    private boolean shouldFallback(Uri local, ApiPayload payload) {
-        if (payload == null || payload.status < 200 || payload.status >= 300) return true;
-        String body;
-        try {
-            body = new String(payload.data, "UTF-8").trim();
-        } catch (Exception e) {
-            return true;
-        }
-        if (!body.startsWith("{") && !body.startsWith("[")) return true;
-        String path = local.getPath() == null ? "" : local.getPath();
-        return path.equals("/api/search") && body.contains("\"mode\":\"demo-fallback\"");
-    }
-
-    private WebResourceResponse toWebResponse(ApiPayload payload, String source) {
-        if (payload == null) return null;
-        payload.headers.put("X-Dealzy-Api-Source", source);
-        return new WebResourceResponse(
-                payload.mime, payload.charset, payload.status, payload.reason,
-                payload.headers, new ByteArrayInputStream(payload.data)
-        );
-    }
-
-    private WebResourceResponse proxyApi(WebResourceRequest request) {
-        try {
-            if (!"GET".equalsIgnoreCase(request.getMethod())) {
-                byte[] body = "{\"ok\":false,\"error\":\"Dealzy API proxy supports GET only\"}".getBytes("UTF-8");
-                return new WebResourceResponse(
-                        "application/json", "UTF-8", 405, "Method Not Allowed",
-                        new HashMap<>(), new ByteArrayInputStream(body)
-                );
-            }
-
-            Uri local = request.getUrl();
-            ApiPayload staging = null;
-            try {
-                staging = fetchApiPayload(local, request, STAGING_API_ORIGIN);
-            } catch (Exception ignored) {}
-
-            if (!shouldFallback(local, staging)) {
-                return toWebResponse(staging, "production");
-            }
-
-            ApiPayload fallback = fetchApiPayload(local, request, FALLBACK_API_ORIGIN);
-            return toWebResponse(fallback, "production");
-        } catch (Exception e) {
-            try {
-                byte[] body = "{\"ok\":false,\"error\":\"API proxy unavailable\"}".getBytes("UTF-8");
-                return new WebResourceResponse(
-                        "application/json", "UTF-8", 503, "Service Unavailable",
-                        new HashMap<>(), new ByteArrayInputStream(body)
-                );
-            } catch (Exception ignored) {
-                return null;
-            }
-        }
-    }
-
-    private byte[] readFully(InputStream input) throws Exception {
-        if (input == null) return new byte[0];
-        try (InputStream in = input; ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int n;
-            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-            return out.toByteArray();
-        }
-    }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -289,8 +148,6 @@ public class MainActivity extends Activity {
             geoOrigin = null;
         }
     }
-
-    private boolean backEvaluationPending = false;
 
     private void fallbackBack() {
         if (webView != null && webView.canGoBack()) {
