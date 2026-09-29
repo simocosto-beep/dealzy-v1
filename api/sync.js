@@ -1,3 +1,4 @@
+const {accountAccess,deniedMessage}=require('./_accountAccess');
 function cfg(){
   return {base:'https://stkmhgeuavsidpapqvyw.supabase.co',key:'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh'};
 }
@@ -96,6 +97,9 @@ module.exports = async function handler(req,res){
   if(!jwt) return res.status(401).json({error:'Missing access token'});
   const user=await currentUser(base,key,jwt);
   if(!user||!user.id) return res.status(401).json({error:'Invalid session'});
+  const access=await accountAccess(jwt);
+  if(!access.ok) return res.status(503).json({error:access.error||'Account access check unavailable'});
+  if(!access.allowed) return res.status(403).json({error:deniedMessage(access),account_status:access.status,reason:access.reason||null});
   const headers={'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+jwt};
 
   if(req.method==='GET'){

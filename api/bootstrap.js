@@ -1,3 +1,4 @@
+const {accountAccess,deniedMessage}=require('./_accountAccess');
 const BASE='https://stkmhgeuavsidpapqvyw.supabase.co';
 const KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 
@@ -11,6 +12,9 @@ module.exports=async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({ok:false,error:'Method not allowed'});
   const jwt=token(req);
   if(!jwt) return res.status(401).json({ok:false,error:'Missing access token'});
+  const access=await accountAccess(jwt);
+  if(!access.ok) return res.status(503).json({ok:false,error:access.error||'Account access check unavailable'});
+  if(!access.allowed) return res.status(403).json({ok:false,error:deniedMessage(access),account_status:access.status,reason:access.reason||null});
   try{
     const r=await fetch(BASE+'/rest/v1/rpc/dealzy_app_bootstrap',{
       method:'POST',

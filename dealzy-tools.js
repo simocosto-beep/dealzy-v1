@@ -126,8 +126,14 @@
       try{
         const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refresh',refresh_token:session.refresh_token})});
         const fresh=await r.json();
+        if((r.status===401||r.status===403)){
+          localStorage.removeItem('dealzyCloudSession');
+          localStorage.setItem('dealzyAccountAccessError',String(fresh.error||fresh.message||'Your Dealzy account is unavailable.'));
+          return null;
+        }
         if(r.ok && fresh.access_token){
           fresh.expires_at=Math.floor(Date.now()/1000)+Number(fresh.expires_in||3600);
+          localStorage.removeItem('dealzyAccountAccessError');
           localStorage.setItem('dealzyCloudSession',JSON.stringify(fresh));
           return fresh;
         }
@@ -394,8 +400,14 @@
       const status=panel.querySelector('#dzSyncStatus');
       const cloudV2=panel.querySelector('#dzCloudV2Status');
       fetch('/api/bootstrap',{headers:{'Authorization':'Bearer '+session.access_token},cache:'no-store'})
-        .then(async r=>({ok:r.ok,data:await r.json()}))
-        .then(({ok,data})=>{
+        .then(async r=>({ok:r.ok,status:r.status,data:await r.json()}))
+        .then(({ok,status,data})=>{
+          if(status===403){
+            localStorage.removeItem(sessionKey);
+            localStorage.setItem('dealzyAccountAccessError',String(data&&data.error||'Your Dealzy account is unavailable.'));
+            accountTool();
+            return;
+          }
           if(!cloudV2) return;
           if(!ok||!data||!data.ok){cloudV2.textContent='Cloud sync connected · advanced backend temporarily unavailable';return}
           const unread=Number(data.bootstrap&&data.bootstrap.notifications&&data.bootstrap.notifications.unread_count||0);
@@ -411,7 +423,14 @@
         status.innerHTML='<div class="dz-result">Syncing…</div>';
         try{
           const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:bundle()})});
-          const d=await r.json(); if(!r.ok) throw new Error(d.error||'Sync failed');
+          const d=await r.json();
+          if(r.status===403){
+            localStorage.removeItem(sessionKey);
+            localStorage.setItem('dealzyAccountAccessError',String(d.error||'Your Dealzy account is unavailable.'));
+            accountTool();
+            return;
+          }
+          if(!r.ok) throw new Error(d.error||'Sync failed');
           status.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b><br><span class="dz-small">'+(d.structured&&d.structured.ok?'Structured Supabase tables updated.':'Legacy backup saved; structured sync partially pending.')+'</span></div>';
         }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Sync failed')+'</div>'}
       };
@@ -419,7 +438,14 @@
         status.innerHTML='<div class="dz-result">Restoring…</div>';
         try{
           const r=await fetch('/api/sync',{headers:{'Authorization':'Bearer '+session.access_token}});
-          const d=await r.json(); if(!r.ok) throw new Error(d.error||'Restore failed');
+          const d=await r.json();
+          if(r.status===403){
+            localStorage.removeItem(sessionKey);
+            localStorage.setItem('dealzyAccountAccessError',String(d.error||'Your Dealzy account is unavailable.'));
+            accountTool();
+            return;
+          }
+          if(!r.ok) throw new Error(d.error||'Restore failed');
           if(d.data) Object.entries(d.data).forEach(([k,v])=>localStorage.setItem(k,String(v)));
           status.innerHTML='<div class="dz-result"><b>Cloud data restored.</b> Reload Dealzy to apply it.</div>';
         }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Restore failed')+'</div>'}
@@ -428,7 +454,9 @@
       return;
     }
 
+    const accessError=localStorage.getItem('dealzyAccountAccessError')||'';
     showPanel(`<h3>👤 My Dealzy</h3>
+      ${accessError?'<div class="dz-result"><b>Account unavailable</b><br><span class="dz-small">'+esc(accessError)+'</span></div>':''}
       <div class="dz-form">
         <label>Email<input id="dzCloudEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
         <label>Password<input id="dzCloudPassword" type="password" minlength="6" placeholder="Minimum 6 characters"></label>
@@ -446,6 +474,7 @@
         const d=await r.json();
         if(!r.ok) throw new Error(d.msg||d.message||d.error_description||d.error||'Authentication failed');
         if(d.access_token){
+          localStorage.removeItem('dealzyAccountAccessError');
           localStorage.setItem(sessionKey,JSON.stringify(d));
           localStorage.setItem(profileKey,JSON.stringify({...profile,email,updatedAt:new Date().toISOString()}));
           accountTool();
