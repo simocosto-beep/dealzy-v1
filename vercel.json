@@ -59,6 +59,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/health",
+      "destination": "/api/cloud-status?view=health"
+    },
+    {
       "source": "/reset-password",
       "destination": "/reset-password.html"
     },
