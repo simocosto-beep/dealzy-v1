@@ -182,19 +182,35 @@ function renderUserDetail(detail){
 
   const protectedAccount=!!u.protected_superadmin;
   const isSelf=selectedUser===session?.user?.id;
-  const canEditIdentity=admin?.role==='superadmin'&&(!protectedAccount||isSelf);
-  const canEditRoleStatus=admin?.role==='superadmin'&&!protectedAccount;
+  const targetRole=String(u.role||'user');
+  const targetIsStaff=['superadmin','admin','viewer'].includes(targetRole);
+  const callerIsSuperadmin=admin?.role==='superadmin';
+  const callerIsAdmin=admin?.role==='admin';
 
-  ['editUserName','editUserEmail','editUserPhone','editUserPassword',
-   'saveUserIdentityBtn','setUserPasswordBtn','sendUserResetBtn']
+  const canEditIdentity=
+    (callerIsSuperadmin&&(!protectedAccount||isSelf)) ||
+    (callerIsAdmin&&(!targetIsStaff||isSelf));
+  const canEditRole=callerIsSuperadmin&&!protectedAccount;
+  const canEditStatus=
+    (callerIsSuperadmin&&!protectedAccount) ||
+    (callerIsAdmin&&!targetIsStaff&&!isSelf);
+  const canResetPassword=canEditIdentity;
+
+  ['editUserName','editUserEmail','editUserPhone','saveUserIdentityBtn']
     .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditIdentity;});
 
-  ['editUserRole','editUserStatus','editUserReason','editUserNotes',
-   'saveUserRoleBtn','saveUserStatusBtn']
-    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditRoleStatus;});
+  ['editUserRole','saveUserRoleBtn']
+    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditRole;});
 
-  if(protectedAccount&&isSelf) modalMsg('Your superadmin role and account status are protected. You can still update your identity and password.');
-  else if(protectedAccount) modalMsg('Protected superadmin account. Role, status and identity changes are locked.');
+  ['editUserStatus','editUserReason','editUserNotes','saveUserStatusBtn']
+    .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditStatus;});
+
+  if($('#sendUserResetBtn')) $('#sendUserResetBtn').disabled=!canResetPassword;
+
+  if(admin?.role==='viewer') modalMsg('Viewer access is read only.');
+  else if(protectedAccount&&isSelf) modalMsg('Your superadmin role and account status are protected. You can update your identity and request a password reset.');
+  else if(protectedAccount) modalMsg('Protected superadmin account. Changes are locked.');
+  else if(callerIsAdmin&&targetIsStaff&&!isSelf) modalMsg('Admins can view staff accounts but can only modify normal users.');
   else modalMsg('');
 
   $('#userDetailStats').innerHTML=[
@@ -262,7 +278,7 @@ async function refreshSelectedUser(){
 }
 
 async function saveSelectedIdentity(){
-  if(!selectedUser||admin?.role!=='superadmin') return;
+  if(!selectedUser||!['superadmin','admin'].includes(admin?.role)) return;
   try{
     modalMsg('Saving…');
     await adminEdge('update_identity',{
@@ -289,7 +305,7 @@ async function saveSelectedRole(){
 }
 
 async function saveSelectedStatus(){
-  if(!selectedUser||admin?.role!=='superadmin') return;
+  if(!selectedUser||!['superadmin','admin'].includes(admin?.role)) return;
   const status=$('#editUserStatus').value;
   const word=status==='active'?'reactivate':status==='blacklisted'?'blacklist':'disable';
   if(!confirm('Confirm: '+word+' this user?')) return;
@@ -305,20 +321,8 @@ async function saveSelectedStatus(){
   }catch(e){modalMsg(e.message,true)}
 }
 
-async function setSelectedPassword(){
-  if(!selectedUser||admin?.role!=='superadmin') return;
-  const password=$('#editUserPassword').value;
-  if(password.length<12) return modalMsg('Temporary password must be at least 12 characters.',true);
-  if(!confirm('Set a new password for this user? Their current password will stop working.')) return;
-  try{
-    await adminEdge('set_password',{target_user:selectedUser,password});
-    $('#editUserPassword').value='';
-    modalMsg('Password changed.');
-  }catch(e){modalMsg(e.message,true)}
-}
-
 async function sendSelectedReset(){
-  if(!selectedUser||admin?.role!=='superadmin') return;
+  if(!selectedUser||!['superadmin','admin'].includes(admin?.role)) return;
   try{
     await adminEdge('send_password_reset',{target_user:selectedUser});
     modalMsg('Password reset email sent.');
@@ -588,7 +592,7 @@ function readRecoverySession(){
   const access_token=hash.get('access_token');
   const refresh_token=hash.get('refresh_token');
   const type=hash.get('type');
-  if(type==='recovery'&&access_token){
+  if((type==='recovery'||type==='invite')&&access_token){
     return {access_token,refresh_token,type};
   }
   return null;
@@ -1276,7 +1280,6 @@ $('#sendInviteUserBtn').onclick=inviteUser;
 $('#saveUserIdentityBtn').onclick=saveSelectedIdentity;
 $('#saveUserRoleBtn').onclick=saveSelectedRole;
 $('#saveUserStatusBtn').onclick=saveSelectedStatus;
-$('#setUserPasswordBtn').onclick=setSelectedPassword;
 $('#sendUserResetBtn').onclick=sendSelectedReset;
 $('#userSearchBtn').onclick=()=>reloadUsers(true);
 $('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();reloadUsers(true)}});

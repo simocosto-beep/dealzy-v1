@@ -171,7 +171,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <span id="userPageInfo" class="sub">—</span>
         <button id="userNextBtn" class="btn btn-ghost">Next →</button>
       </div>
-      <p class="sub" style="margin:12px 0 0">To promote someone, they must already have a Dealzy account. Only a superadmin can change roles or disable accounts.</p>
+      <p class="sub" style="margin:12px 0 0">To promote someone, they must already have a Dealzy account. Superadmin manages staff roles. Admin can manage normal user accounts. Viewer is read only.</p>
     </section>
 
     <section id="ordersPanel" class="panel" data-admin-page="orders">
@@ -594,13 +594,9 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
 
       <div class="section-box">
         <h3>Password</h3>
-        <p class="sub">You can send a reset email, or set a temporary password directly. Existing passwords are never visible.</p>
-        <div class="form-grid">
-          <div><label>Temporary password</label><input id="editUserPassword" class="field" type="password" minlength="12" autocomplete="new-password" placeholder="12+ characters"></div>
-          <div class="modal-actions" style="align-items:end;padding-top:30px">
-            <button id="setUserPasswordBtn" class="btn btn-ghost danger">Set password</button>
-            <button id="sendUserResetBtn" class="btn btn-ghost">Send reset email</button>
-          </div>
+        <p class="sub">Passwords are never visible and cannot be set directly by staff. Send the user a secure reset link instead.</p>
+        <div class="modal-actions">
+          <button id="sendUserResetBtn" class="btn btn-ghost">Send password reset link</button>
         </div>
       </div>
 
@@ -639,5 +635,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260929a"></script>
+<script src="/admin.js?v=20260929b"></script>
 </body></html>
