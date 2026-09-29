@@ -1067,9 +1067,10 @@ async function changeUserDisabled(userId,isDisabled){
   const action=isDisabled?'enable':'disable';
   if(!confirm('Are you sure you want to '+action+' this account?')) return;
   try{
-    await api('/rest/v1/rpc/dealzy_superadmin_set_user_disabled',{
-      method:'POST',
-      body:JSON.stringify({target_user:userId,disabled:!isDisabled})
+    await adminEdge('set_status',{
+      target_user:userId,
+      status:isDisabled?'active':'disabled',
+      reason:'Changed from Dealzy Admin'
     });
     flash('Account '+(isDisabled?'enabled':'disabled')+'.');
     users=await fetchUsers($('#userSearch').value||'');

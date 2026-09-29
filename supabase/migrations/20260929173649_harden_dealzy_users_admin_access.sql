@@ -16,6 +16,14 @@ grant select on public.dealzy_user_admin_state to authenticated;
 grant select on public.dealzy_user_controls to authenticated;
 grant select on public.dealzy_admin_audit_log to authenticated;
 
+-- These older SECURITY DEFINER endpoints also mutate roles or account status.
+-- Their protection checks use a variable named current_role, which PostgreSQL
+-- resolves as the built-in current_role expression in PL/pgSQL conditions.
+-- Retire them in favor of the corrected staff RPC and checked Edge endpoint.
+revoke execute on function public.dealzy_superadmin_set_admin_role(uuid,text) from public, anon, authenticated;
+revoke execute on function public.dealzy_superadmin_set_user_disabled(uuid,boolean) from public, anon, authenticated;
+revoke execute on function public.dealzy_superadmin_set_user_status(uuid,text,text,text) from public, anon, authenticated;
+
 -- The role RPC remains the only browser-callable role mutation. Include a
 -- stable user id in audit records so history survives an email change.
 create or replace function public.dealzy_superadmin_set_staff(target_user uuid, new_role text)
@@ -26,7 +34,7 @@ as $function$
 declare
   uid uuid := auth.uid();
   target_email text;
-  current_role text;
+  target_existing_role text;
   requested_role text := lower(coalesce(new_role,''));
 begin
   if uid is null or not public.dealzy_is_superadmin(uid) then
@@ -43,10 +51,10 @@ begin
     raise exception 'user not found';
   end if;
 
-  select role into current_role
-  from public.dealzy_admin_users
-  where user_id=target_user;
-  if current_role='superadmin' then
+  select a.role into target_existing_role
+  from public.dealzy_admin_users a
+  where a.user_id=target_user;
+  if target_existing_role='superadmin' then
     raise exception 'protected superadmin cannot be changed';
   end if;
 
@@ -63,7 +71,7 @@ begin
 
   insert into public.dealzy_admin_audit_log(user_id,action,target,details)
   values(uid,'admin_role.update',target_email,
-    jsonb_build_object('target_user_id',target_user,'before',coalesce(current_role,'user'),'after',requested_role));
+    jsonb_build_object('target_user_id',target_user,'before',coalesce(target_existing_role,'user'),'after',requested_role));
   return jsonb_build_object('ok',true,'user_id',target_user,'role',requested_role);
 end;
 $function$;
