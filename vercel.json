@@ -42,9 +42,26 @@
           "value": "noindex, nofollow"
         }
       ]
+    },
+    {
+      "source": "/reset-password(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/reset-password",
+      "destination": "/reset-password.html"
+    },
     {
       "source": "/admin",
       "destination": "/admin.html"
