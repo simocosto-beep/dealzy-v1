@@ -11,6 +11,13 @@
     }catch(_){return ''}
   }
 
+  function partnerHref(value){
+    try{
+      const url=new URL(String(value||""));
+      return url.protocol==="https:"||url.protocol==="http:"?url.href:"";
+    }catch(_){return "";}
+  }
+
   function applyRuntimeContent(){
     const c=runtimeContent||{};
     const tag=document.querySelector('.brand .tag');
@@ -1123,12 +1130,18 @@
     const call=actions.querySelector("#dzDetailCall");
     if(call) call.onclick=()=>{location.href="tel:"+String(d.phone).replace(/[^+\d]/g,"");};
 
-    $("#partnerBtn").textContent=tr("Open on {source} ↗",{source:d.source||"Partner"});
-    $("#partnerBtn").onclick=()=>{
-      if(d.partnerUrl){
-        trackPartnerClick(d);
-        window.open(d.partnerUrl,"_blank","noopener,noreferrer");
-      }else toast(tr("Partner link is temporarily unavailable."));
+    const partnerButton=$("#partnerBtn");
+    const href=partnerHref(d.partnerUrl);
+    partnerButton.textContent=tr("Open on {source} ↗",{source:d.source||"Partner"});
+    partnerButton.href=href||"#";
+    partnerButton.target=href?"_blank":"";
+    partnerButton.rel=href?"noopener noreferrer":"";
+    partnerButton.onclick=e=>{
+      if(href) trackPartnerClick(d);
+      else{
+        e.preventDefault();
+        toast(tr("Partner link is temporarily unavailable."));
+      }
     };
 
     $("#detailOverlay").classList.remove("hidden");
@@ -1186,6 +1199,8 @@
   }
 
   function openExploreTravelPartner(provider,url,title){
+    const href=partnerHref(url);
+    if(!href){toast(tr("Partner link is temporarily unavailable."));return;}
     trackPartnerClick({
       provider:String(provider||"travel").toLowerCase(),
       source:provider||"Travel",
@@ -1193,11 +1208,16 @@
       externalId:null
     });
     if(location.hostname==="appassets.androidplatform.net"){
-      location.href=url;
+      location.href=href;
       return;
     }
-    const popup=window.open(url,"_blank","noopener,noreferrer");
-    if(!popup) location.href=url;
+    const link=document.createElement("a");
+    link.href=href;
+    link.target="_blank";
+    link.rel="noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function renderExploreTravelForm(kind){
