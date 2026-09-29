@@ -3,7 +3,7 @@ name: Build Dealzy Play Release
 on:
   push:
     branches:
-      - release/play-v1
+      - release/play-v1.1
   workflow_dispatch:
 
 permissions:
@@ -39,46 +39,42 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Prepare production web assets
-        run: |
-          mkdir -p app/src/main/assets
-          cp index.html dealzy-live.js dealzy-tools.js dealzy-providers.js dealzy-i18n.js app/src/main/assets/
-          cp icon.svg manifest.webmanifest privacy.html affiliate-disclosure.html app/src/main/assets/
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path("app/src/main/assets/dealzy-tools.js")
-          s=p.read_text()
-          import re
-          s,n=re.subn(r"navigator\.serviceWorker\.register\([^\n;]+\)", "Promise.reject(new Error('native-apk-service-worker-disabled'))", s, count=1)
-          if n != 1:
-              raise SystemExit("Service worker registration call not found")
-          p.write_text(s)
-          PY
-
-      - name: Validate production release
+      - name: Validate official Android config
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          live=Path("app/src/main/assets/dealzy-live.js").read_text()
-          index=Path("app/src/main/assets/index.html").read_text()
           main=Path("app/src/main/java/com/dealzy/ai/MainActivity.java").read_text()
           gradle=Path("app/build.gradle").read_text()
-          assert "new MutationObserver" not in live
-          assert "showOnboarding(true)" not in live
-          assert "$$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view))" in index
+          manifest=Path("app/src/main/AndroidManifest.xml").read_text()
           assert 'https://dealzy-v1.vercel.app' in main
           assert 'dealzy-api-staging' not in main
+          assert 'appassets.androidplatform.net' not in main
+          assert 'webView.loadUrl(PROD_ORIGIN' in main
+          assert 'Dealzy-Android/1.0.1' in main
           assert "applicationId 'com.dealzy.ai'" in gradle
           assert "versionCode 2" in gradle
           assert "versionName '1.0.1'" in gradle
-          print("Production release guard passed")
+          assert 'android:usesCleartextTraffic="false"' in manifest
+          print("Official Android release config passed")
           PY
 
-      - name: Probe production API
+      - name: Probe production web and APIs
         run: |
           python3 - <<'PY'
           import json, urllib.parse, urllib.request
           BASE="https://dealzy-v1.vercel.app"
+
+          with urllib.request.urlopen(BASE+"/",timeout=20) as r:
+              html=r.read().decode("utf-8","replace")
+          assert "Dealzy AI" in html
+          print("PASS homepage")
+
+          with urllib.request.urlopen(BASE+"/api/providers",timeout=20) as r:
+              providers=json.load(r)
+          assert providers.get("ok") is True
+          assert int(providers.get("liveExternalProviders",0)) >= 3
+          print("PASS providers",providers.get("liveExternalProviders"))
+
           checks=[
             ("Food & Drink","Los Angeles","US"),
             ("Things to Do","New York","US"),
