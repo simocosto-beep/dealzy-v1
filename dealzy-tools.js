@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20260929-clicks1';
+    liveScript.src='/dealzy-live.js?v=20260929-location1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);

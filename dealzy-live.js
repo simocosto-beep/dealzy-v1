@@ -309,6 +309,7 @@
     market={country:safeCountry,city:safeCity,currency:safeCountry==="CA"?"CAD":"USD"};
     localStorage.setItem("dealzyMarket",JSON.stringify(market));
     localStorage.setItem("dealzyLocationMode",locationMode);
+    localStorage.setItem("dealzyLocationChoice",locationMode);
     state.coords=null;
     localStorage.removeItem("dealzyCoords");
     catalog.clear();
@@ -351,14 +352,18 @@
 
     const detected=await reverseGpsLocation(coords.lat,coords.lng);
     if(!detected||!detected.country){
-      state.coords=coords;
-      localStorage.setItem("dealzyCoords",JSON.stringify(state.coords));
-      localStorage.setItem("dealzyLocationMode","gps");
-      if(!silent) toast(locale()==="fr"
-        ?"Position GPS détectée. Dealzy reste limité aux marchés USA/Canada."
-        :"GPS detected. Dealzy remains limited to USA/Canada markets.");
+      // Do not show US/Canada deals as nearby when the location is outside
+      // those markets, or the reverse lookup cannot identify a country.
+      state.coords=null;
+      localStorage.removeItem("dealzyCoords");
+      localStorage.setItem("dealzyLocationMode","manual");
+      localStorage.removeItem("dealzyLocationChoice");
+      updateMarketUI();
       if(typeof updateGeoUI==="function") updateGeoUI();
-      return {coords,country:null,city:null};
+      if(!silent) toast(locale()==="fr"
+        ? detected?"Position détectée. Offres disponibles aux USA et au Canada uniquement.":"Ville introuvable pour cette position. Choisissez une ville."
+        : detected?"Location detected. Deals are available in the USA and Canada only.":"Could not identify this location. Choose a city.");
+      return {coords,country:null,city:null,reason:detected?"outside":"lookup"};
     }
 
     persistMarket(detected.country,detected.city,"gps");
@@ -408,6 +413,88 @@
     applyGpsLocation,
     mode:()=>localStorage.getItem("dealzyLocationMode")||"gps"
   };
+
+  function showLocationPrompt(){
+    if(document.getElementById("dealzyLocationPrompt")) return;
+    const fr=locale()==="fr";
+    const style=document.createElement("style");
+    style.id="dealzyLocationPromptStyles";
+    style.textContent=
+      '.dz-location-wrap{position:fixed;inset:0;z-index:210;background:rgba(17,24,39,.58);display:grid;place-items:center;padding:18px;backdrop-filter:blur(5px)}'+
+      '.dz-location-card{width:min(440px,100%);background:#fff;border-radius:25px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);color:#182230}'+
+      '.dz-location-card h2{font-size:24px;margin:8px 0 10px}.dz-location-card p{line-height:1.5;color:#475467;margin:0 0 15px}'+
+      '.dz-location-card label{display:block;font-weight:700;font-size:13px;margin:12px 0}'+
+      '.dz-location-card select{display:block;width:100%;padding:11px 12px;margin-top:6px;border:1px solid #d8dce8;border-radius:12px;background:#fff;color:#182230}'+
+      '.dz-location-card button{width:100%;border:0;border-radius:13px;padding:13px;font-weight:800;cursor:pointer;margin-top:8px}'+
+      '.dz-location-primary{background:#6254ef;color:#fff}.dz-location-city{background:#eef2ff;color:#5145cd}.dz-location-later{background:transparent;color:#667085}'+
+      '.dz-location-status{min-height:0;font-size:13px;color:#a13a31;margin-top:9px;line-height:1.4}';
+    document.head.appendChild(style);
+
+    const wrap=document.createElement("div");
+    wrap.id="dealzyLocationPrompt";
+    wrap.className="dz-location-wrap";
+    wrap.innerHTML='<section class="dz-location-card" role="dialog" aria-modal="true" aria-labelledby="dzLocationTitle">'+
+      '<div aria-hidden="true" style="font-size:30px">📍</div>'+
+      '<h2 id="dzLocationTitle">'+(fr?'Trouver des offres autour de vous':'Find deals around you')+'</h2>'+
+      '<p>'+(fr?'Autorisez la position de votre appareil pour voir les offres proches de vous. Dealzy couvre actuellement les États-Unis et le Canada.':'Allow your device location to see deals nearby. Dealzy currently covers the United States and Canada.')+'</p>'+
+      '<button type="button" class="dz-location-primary">'+(fr?'Utiliser ma position':'Use my location')+'</button>'+
+      '<label>'+(fr?'Ou choisir un pays et une ville':'Or choose a country and city')+
+        '<select id="dzLocationCountry"><option value="US">🇺🇸 '+(fr?'États-Unis':'United States')+'</option><option value="CA">🇨🇦 Canada</option></select></label>'+
+      '<button type="button" class="dz-location-city">'+(fr?'Choisir une ville':'Choose a city')+'</button>'+
+      '<div class="dz-location-status" role="status" aria-live="polite"></div>'+
+      '<button type="button" class="dz-location-later">'+(fr?'Plus tard':'Later')+'</button>'+
+      '</section>';
+    document.body.appendChild(wrap);
+    const primary=wrap.querySelector('.dz-location-primary');
+    const status=wrap.querySelector('.dz-location-status');
+    const close=()=>{document.removeEventListener('keydown',onKeydown);wrap.remove();style.remove();window.DealzyLocation.closePrompt=null;};
+    const onKeydown=e=>{if(e.key==='Escape') close();};
+    window.DealzyLocation.closePrompt=close;
+    document.addEventListener('keydown',onKeydown);
+    wrap.onclick=e=>{if(e.target===wrap) close();};
+    wrap.querySelector('.dz-location-later').onclick=close;
+    wrap.querySelector('.dz-location-city').onclick=()=>{
+      const country=wrap.querySelector('#dzLocationCountry').value;
+      persistMarket(country,MARKET_CITIES[country][0].value);
+      close();
+      updateMarketUI();
+      hydrateHome();
+      openMarketPicker('city');
+    };
+    primary.onclick=async()=>{
+      primary.disabled=true;
+      primary.textContent=fr?'Localisation en cours…':'Locating…';
+      status.textContent='';
+      // Calling getCurrentPosition inside this click lets the browser show
+      // its native permission request in response to a user gesture.
+      const result=await useRealLocation({silent:true,refresh:true});
+      if(!wrap.isConnected) return;
+      primary.disabled=false;
+      primary.textContent=fr?'Réessayer':'Try again';
+      if(result&&result.country){close();return;}
+      status.textContent=result&&result.reason==='outside'
+        ? (fr?'Votre position est hors des marchés disponibles. Choisissez une ville aux États-Unis ou au Canada.':'Your location is outside the available markets. Choose a US or Canadian city.')
+        : result&&result.reason==='lookup'
+          ? (fr?'La ville n’a pas pu être identifiée. Choisissez une ville ou réessayez.':'We could not identify the city. Choose a city or try again.')
+          : (fr?'Position indisponible. Vérifiez l’autorisation de localisation dans les réglages du navigateur ou choisissez une ville.':'Location unavailable. Check browser location permission or choose a city.');
+    };
+    primary.focus();
+  }
+
+  async function maybeShowLocationPrompt(){
+    const choice=localStorage.getItem('dealzyLocationChoice');
+    if(choice==='manual') return;
+    if(choice==='gps'&&navigator.permissions?.query){
+      try{
+        const permission=await navigator.permissions.query({name:'geolocation'});
+        if(permission.state==='granted'){
+          const result=await useRealLocation({silent:true,refresh:true});
+          if(result&&result.country) return;
+        }
+      }catch(_){}
+    }else if(choice==='gps') return;
+    showLocationPrompt();
+  }
 
   const h=(value)=>String(value??"").replace(/[&<>"']/g,(m)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 
@@ -1501,7 +1588,7 @@
     if(current.completed) return;
     // Keep first launch non-blocking. Preferences remain available from Profile.
     setTimeout(()=>{
-      if(!document.getElementById("dealzyOnboarding")) toast(tr("Personalize Dealzy"));
+      if(!document.getElementById("dealzyOnboarding")&&!document.getElementById("dealzyLocationPrompt")) toast(tr("Personalize Dealzy"));
     },700);
   }
 
@@ -1908,12 +1995,6 @@
   }
 
   hydrateHome();
+  maybeShowLocationPrompt();
   maybeShowFirstRunOnboarding();
-
-  // GPS is the primary local-discovery mode. Manual city selection remains
-  // available for browsing another destination.
-  setTimeout(()=>{
-    const mode=localStorage.getItem("dealzyLocationMode");
-    if(mode!=="manual") useRealLocation({silent:true,refresh:true});
-  },700);
 })();
