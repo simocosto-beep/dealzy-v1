@@ -195,7 +195,7 @@
         <button class="dz-tool" data-tool="notifications"><span class="emoji">📬</span><b>Notifications</b><span>See price-watch matches and Dealzy alerts.</span></button>
         <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
         <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
-        <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Manage your local profile and sync readiness.</span></button>
+        <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Account, password, orders and user management.</span></button>
         <button class="dz-tool" data-tool="planner"><span class="emoji">🧠</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
         <button class="dz-tool" data-tool="travel"><span class="emoji">🧳</span><b>Travel Hub</b><span>Hotels, flights, cars and things to do in one place.</span></button>
         <button class="dz-tool" data-tool="watch"><span class="emoji">📉</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
