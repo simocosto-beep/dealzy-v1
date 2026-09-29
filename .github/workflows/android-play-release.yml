@@ -42,7 +42,7 @@ jobs:
       - name: Prepare production web assets
         run: |
           mkdir -p app/src/main/assets
-          cp index.html dealzy-live.js dealzy-tools.js dealzy-providers.js dealzy-i18n.js app/src/main/assets/
+          cp index.html dealzy-account.js dealzy-live.js dealzy-tools.js dealzy-providers.js dealzy-i18n.js app/src/main/assets/
           cp icon.svg manifest.webmanifest privacy.html affiliate-disclosure.html app/src/main/assets/
           python3 - <<'PY'
           from pathlib import Path
