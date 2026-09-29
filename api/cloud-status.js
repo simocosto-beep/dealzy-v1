@@ -1,3 +1,4 @@
+const {accountAccess,deniedMessage}=require('./_accountAccess');
 const SUPABASE_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 
@@ -11,6 +12,10 @@ async function requireAdmin(req){
   });
   if(!userRes.ok) throw Object.assign(new Error('unauthorized'),{status:401});
   const user=await userRes.json();
+
+  const access=await accountAccess(token);
+  if(!access.ok) throw Object.assign(new Error(access.error||'account access unavailable'),{status:503});
+  if(!access.allowed) throw Object.assign(new Error(deniedMessage(access)),{status:403});
 
   const adminRes=await fetch(
     SUPABASE_URL+'/rest/v1/dealzy_admin_users?select=role,enabled&user_id=eq.'+encodeURIComponent(user.id)+'&limit=1',
