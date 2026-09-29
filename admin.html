@@ -82,6 +82,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     <div class="admin-nav">
       <button class="admin-tab active" data-admin-tab="overview">⌂ Overview</button>
       <button class="admin-tab" data-admin-tab="analytics">📊 Analytics</button>
+      <button class="admin-tab" data-admin-tab="content">🖼 Content</button>
       <button class="admin-tab" data-admin-tab="users">👥 Users</button>
       <button class="admin-tab" data-admin-tab="orders">📦 Orders</button>
       <button class="admin-tab" data-admin-tab="notifications">📬 Notifications</button>
@@ -142,6 +143,43 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <div class="mini-stat"><span class="sub">Users total</span><b id="anUsersTotal">—</b></div>
         </div>
       </section>
+    </section>
+
+    <section id="contentPanel" class="panel" data-admin-page="content">
+      <div class="panel-head">
+        <div><h2>App content</h2><p class="sub">Change homepage copy and promotions without editing code.</p></div>
+        <span class="pill">Runtime</span>
+      </div>
+      <div class="form-grid">
+        <div class="section-box">
+          <h3>Hero</h3>
+          <label>Brand tagline</label>
+          <input id="contentTagline" class="field" maxlength="100" placeholder="Amazing Deals. Smarter Choices.">
+          <label>Hero title</label>
+          <input id="contentHeroTitle" class="field" maxlength="120" placeholder="Find amazing experiences with AI.">
+          <label>Hero subtitle</label>
+          <textarea id="contentHeroSubtitle" class="textarea" maxlength="400"></textarea>
+          <label>Hero badge <span class="sub">(optional)</span></label>
+          <input id="contentHeroBadge" class="field" maxlength="100" placeholder="Leave empty for live market badge">
+          <label>Hero image URL <span class="sub">(optional HTTPS image)</span></label>
+          <input id="contentHeroImage" class="field" type="url" placeholder="https://...">
+        </div>
+        <div class="section-box">
+          <h3>Announcement & labels</h3>
+          <div class="control">
+            <div><b>Announcement banner</b><small>Show a message above the homepage hero.</small></div>
+            <label class="switch"><input id="contentAnnouncementEnabled" type="checkbox"><span class="slider"></span></label>
+          </div>
+          <label>Announcement text</label>
+          <textarea id="contentAnnouncementText" class="textarea" maxlength="280" placeholder="New deals are live this weekend…"></textarea>
+          <label>Popular section prefix <span class="sub">(optional)</span></label>
+          <input id="contentPopularPrefix" class="field" maxlength="80" placeholder="Popular in">
+          <label>Legal / affiliate notice</label>
+          <textarea id="contentLegalNotice" class="textarea" maxlength="700"></textarea>
+          <button id="saveContentBtn" class="btn btn-primary">Save app content</button>
+          <p class="sub" style="margin:10px 0 0">Web changes apply immediately. Android builds that support runtime content will use the same configuration.</p>
+        </div>
+      </div>
     </section>
 
     <section id="usersPanel" class="panel" data-admin-page="users">
@@ -645,5 +683,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260929c"></script>
+<script src="/admin.js?v=20260929-content1"></script>
 </body></html>

@@ -12,6 +12,7 @@ let currentAdminPage='overview';
 const ADMIN_PAGES={
   overview:{title:'Overview',subtitle:'Dealzy at a glance.'},
   analytics:{title:'Analytics',subtitle:'Usage, engagement and commerce trends.'},
+  content:{title:'Content',subtitle:'Homepage copy, announcements and featured presentation.'},
   users:{title:'Users & Admins',subtitle:'Accounts, access, status and user history.'},
   orders:{title:'Orders & Bookings',subtitle:'Confirmed order records linked to Dealzy users.'},
   notifications:{title:'Notifications',subtitle:'Send in-app messages and review recent campaigns.'},
@@ -722,7 +723,7 @@ async function loadAll(){
   users=userRows||[];
   commercial=commercialData||commercial;
   orders=orderRows||[];
-  analyticsData=analytics||{};renderStats(stats||{});renderAnalytics(analyticsData);renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
+  analyticsData=analytics||{};renderStats(stats||{});renderAnalytics(analyticsData);renderContent();renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
   showAdminPage(currentAdminPage,{remember:false});
 }
 function renderStats(s){
@@ -1209,6 +1210,59 @@ async function saveOrder(){
   }
 }
 
+
+function setFieldValue(id,value){
+  const el=$('#'+id); if(el) el.value=value??'';
+}
+function renderContent(){
+  const c=config.content||{};
+  setFieldValue('contentTagline',c.brand_tagline||'Amazing Deals. Smarter Choices.');
+  setFieldValue('contentHeroTitle',c.hero_title||'Find amazing experiences with AI.');
+  setFieldValue('contentHeroSubtitle',c.hero_subtitle||'Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.');
+  setFieldValue('contentHeroBadge',c.hero_badge||'');
+  setFieldValue('contentHeroImage',c.hero_image_url||'');
+  setFieldValue('contentAnnouncementText',c.announcement_text||'');
+  setFieldValue('contentPopularPrefix',c.popular_prefix||'');
+  setFieldValue('contentLegalNotice',c.legal_notice||'Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.');
+  if($('#contentAnnouncementEnabled')) $('#contentAnnouncementEnabled').checked=!!c.announcement_enabled;
+  const readonly=admin?.role==='viewer';
+  ['contentTagline','contentHeroTitle','contentHeroSubtitle','contentHeroBadge','contentHeroImage','contentAnnouncementEnabled','contentAnnouncementText','contentPopularPrefix','contentLegalNotice','saveContentBtn']
+    .forEach(id=>{const el=$('#'+id);if(el) el.disabled=readonly;});
+}
+async function saveContent(){
+  if(admin?.role==='viewer') return flash('Viewer access is read only.',true);
+  const image=$('#contentHeroImage').value.trim();
+  if(image){
+    try{
+      const u=new URL(image);
+      if(!['https:','http:'].includes(u.protocol)) throw new Error();
+    }catch(_){return flash('Hero image must be a valid http/https URL.',true);}
+  }
+  const next={
+    brand_tagline:$('#contentTagline').value.trim().slice(0,100),
+    hero_title:$('#contentHeroTitle').value.trim().slice(0,120),
+    hero_subtitle:$('#contentHeroSubtitle').value.trim().slice(0,400),
+    hero_badge:$('#contentHeroBadge').value.trim().slice(0,100),
+    hero_image_url:image.slice(0,1000),
+    announcement_enabled:$('#contentAnnouncementEnabled').checked,
+    announcement_text:$('#contentAnnouncementText').value.trim().slice(0,280),
+    popular_prefix:$('#contentPopularPrefix').value.trim().slice(0,80),
+    legal_notice:$('#contentLegalNotice').value.trim().slice(0,700)
+  };
+  if(!next.hero_title) return flash('Hero title cannot be empty.',true);
+  if(!next.hero_subtitle) return flash('Hero subtitle cannot be empty.',true);
+  $('#saveContentBtn').disabled=true;
+  try{
+    await saveConfig('content',next);
+    renderContent();
+    flash('App content saved. Public app will refresh automatically.');
+  }catch(e){
+    flash(e.message,true);
+  }finally{
+    $('#saveContentBtn').disabled=admin?.role==='viewer';
+  }
+}
+
 function controlCard(key,label,desc,checked,group){
   const canManage=admin&&admin.role!=='viewer';
   return '<div class="control '+(canManage?'':'readonly')+'"><div><b>'+esc(label)+'</b><small>'+esc(desc)+'</small></div><label class="switch"><input type="checkbox" data-group="'+esc(group)+'" data-key="'+esc(key)+'" '+(checked?'checked':'')+' '+(canManage?'':'disabled')+'><span class="slider"></span></label></div>';
@@ -1267,6 +1321,7 @@ $('#refreshNotificationsBtn').onclick=()=>loadAdminNotifications().catch(e=>flas
 $('#messageUserBtn').onclick=messageSelectedUser;
 syncNotificationScope();
 
+$('#saveContentBtn').onclick=saveContent;
 $('#refreshStripeBtn').onclick=()=>loadStripe().catch(e=>flash(e.message,true));
 document.querySelectorAll('[data-refresh-commercial]').forEach(btn=>btn.onclick=()=>loadCommercial().catch(e=>flash(e.message,true)));
 $('#createPartnerBtn').onclick=createCommercialPartner;
