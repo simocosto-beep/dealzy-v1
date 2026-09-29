@@ -195,6 +195,7 @@ function renderUserDetail(detail){
     (callerIsSuperadmin&&!protectedAccount) ||
     (callerIsAdmin&&!targetIsStaff&&!isSelf);
   const canResetPassword=canEditIdentity;
+  const canSetPassword=callerIsSuperadmin&&(!protectedAccount||isSelf);
 
   ['editUserName','editUserEmail','editUserPhone','saveUserIdentityBtn']
     .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditIdentity;});
@@ -206,6 +207,11 @@ function renderUserDetail(detail){
     .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditStatus;});
 
   if($('#sendUserResetBtn')) $('#sendUserResetBtn').disabled=!canResetPassword;
+  if($('#directPasswordWrap')) $('#directPasswordWrap').classList.toggle('hidden',!canSetPassword);
+  ['directUserPassword','directUserPasswordConfirm','setUserPasswordBtn']
+    .forEach(id=>{const el=$('#'+id);if(el) el.disabled=!canSetPassword;});
+  if($('#directUserPassword')) $('#directUserPassword').value='';
+  if($('#directUserPasswordConfirm')) $('#directUserPasswordConfirm').value='';
 
   if(admin?.role==='viewer') modalMsg('Viewer access is read only.');
   else if(protectedAccount&&isSelf) modalMsg('Your superadmin role and account status are protected. You can update your identity and request a password reset.');
@@ -327,6 +333,34 @@ async function sendSelectedReset(){
     await adminEdge('send_password_reset',{target_user:selectedUser});
     modalMsg('Password reset email sent.');
   }catch(e){modalMsg(e.message,true)}
+}
+
+async function setSelectedPassword(){
+  if(!selectedUser||admin?.role!=='superadmin') return modalMsg('Superadmin required.',true);
+  const password=$('#directUserPassword').value;
+  const confirmPassword=$('#directUserPasswordConfirm').value;
+  if(password.length<12) return modalMsg('Password must contain at least 12 characters.',true);
+  if(password.length>128) return modalMsg('Password is too long.',true);
+  if(!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/[0-9]/.test(password)){
+    return modalMsg('Use at least one uppercase letter, one lowercase letter and one number.',true);
+  }
+  if(password!==confirmPassword) return modalMsg('Passwords do not match.',true);
+
+  const email=selectedUserDetail?.user?.email||'this user';
+  if(!confirm('Replace the password for '+email+'?')) return;
+
+  $('#setUserPasswordBtn').disabled=true;
+  try{
+    await adminEdge('set_password',{target_user:selectedUser,password});
+    $('#directUserPassword').value='';
+    $('#directUserPasswordConfirm').value='';
+    modalMsg('Password changed successfully.');
+    await refreshSelectedUser();
+  }catch(e){
+    modalMsg(e.message,true);
+  }finally{
+    if($('#setUserPasswordBtn')) $('#setUserPasswordBtn').disabled=admin?.role!=='superadmin';
+  }
 }
 
 function openInviteUserModal(){
@@ -1281,6 +1315,7 @@ $('#saveUserIdentityBtn').onclick=saveSelectedIdentity;
 $('#saveUserRoleBtn').onclick=saveSelectedRole;
 $('#saveUserStatusBtn').onclick=saveSelectedStatus;
 $('#sendUserResetBtn').onclick=sendSelectedReset;
+$('#setUserPasswordBtn').onclick=setSelectedPassword;
 $('#userSearchBtn').onclick=()=>reloadUsers(true);
 $('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();reloadUsers(true)}});
 $('#userStatusFilter').onchange=()=>reloadUsers(true);

@@ -594,9 +594,19 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
 
       <div class="section-box">
         <h3>Password</h3>
-        <p class="sub">Passwords are never visible and cannot be set directly by staff. Send the user a secure reset link instead.</p>
+        <p class="sub">Passwords are never visible. You can send a secure reset link, or the Superadmin can replace the password directly.</p>
         <div class="modal-actions">
           <button id="sendUserResetBtn" class="btn btn-ghost">Send password reset link</button>
+        </div>
+        <div id="directPasswordWrap" class="hidden" style="margin-top:14px">
+          <div class="form-grid">
+            <div><label>New password</label><input id="directUserPassword" class="field" type="password" autocomplete="new-password" minlength="12" maxlength="128" placeholder="12+ chars, upper/lower/number"></div>
+            <div><label>Confirm password</label><input id="directUserPasswordConfirm" class="field" type="password" autocomplete="new-password" minlength="12" maxlength="128"></div>
+          </div>
+          <p class="sub" style="margin:10px 0 0">Superadmin only. The password itself is never written to the audit log.</p>
+          <div class="modal-actions" style="margin-top:10px">
+            <button id="setUserPasswordBtn" class="btn btn-ghost danger">Set new password</button>
+          </div>
         </div>
       </div>
 
@@ -635,5 +645,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260929b"></script>
+<script src="/admin.js?v=20260929c"></script>
 </body></html>
