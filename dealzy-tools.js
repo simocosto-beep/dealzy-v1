@@ -88,6 +88,14 @@
   .dz-compare-row{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid #eef0f4;font-size:12px}
   .dz-compare-row:last-child{border-bottom:0}.dz-provider{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #eef0f4}.dz-status{font-size:11px;font-weight:800;border-radius:999px;padding:5px 8px;background:#f2f4f7;color:#667085}
   .dz-status.live{background:#ecfdf3;color:#027a48}.dz-small{font-size:12px;color:#667085;line-height:1.55}.dz-chip{display:inline-block;padding:6px 9px;border-radius:999px;background:#f2f4f7;margin:3px;font-size:12px}
+  .dz-install-card{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:14px 16px;border-radius:20px;background:linear-gradient(115deg,#4436c7,#357fdf);color:#fff;box-shadow:0 9px 24px rgba(68,54,199,.18)}
+  .dz-install-card img{width:42px;height:42px;border-radius:11px}.dz-install-card .dz-install-copy{flex:1;min-width:0}.dz-install-card b{display:block;font-size:16px}.dz-install-card small{display:block;opacity:.9;line-height:1.35;margin-top:3px}
+  .dz-install-card button,.dz-install-profile button{border:0;border-radius:12px;padding:10px 14px;background:#fff;color:#4338ca;font-weight:800;cursor:pointer}
+  .dz-install-card .dz-install-dismiss{padding:5px 8px;background:transparent;color:#fff;font-size:20px;line-height:1}
+  .dz-install-profile button{background:#eef2ff}.dz-install-guide{position:fixed;inset:0;z-index:220;display:grid;place-items:center;padding:18px;background:rgba(17,24,39,.55);backdrop-filter:blur(5px)}
+  .dz-install-guide section{width:min(430px,100%);background:#fff;border-radius:24px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);color:#182230}
+  .dz-install-guide h2{font-size:23px;margin:0 0 12px}.dz-install-guide p,.dz-install-guide li{line-height:1.5;color:#475467}.dz-install-guide ol{padding-left:22px}.dz-install-guide button{width:100%;border:0;border-radius:13px;padding:12px;background:#6254ef;color:#fff;font-weight:800;cursor:pointer}
+  @media(max-width:560px){.dz-install-card{display:grid;grid-template-columns:42px 1fr 28px}.dz-install-card .dz-install-copy{grid-column:2}.dz-install-card .dz-install-dismiss{grid-column:3;grid-row:1}.dz-install-card .dz-install-action{grid-column:2/4;width:100%}}
   @media(max-width:560px){.dz-tools-grid{grid-template-columns:1fr 1fr}.dz-sheet{padding:14px}.dz-form{grid-template-columns:1fr}.dz-tools-fab{right:12px;bottom:88px}}
   `;
 
@@ -1125,16 +1133,123 @@
   }
 
   let deferredInstall = null;
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;});
+  let installedThisSession = false;
+  const installFr=()=>window.DealzyI18n?.getLocale()==='fr';
+  const isInstalled=()=>installedThisSession||window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true;
+
+  function closeInstallGuide(){
+    const guide=document.getElementById('dealzyInstallGuide');
+    if(guide) guide.remove();
+    document.removeEventListener('keydown',onInstallGuideKeydown);
+  }
+  function onInstallGuideKeydown(e){if(e.key==='Escape') closeInstallGuide();}
+
+  function openInstallGuide(){
+    closeInstallGuide();
+    wrap.classList.remove('open');
+    panel.classList.remove('open');
+    const fr=installFr();
+    const ua=navigator.userAgent||'';
+    const ios=/iPhone|iPad|iPod/i.test(ua);
+    const android=/Android/i.test(ua);
+    const embedded=/; wv\)|Instagram|FBAN|FBAV/i.test(ua);
+    const steps=ios
+      ? (fr?['Ouvrez Dealzy dans Safari.','Touchez Partager, puis « Sur l’écran d’accueil ».','Touchez Ajouter.']:['Open Dealzy in Safari.','Tap Share, then “Add to Home Screen”.','Tap Add.'])
+      : android
+        ? (fr?[...(embedded?['Ouvrez cette page dans Chrome.']:[]),'Dans Chrome, touchez le menu ⋮.','Choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».']:[...(embedded?['Open this page in Chrome.']:[]),'In Chrome, tap the ⋮ menu.','Choose “Install app” or “Add to Home screen”.'])
+        : (fr?['Ouvrez le menu de votre navigateur.','Choisissez « Installer Dealzy » ou « Ajouter à l’écran d’accueil ».']:['Open your browser menu.','Choose “Install Dealzy” or “Add to Home screen”.']);
+    const guide=document.createElement('div');
+    guide.id='dealzyInstallGuide';
+    guide.className='dz-install-guide';
+    guide.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="dzInstallGuideTitle">'+
+      '<h2 id="dzInstallGuideTitle">'+(fr?'Installer Dealzy':'Install Dealzy')+'</h2>'+
+      '<p>'+(fr?'Ajoutez Dealzy à votre écran d’accueil pour y accéder comme une application.':'Add Dealzy to your home screen to open it like an app.')+'</p>'+
+      '<ol>'+steps.map(step=>'<li>'+esc(step)+'</li>').join('')+'</ol>'+
+      '<button type="button">'+(fr?'Compris':'Got it')+'</button></section>';
+    document.body.appendChild(guide);
+    guide.querySelector('button').onclick=closeInstallGuide;
+    guide.onclick=e=>{if(e.target===guide) closeInstallGuide();};
+    document.addEventListener('keydown',onInstallGuideKeydown);
+    guide.querySelector('button').focus();
+  }
+
+  async function requestInstall(){
+    if(isInstalled()) return;
+    if(!deferredInstall){openInstallGuide();return;}
+    const prompt=deferredInstall;
+    deferredInstall=null;
+    try{
+      await prompt.prompt();
+      const choice=await prompt.userChoice;
+      if(choice?.outcome==='accepted'){
+        installedThisSession=true;
+        renderInstallCtas();
+      }
+    }catch(_){openInstallGuide();}
+  }
+
+  function renderInstallCtas(){
+    const oldHome=document.getElementById('dealzyInstallCard');
+    const oldProfile=document.getElementById('dealzyInstallProfile');
+    if(oldHome) oldHome.remove();
+    if(oldProfile) oldProfile.remove();
+    if(isInstalled()) return;
+    const fr=installFr();
+    const home=document.getElementById('homeView');
+    let dismissed=false;
+    try{dismissed=sessionStorage.getItem('dealzyInstallDismissed')==='1';}catch(_){}
+    if(home&&!dismissed){
+      const card=document.createElement('section');
+      card.id='dealzyInstallCard';
+      card.className='dz-install-card';
+      card.setAttribute('aria-label',fr?'Installer Dealzy':'Install Dealzy');
+      card.innerHTML='<img src="/icon-192.png" alt="" aria-hidden="true">'+
+        '<div class="dz-install-copy"><b>'+(fr?'Dealzy sur votre téléphone':'Dealzy on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
+        '<button type="button" class="dz-install-action">'+(fr?'Installer':'Install')+'</button>'+
+        '<button type="button" class="dz-install-dismiss" aria-label="'+(fr?'Plus tard':'Later')+'">×</button>';
+      home.querySelector('.hero')?.insertAdjacentElement('beforebegin',card);
+      card.querySelector('.dz-install-action').onclick=requestInstall;
+      card.querySelector('.dz-install-dismiss').onclick=()=>{
+        try{sessionStorage.setItem('dealzyInstallDismissed','1');}catch(_){}
+        card.remove();
+      };
+    }
+    const profile=document.getElementById('profileView');
+    const accountCard=profile?.querySelector('.profileCard');
+    if(accountCard){
+      const card=document.createElement('div');
+      card.id='dealzyInstallProfile';
+      card.className='profileCard dz-install-profile';
+      card.innerHTML='<h3 style="margin-top:0">'+(fr?'Installer Dealzy':'Install Dealzy')+'</h3><p class="meta">'+
+        (fr?'Retrouvez Dealzy depuis l’écran d’accueil de votre téléphone.':'Open Dealzy from your phone’s home screen.')+'</p>'+
+        '<button type="button">'+(fr?'Installer sur mon appareil':'Install on my device')+'</button>';
+      accountCard.insertAdjacentElement('afterend',card);
+      card.querySelector('button').onclick=requestInstall;
+    }
+  }
+
+  window.DealzyInstall={request:requestInstall,openGuide:openInstallGuide,closeGuide:closeInstallGuide};
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault();
+    deferredInstall=e;
+    renderInstallCtas();
+  });
+  window.addEventListener('appinstalled',()=>{
+    deferredInstall=null;
+    installedThisSession=true;
+    closeInstallGuide();
+    renderInstallCtas();
+  });
+  document.addEventListener('dealzy:localechange',renderInstallCtas);
+  renderInstallCtas();
+
   async function appTool(){
     showPanel(`<h3>📲 App & Share</h3>
-      <button class="dz-action" id="dzInstall">Install Dealzy</button>
+      ${isInstalled()?'<div class="dz-result">'+(installFr()?'Dealzy est déjà installée sur cet appareil.':'Dealzy is already installed on this device.')+'</div>':'<button class="dz-action" id="dzInstall">Install Dealzy</button>'}
       <button class="dz-action alt" id="dzShare">Share Dealzy</button>
       <div class="dz-small" style="margin-top:10px">Install availability depends on your browser. Dealzy includes an offline app shell and live provider connectivity.</div>`);
-    panel.querySelector('#dzInstall').onclick=async()=>{
-      if(deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch(_){} deferredInstall=null;}
-      else showPanel('<h3>📲 Install Dealzy</h3><div class="dz-result">Use your browser menu → “Add to Home screen” or “Install app”.</div>');
-    };
+    const install=panel.querySelector('#dzInstall');
+    if(install) install.onclick=requestInstall;
     panel.querySelector('#dzShare').onclick=async()=>{
       let market={country:'US',city:'Miami'};
       try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
@@ -1166,7 +1281,7 @@
   if('serviceWorker' in navigator){
     window.addEventListener('load',async()=>{
       try{
-        const reg=await navigator.serviceWorker.register('/sw.js?v=20260928-prod1');
+        const reg=await navigator.serviceWorker.register('/sw.js?v=20260929-install1');
         await reg.update();
       }catch(_){}
     });
