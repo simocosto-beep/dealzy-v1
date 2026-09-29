@@ -1003,9 +1003,10 @@ function renderOrders(rows){
     const customer=o.display_name||o.user_email||'Dealzy user';
     const amount=o.amount==null?'—':Number(o.amount).toFixed(2)+' '+(o.currency_code||'');
     const when=o.booked_at?new Date(o.booked_at).toLocaleString():(o.created_at?new Date(o.created_at).toLocaleString():'—');
+    const refund=o.refund_amount==null||Number(o.refund_amount)<=0?'':(' · Refunded '+Number(o.refund_amount).toFixed(2)+' '+(o.currency_code||''));
     return '<div class="user-card">'+
       '<div class="user-top"><div><div class="user-name">'+esc(o.title||o.kind||'Order')+'</div><div class="user-email">'+esc(customer)+' · '+esc(o.user_email||'')+'</div></div><div class="user-meta">'+orderStatusPill(o.status)+'<span class="pill">'+esc(o.provider||'manual')+'</span></div></div>'+
-      '<div class="sub" style="margin-top:10px">'+esc(o.external_order_id||'No external reference')+' · '+esc(amount)+' · '+esc(when)+'</div>'+
+      '<div class="sub" style="margin-top:10px">'+esc(o.external_order_id||'No external reference')+' · '+esc(amount)+' · '+esc(when)+esc(refund)+'</div>'+
       '<div class="user-actions"><button class="btn btn-ghost" data-order-edit="'+esc(o.id)+'">Manage</button><button class="btn btn-ghost" data-order-user="'+esc(o.user_id)+'">Open user</button></div>'+
     '</div>';
   }).join('');
@@ -1031,6 +1032,75 @@ function localDateTimeInput(value){
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 }
 
+function syncOrderAdvancedFields(){
+  const status=$('#orderStatus')?.value||'confirmed';
+  const refunded=status==='refunded';
+  const cancelled=status==='cancelled';
+  if($('#orderRefundWrap')) $('#orderRefundWrap').style.opacity=refunded?'1':'.82';
+  if($('#orderCancelWrap')) $('#orderCancelWrap').style.opacity=(refunded||cancelled)?'1':'.82';
+}
+
+async function loadOrderEvents(orderId){
+  const box=$('#orderHistoryBox'), host=$('#orderHistory');
+  if(!box||!host) return;
+  if(!orderId){
+    box.classList.add('hidden');
+    host.innerHTML='';
+    return;
+  }
+  box.classList.remove('hidden');
+  host.innerHTML='<div class="sub">Loading history…</div>';
+  try{
+    const rows=await api('/rest/v1/rpc/dealzy_admin_order_events',{
+      method:'POST',
+      body:JSON.stringify({target_order:orderId})
+    })||[];
+    host.innerHTML=Array.isArray(rows)&&rows.length?rows.map(e=>{
+      const status=[e.old_status,e.new_status].filter(Boolean).join(' → ');
+      const amount=e.amount==null?'':(' · '+Number(e.amount).toFixed(2)+' '+esc(e.currency_code||''));
+      const note=e.note?'<div class="sub">'+esc(e.note)+'</div>':'';
+      return '<div class="history-row"><b>'+esc(String(e.event_type||'event').replaceAll('_',' '))+'</b>'+
+        '<div class="sub">'+esc(e.created_at?new Date(e.created_at).toLocaleString():'')+(status?' · '+esc(status):'')+esc(amount)+'</div>'+note+'</div>';
+    }).join(''):'<div class="sub">No order changes recorded yet.</div>';
+  }catch(e){
+    host.innerHTML='<div class="alert error">'+esc(e.message)+'</div>';
+  }
+}
+
+function csvCell(value){
+  const s=String(value??'');
+  return '"'+s.replaceAll('"','""')+'"';
+}
+
+async function exportOrdersCsv(){
+  try{
+    const rows=await api('/rest/v1/rpc/dealzy_admin_orders_export',{
+      method:'POST',
+      body:JSON.stringify({
+        search_text:$('#orderSearch')?.value||'',
+        status_filter:$('#orderStatusFilter')?.value||'all',
+        provider_filter:$('#orderProviderFilter')?.value||'all'
+      })
+    })||[];
+    const headers=['id','customer_email','customer_name','provider','external_reference','kind','title','status','amount','currency','refund_amount','booked_at','refunded_at','cancelled_at','cancellation_reason','notes','created_at','updated_at'];
+    const lines=[headers.join(',')];
+    for(const r of Array.isArray(rows)?rows:[]){
+      lines.push([
+        r.id,r.user_email,r.display_name,r.provider,r.external_order_id,r.kind,r.title,r.status,
+        r.amount,r.currency_code,r.refund_amount,r.booked_at,r.refunded_at,r.cancelled_at,
+        r.cancellation_reason,r.notes,r.created_at,r.updated_at
+      ].map(csvCell).join(','));
+    }
+    const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='dealzy-orders-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    flash('Orders CSV exported.');
+  }catch(e){flash(e.message,true)}
+}
+
 function openOrderModal(row=null){
   selectedOrder=row||null;
   $('#orderModalTitle').textContent=row?'Manage order':'Record order';
@@ -1044,16 +1114,23 @@ function openOrderModal(row=null){
   $('#orderAmount').value=row?.amount==null?'':row.amount;
   $('#orderCurrency').value=row?.currency_code==='CAD'?'CAD':'USD';
   $('#orderBookedAt').value=localDateTimeInput(row?.booked_at||new Date().toISOString());
+  $('#orderRefundAmount').value=row?.refund_amount==null?'':row.refund_amount;
+  $('#orderCancellationReason').value=row?.cancellation_reason||'';
+  $('#orderNotes').value=row?.notes||'';
   const readonly=admin?.role==='viewer';
-  ['orderUserEmail','orderProvider','orderExternalId','orderKind','orderTitle','orderStatus','orderAmount','orderCurrency','orderBookedAt','saveOrderBtn']
+  ['orderUserEmail','orderProvider','orderExternalId','orderKind','orderTitle','orderStatus','orderAmount','orderCurrency','orderBookedAt','orderRefundAmount','orderCancellationReason','orderNotes','saveOrderBtn']
     .forEach(id=>{const el=$('#'+id);if(el) el.disabled=readonly;});
+  syncOrderAdvancedFields();
   $('#orderModal').classList.remove('hidden');
+  loadOrderEvents(row?.id||null);
 }
 
 function closeOrderModal(){
   selectedOrder=null;
   $('#orderModal').classList.add('hidden');
   $('#orderModalMsg').innerHTML='';
+  if($('#orderHistory')) $('#orderHistory').innerHTML='';
+  if($('#orderHistoryBox')) $('#orderHistoryBox').classList.add('hidden');
 }
 
 async function saveOrder(){
@@ -1064,7 +1141,7 @@ async function saveOrder(){
   const bookedRaw=$('#orderBookedAt').value;
   $('#saveOrderBtn').disabled=true;
   try{
-    await api('/rest/v1/rpc/dealzy_admin_save_order',{
+    await api('/rest/v1/rpc/dealzy_admin_save_order_v2',{
       method:'POST',
       body:JSON.stringify({
         order_id:selectedOrder?.id||null,
@@ -1078,6 +1155,9 @@ async function saveOrder(){
         amount_value:amountRaw===''?null:Number(amountRaw),
         currency_value:$('#orderCurrency').value,
         booked_at_value:bookedRaw?new Date(bookedRaw).toISOString():null,
+        notes_value:$('#orderNotes').value.trim()||null,
+        refund_amount_value:$('#orderRefundAmount').value===''?null:Number($('#orderRefundAmount').value),
+        cancellation_reason_value:$('#orderCancellationReason').value.trim()||null,
         metadata_value:selectedOrder?.metadata||{}
       })
     });
@@ -1158,6 +1238,8 @@ $('#recordTransactionBtn').onclick=recordCommercialTransaction;
 $('#createCouponBtn').onclick=createCommercialCoupon;
 $('#applyCouponBtn').onclick=applyCommercialCoupon;
 $('#newOrderBtn').onclick=()=>openOrderModal(null);
+$('#exportOrdersBtn').onclick=exportOrdersCsv;
+$('#orderStatus').onchange=syncOrderAdvancedFields;
 $('#closeOrderModal').onclick=closeOrderModal;
 $('#orderModal').addEventListener('click',e=>{if(e.target===$('#orderModal')) closeOrderModal()});
 $('#saveOrderBtn').onclick=saveOrder;
