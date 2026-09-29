@@ -51,6 +51,7 @@
     try{
       const r=await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/dealzy_runtime_config?select=key,value&public_read=eq.true',{
         cache:'no-store',
+        signal:AbortSignal.timeout(4000),
         headers:{
           'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
           'Accept':'application/json'
@@ -70,12 +71,14 @@
   const LIVE_CATEGORIES=["Food & Drink","Spa & Beauty","Things to Do","Travel"];
   const catalog=new Map();
   let homeDeals=[];
+  let homeLoading=true;
+  let homeLoadSequence=0;
 
   let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,checkedAt:0};
   async function refreshDealzyProviderRuntime(force=false){
     if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
     try{
-      const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"}});
+      const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});
       if(!r.ok) throw new Error("providers");
       const data=await r.json();
       const next={booking:true,skyscanner:true,expedia:true,checkedAt:Date.now()};
@@ -283,7 +286,7 @@
         q:market.city+", "+countryName
       });
       const response=await fetch("https://nominatim.openstreetmap.org/search?"+p.toString(),{
-        headers:{Accept:"application/json"}
+        headers:{Accept:"application/json"},signal:AbortSignal.timeout(5000)
       });
       if(response.ok){
         const rows=await response.json();
@@ -888,7 +891,8 @@
     }
     const response=await fetch("/api/search?"+params.toString(),{
       headers:{Accept:"application/json"},
-      cache:"no-store"
+      cache:"no-store",
+      signal:AbortSignal.timeout(12000)
     });
     if(!response.ok) return [];
     const data=await response.json();
@@ -1404,8 +1408,15 @@
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     const personalized=personalizedHome(homeDeals);
-    $("#popularGrid").innerHTML=personalized.length?personalized.slice(0,12).map(dealCard).join(""):'<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>';
+    $("#popularGrid").innerHTML=personalized.length
+      ? personalized.slice(0,12).map(dealCard).join("")
+      : homeLoading
+        ? '<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>'
+        : '<div class="empty" style="grid-column:1/-1">'+h(tr("No live offers available in {city} right now.",{city:marketCityLabel()}))+
+          '<br><button type="button" class="pill" id="retryHomeDeals" style="margin-top:14px">'+h(tr("Try again"))+'</button></div>';
     bindCards($("#popularGrid"));
+    const retry=$("#retryHomeDeals");
+    if(retry) retry.onclick=()=>hydrateHome();
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
     renderTrips();
@@ -1890,7 +1901,10 @@
   };
 
   async function hydrateHome(){
+    const requestId=++homeLoadSequence;
+    homeLoading=true;
     await loadRuntimeContent();
+    if(requestId!==homeLoadSequence) return;
     updateMarketUI();
     applyRuntimeContent();
     loadSavedIntoCatalog();
@@ -1903,13 +1917,17 @@
 
     const previousMaxPrice=state.maxPrice;
     state.maxPrice=null;
+    let freshDeals=[];
     try{
-      homeDeals=await fetchMixed("",8);
-    }catch(_){
-      homeDeals=[];
+      freshDeals=await fetchMixed("",8);
+    }catch(error){
+      console.warn("[Dealzy] Home offers unavailable",error);
     }finally{
       state.maxPrice=previousMaxPrice;
     }
+    if(requestId!==homeLoadSequence) return;
+    homeDeals=freshDeals;
+    homeLoading=false;
     deals.splice(0,deals.length,...homeDeals);
     renderAll();
 
