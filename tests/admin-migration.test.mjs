@@ -63,7 +63,7 @@ await db.exec(`
     public.dealzy_superadmin_set_user_status(uuid,text,text,text) to authenticated;
 `);
 
-const migration = await readFile(new URL('../supabase/migrations/20260929173649_harden_dealzy_users_admin_access.sql', import.meta.url), 'utf8');
+const migration = await readFile(new URL('../supabase/migrations/20260929190528_harden_dealzy_users_admin_access.sql', import.meta.url), 'utf8');
 await db.exec(migration);
 
 for (const signature of [
