@@ -1,5 +1,71 @@
 (() => {
   "use strict";
+  let runtimePublicConfig={};
+  let runtimeContent={};
+
+  function validRuntimeImage(value){
+    if(!value) return '';
+    try{
+      const u=new URL(String(value),location.href);
+      return (u.protocol==='https:'||u.protocol==='http:')?u.href:'';
+    }catch(_){return ''}
+  }
+
+  function applyRuntimeContent(){
+    const c=runtimeContent||{};
+    const tag=document.querySelector('.brand .tag');
+    if(tag&&c.brand_tagline) tag.textContent=String(c.brand_tagline);
+
+    const hero=document.querySelector('#homeView .hero');
+    const title=document.querySelector('#homeView .hero h1');
+    const subtitle=document.querySelector('#homeView .hero p');
+    if(title&&c.hero_title) title.textContent=String(c.hero_title);
+    if(subtitle&&c.hero_subtitle) subtitle.textContent=String(c.hero_subtitle);
+    if(hero){
+      const img=validRuntimeImage(c.hero_image_url);
+      hero.style.backgroundImage=img
+        ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'
+        : '';
+    }
+
+    const home=document.getElementById('homeView');
+    let banner=document.getElementById('dealzyAnnouncement');
+    const showBanner=!!c.announcement_enabled&&String(c.announcement_text||'').trim();
+    if(showBanner&&home){
+      if(!banner){
+        banner=document.createElement('div');
+        banner.id='dealzyAnnouncement';
+        banner.style.cssText='margin:0 0 14px;padding:12px 15px;border:1px solid #dcd9ff;background:#f2f0ff;color:#4338ca;border-radius:16px;font-weight:800;box-shadow:0 6px 18px rgba(77,67,190,.08)';
+        home.insertBefore(banner,home.firstChild);
+      }
+      banner.textContent=String(c.announcement_text).trim();
+    }else if(banner){
+      banner.remove();
+    }
+
+    const legal=document.querySelector('#homeView .legal');
+    if(legal&&c.legal_notice) legal.textContent=String(c.legal_notice);
+  }
+
+  async function loadRuntimeContent(){
+    try{
+      const r=await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/dealzy_runtime_config?select=key,value&public_read=eq.true',{
+        cache:'no-store',
+        headers:{
+          'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+          'Accept':'application/json'
+        }
+      });
+      if(!r.ok) return;
+      const rows=await r.json();
+      const next={};
+      for(const row of Array.isArray(rows)?rows:[]) next[row.key]=row.value||{};
+      runtimePublicConfig=next;
+      runtimeContent=runtimePublicConfig.content||{};
+      applyRuntimeContent();
+    }catch(_){}
+  }
+
 
   const LIVE_CATEGORIES=["Food & Drink","Spa & Beauty","Things to Do","Travel"];
   const catalog=new Map();
@@ -1566,8 +1632,12 @@
 
     const popularHeading=document.getElementById("popularHeading");
     if(popularHeading){
-      const profile=readOnboarding();
-      popularHeading.textContent=profile.completed?tr("For you in {city}",{city:market.city}):tr("Popular in {city}",{city:market.city});
+      const customPrefix=String(runtimeContent.popular_prefix||'').trim();
+      if(customPrefix) popularHeading.textContent=customPrefix+" "+market.city;
+      else{
+        const profile=readOnboarding();
+        popularHeading.textContent=profile.completed?tr("For you in {city}",{city:market.city}):tr("Popular in {city}",{city:market.city});
+      }
     }
 
     const geoTitle=document.getElementById("geoTitle");
@@ -1581,7 +1651,10 @@
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
-    if(heroBadge) heroBadge.textContent="🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE";
+    if(heroBadge){
+      const customBadge=String(runtimeContent.hero_badge||'').trim();
+      heroBadge.textContent=customBadge||("🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE");
+    }
 
     const query=document.getElementById("aiQuery");
     if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas|Orlando|San Francisco|Boston|Seattle|Washington|Dallas|Houston|San Diego|Philadelphia|Atlanta|New Orleans|Austin|Denver|Nashville|Phoenix|Honolulu/i.test(query.value))){
@@ -1706,7 +1779,9 @@
   };
 
   async function hydrateHome(){
+    await loadRuntimeContent();
     updateMarketUI();
+    applyRuntimeContent();
     loadSavedIntoCatalog();
     deals.splice(0,deals.length);
     const popular=$("#popularGrid");
@@ -1732,7 +1807,8 @@
     });
     const legal=document.querySelector("#homeView .legal");
     if(legal){
-      legal.textContent=tr("Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.");
+      legal.textContent=String(runtimeContent.legal_notice||'').trim()||
+        tr("Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.");
     }
 
     document.querySelectorAll(".profileCard").forEach((card)=>{
