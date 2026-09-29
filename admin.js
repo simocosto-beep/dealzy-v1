@@ -816,6 +816,13 @@ function syncBulkUserBar(){
   ['bulkActivateBtn','bulkDisableBtn','bulkBlacklistBtn','bulkClearBtn'].forEach(id=>{
     const el=$('#'+id); if(el) el.disabled=count===0;
   });
+  const roleSelect=$('#bulkRoleSelect'), roleBtn=$('#bulkRoleBtn');
+  const superadmin=admin?.role==='superadmin';
+  if(roleSelect) roleSelect.classList.toggle('hidden',!superadmin);
+  if(roleBtn){
+    roleBtn.classList.toggle('hidden',!superadmin);
+    roleBtn.disabled=!superadmin||count===0;
+  }
 }
 
 function clearBulkUsers(){
@@ -867,6 +874,44 @@ async function bulkSetUserStatus(status){
       flash(ok+' updated, '+failed.length+' failed. Protected/staff accounts may require Superadmin.',true);
     }else{
       flash(ok+' account'+(ok===1?'':'s')+' updated.');
+    }
+  }finally{
+    syncBulkUserBar();
+  }
+}
+
+async function bulkSetUserRole(role){
+  if(admin?.role!=='superadmin') return flash('Superadmin required.',true);
+  if(!['user','viewer','admin'].includes(role)) return flash('Invalid role.',true);
+  const ids=[...selectedUserIds];
+  if(!ids.length) return;
+  const label=role==='user'?'normal User':role==='viewer'?'Viewer':'Admin';
+  if(!confirm('Apply role '+label+' to '+ids.length+' selected account'+(ids.length===1?'':'s')+'?')) return;
+
+  ['bulkActivateBtn','bulkDisableBtn','bulkBlacklistBtn','bulkRoleBtn','bulkClearBtn'].forEach(id=>{
+    const el=$('#'+id);if(el)el.disabled=true;
+  });
+
+  let ok=0, failed=[];
+  try{
+    for(let i=0;i<ids.length;i++){
+      $('#bulkUserCount').textContent='Updating roles '+(i+1)+' / '+ids.length+'…';
+      try{
+        await api('/rest/v1/rpc/dealzy_superadmin_set_staff',{
+          method:'POST',
+          body:JSON.stringify({target_user:ids[i],new_role:role})
+        });
+        ok++;
+      }catch(e){
+        failed.push({id:ids[i],error:e.message});
+      }
+    }
+    selectedUserIds.clear();
+    await reloadUsers(false);
+    if(failed.length){
+      flash(ok+' role'+(ok===1?'':'s')+' updated, '+failed.length+' failed.',true);
+    }else{
+      flash(ok+' role'+(ok===1?'':'s')+' updated.');
     }
   }finally{
     syncBulkUserBar();
@@ -1473,6 +1518,7 @@ $('#selectPageUsers').onchange=e=>togglePageUsers(e.target.checked);
 $('#bulkActivateBtn').onclick=()=>bulkSetUserStatus('active');
 $('#bulkDisableBtn').onclick=()=>bulkSetUserStatus('disabled');
 $('#bulkBlacklistBtn').onclick=()=>bulkSetUserStatus('blacklisted');
+$('#bulkRoleBtn').onclick=()=>bulkSetUserRole($('#bulkRoleSelect').value);
 $('#bulkClearBtn').onclick=clearBulkUsers;
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>loadAll().catch(e=>flash(e.message,true));

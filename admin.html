@@ -209,6 +209,12 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <button id="bulkActivateBtn" class="btn btn-ghost good">Activate</button>
         <button id="bulkDisableBtn" class="btn btn-ghost">Disable</button>
         <button id="bulkBlacklistBtn" class="btn btn-ghost danger">Blacklist</button>
+        <select id="bulkRoleSelect" class="select" style="min-width:120px">
+          <option value="user">Role: User</option>
+          <option value="viewer">Role: Viewer</option>
+          <option value="admin">Role: Admin</option>
+        </select>
+        <button id="bulkRoleBtn" class="btn btn-ghost">Apply role</button>
         <button id="bulkClearBtn" class="btn btn-ghost">Clear</button>
       </div>
       <div id="userRows" class="user-list"></div>
@@ -691,5 +697,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260929-bulk1"></script>
+<script src="/admin.js?v=20260929-bulk2"></script>
 </body></html>
