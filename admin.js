@@ -5,6 +5,7 @@ const SESSION_KEY='dealzy_admin_session_v1';
 const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
 let userPage={offset:0,size:20,total:0,hasMore:false};
+let selectedUserIds=new Set();
 let orders=[], selectedOrder=null, orderPage={offset:0,size:25,total:0,hasMore:false};
 let notificationCampaigns=[];
 let currentAdminPage='overview';
@@ -794,6 +795,84 @@ function userRoleLabel(row){
   return 'User';
 }
 
+function canBulkManageUser(row){
+  if(!row||row.is_self||row.is_protected_superadmin) return false;
+  if(admin?.role==='superadmin') return true;
+  if(admin?.role==='admin') return !row.admin_enabled;
+  return false;
+}
+
+function syncBulkUserBar(){
+  const count=selectedUserIds.size;
+  const bar=$('#bulkUserBar');
+  if(!bar) return;
+  bar.classList.toggle('hidden',count===0&&admin?.role==='viewer');
+  $('#bulkUserCount').textContent=count+' selected';
+  const manageable=(users||[]).filter(canBulkManageUser);
+  const selectedOnPage=manageable.filter(r=>selectedUserIds.has(String(r.user_id))).length;
+  const allSelected=manageable.length>0&&selectedOnPage===manageable.length;
+  $('#selectPageUsers').checked=allSelected;
+  $('#selectPageUsers').indeterminate=selectedOnPage>0&&!allSelected;
+  ['bulkActivateBtn','bulkDisableBtn','bulkBlacklistBtn','bulkClearBtn'].forEach(id=>{
+    const el=$('#'+id); if(el) el.disabled=count===0;
+  });
+}
+
+function clearBulkUsers(){
+  selectedUserIds.clear();
+  document.querySelectorAll('[data-user-select]').forEach(el=>{el.checked=false});
+  syncBulkUserBar();
+}
+
+function togglePageUsers(checked){
+  for(const row of users||[]){
+    if(!canBulkManageUser(row)) continue;
+    const id=String(row.user_id);
+    if(checked) selectedUserIds.add(id); else selectedUserIds.delete(id);
+  }
+  document.querySelectorAll('[data-user-select]').forEach(el=>{
+    if(!el.disabled) el.checked=checked;
+  });
+  syncBulkUserBar();
+}
+
+async function bulkSetUserStatus(status){
+  if(!['superadmin','admin'].includes(admin?.role)) return flash('Admin access required.',true);
+  const ids=[...selectedUserIds];
+  if(!ids.length) return;
+  const label=status==='active'?'activate':status==='blacklisted'?'blacklist':'disable';
+  if(!confirm('Confirm: '+label+' '+ids.length+' selected account'+(ids.length===1?'':'s')+'?')) return;
+
+  const buttons=['bulkActivateBtn','bulkDisableBtn','bulkBlacklistBtn','bulkClearBtn'];
+  buttons.forEach(id=>{const el=$('#'+id);if(el)el.disabled=true});
+  let ok=0, failed=[];
+  try{
+    for(let i=0;i<ids.length;i++){
+      $('#bulkUserCount').textContent='Processing '+(i+1)+' / '+ids.length+'…';
+      try{
+        await adminEdge('set_status',{
+          target_user:ids[i],
+          status,
+          reason:'Bulk '+label+' from Dealzy Admin',
+          notes:'Bulk action applied from Users & Admins.'
+        });
+        ok++;
+      }catch(e){
+        failed.push({id:ids[i],error:e.message});
+      }
+    }
+    selectedUserIds.clear();
+    await reloadUsers(false);
+    if(failed.length){
+      flash(ok+' updated, '+failed.length+' failed. Protected/staff accounts may require Superadmin.',true);
+    }else{
+      flash(ok+' account'+(ok===1?'':'s')+' updated.');
+    }
+  }finally{
+    syncBulkUserBar();
+  }
+}
+
 function renderUsers(rows){
   $('#userCountBadge').textContent=userPage.total+' total';
   renderUserPager(rows||[]);
@@ -815,13 +894,23 @@ function renderUsers(rows){
       row.email_confirmed?'<span class="pill ok">Email verified</span>':'<span class="pill">Email unverified</span>',
       row.is_self?'<span class="pill protected">You</span>':''
     ].join('');
+    const selectable=canBulkManageUser(row);
+    const checked=selectedUserIds.has(String(row.user_id));
     return '<div class="user-card">'+
-      '<div class="user-top"><div><div class="user-name">'+esc(display)+'</div><div class="user-email">'+esc(row.email||'')+(row.phone?' · '+esc(row.phone):'')+'</div></div><div class="user-meta">'+badges+'</div></div>'+
+      '<div class="user-top"><div style="display:flex;align-items:flex-start;gap:10px">'+
+      '<label class="user-select" title="'+(selectable?'Select account':'Protected account')+'"><input type="checkbox" data-user-select="'+esc(row.user_id)+'" '+(checked?'checked ':'')+(selectable?'':'disabled ')+'></label>'+
+      '<div><div class="user-name">'+esc(display)+'</div><div class="user-email">'+esc(row.email||'')+(row.phone?' · '+esc(row.phone):'')+'</div></div></div><div class="user-meta">'+badges+'</div></div>'+
       '<div class="sub" style="margin-top:10px">Joined '+esc(created)+' · Last sign-in '+esc(last)+(row.status_reason?' · '+esc(row.status_reason):'')+'</div>'+
       '<div class="user-actions"><button class="btn btn-ghost" data-user-manage="'+esc(row.user_id)+'">Manage</button></div>'+
     '</div>';
   }).join('');
   document.querySelectorAll('[data-user-manage]').forEach(el=>el.onclick=()=>openUserModal(el.dataset.userManage));
+  document.querySelectorAll('[data-user-select]').forEach(el=>el.onchange=()=>{
+    const id=String(el.dataset.userSelect);
+    if(el.checked) selectedUserIds.add(id); else selectedUserIds.delete(id);
+    syncBulkUserBar();
+  });
+  syncBulkUserBar();
 }
 
 function renderUserPager(rows){
@@ -836,7 +925,10 @@ function renderUserPager(rows){
 
 async function reloadUsers(reset=false){
   try{
+    if(reset) selectedUserIds.clear();
     users=await fetchUsers($('#userSearch')?.value||'',{reset});
+    const visibleManageable=new Set((users||[]).filter(canBulkManageUser).map(r=>String(r.user_id)));
+    selectedUserIds=new Set([...selectedUserIds].filter(id=>visibleManageable.has(id)));
     renderUsers(users);
   }catch(e){flash(e.message,true)}
 }
@@ -1377,6 +1469,11 @@ $('#userStatusFilter').onchange=()=>reloadUsers(true);
 $('#userRoleFilter').onchange=()=>reloadUsers(true);
 $('#userPrevBtn').onclick=()=>{userPage.offset=Math.max(0,userPage.offset-userPage.size);reloadUsers(false)};
 $('#userNextBtn').onclick=()=>{if(!userPage.hasMore)return;userPage.offset+=userPage.size;reloadUsers(false)};
+$('#selectPageUsers').onchange=e=>togglePageUsers(e.target.checked);
+$('#bulkActivateBtn').onclick=()=>bulkSetUserStatus('active');
+$('#bulkDisableBtn').onclick=()=>bulkSetUserStatus('disabled');
+$('#bulkBlacklistBtn').onclick=()=>bulkSetUserStatus('blacklisted');
+$('#bulkClearBtn').onclick=clearBulkUsers;
 $('#password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>loadAll().catch(e=>flash(e.message,true));
 $('#maintenanceToggle').onchange=e=>setMaintenance(e.target.checked);
