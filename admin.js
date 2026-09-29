@@ -2,8 +2,9 @@
 const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
-const ADMIN_URL='https://dealzy-v1.vercel.app/admin';
+const ADMIN_URL='https://dealzy-v1.vercel.app/reset-password';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
+let sessionRefresh=null;
 let userPage={offset:0,size:20,total:0,hasMore:false};
 let selectedUserIds=new Set();
 let orders=[], selectedOrder=null, orderPage={offset:0,size:25,total:0,hasMore:false};
@@ -66,16 +67,45 @@ const authHeaders=()=>({'apikey':SB_KEY,'Authorization':'Bearer '+session.access
 const flash=(msg,bad=false)=>{$('#flash').innerHTML='<div class="alert '+(bad?'error':'')+'">'+esc(msg)+'</div>';setTimeout(()=>{$('#flash').innerHTML=''},3500)};
 const modalMsg=(msg,bad=false)=>{$('#userModalMsg').innerHTML=msg?'<div class="alert '+(bad?'error':'')+'">'+esc(msg)+'</div>':''};
 
+async function refreshAdminSession(){
+  if(sessionRefresh) return sessionRefresh;
+  sessionRefresh=(async()=>{
+    if(!session?.refresh_token) throw new Error('Session expired. Sign in again.');
+    const r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{
+      method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({refresh_token:session.refresh_token})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok||!data.access_token) throw new Error('Session expired. Sign in again.');
+    session={...session,...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)};
+    localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+    return session;
+  })();
+  try{return await sessionRefresh}finally{sessionRefresh=null}
+}
+
+async function ensureAdminSession(){
+  if(!session?.access_token) throw new Error('Sign in required.');
+  if(session.expires_at&&session.expires_at<Math.floor(Date.now()/1000)+60) await refreshAdminSession();
+}
+
 async function api(path,opts={}){
-  const r=await fetch(SB_URL+path,{...opts,headers:{...authHeaders(),...(opts.headers||{})}});
-  if(r.status===401){logout();throw new Error('Session expired');}
+  await ensureAdminSession();
+  const requestToken=session.access_token;
+  let r=await fetch(SB_URL+path,{...opts,headers:{...authHeaders(),...(opts.headers||{})}});
+  if(r.status===401&&session?.refresh_token){
+    if(session.access_token===requestToken) await refreshAdminSession();
+    r=await fetch(SB_URL+path,{...opts,headers:{...authHeaders(),...(opts.headers||{})}});
+  }
+  if(r.status===401) throw new Error('Session expired. Sign in again.');
   if(!r.ok){const t=await r.text();throw new Error(t||('HTTP '+r.status));}
   if(r.status===204) return null;
   const t=await r.text(); return t?JSON.parse(t):null;
 }
 
 async function adminEdge(action,payload={}){
-  const r=await fetch(SB_URL+'/functions/v1/dealzy-admin-user-auth',{
+  await ensureAdminSession();
+  const send=()=>fetch(SB_URL+'/functions/v1/dealzy-admin-user-auth',{
     method:'POST',
     headers:{
       'apikey':SB_KEY,
@@ -84,13 +114,19 @@ async function adminEdge(action,payload={}){
     },
     body:JSON.stringify({action,...payload})
   });
+  const requestToken=session.access_token;
+  let r=await send();
+  if(r.status===401&&session?.refresh_token){
+    if(session.access_token===requestToken) await refreshAdminSession();
+    r=await send();
+  }
   const data=await r.json().catch(()=>({}));
   if(!r.ok||data.ok===false) throw new Error(data.error||('HTTP '+r.status));
   return data;
 }
 
 async function fetchUserDetail(userId){
-  const [detail,partnerClicks]=await Promise.all([
+  const [detail,partnerClicks,activity]=await Promise.all([
     api('/rest/v1/rpc/dealzy_admin_user_detail',{
       method:'POST',
       body:JSON.stringify({target_user:userId})
@@ -98,9 +134,13 @@ async function fetchUserDetail(userId){
     api('/rest/v1/rpc/dealzy_admin_user_partner_clicks',{
       method:'POST',
       body:JSON.stringify({target_user:userId})
+    }),
+    api('/rest/v1/rpc/dealzy_admin_user_activity',{
+      method:'POST',
+      body:JSON.stringify({target_user:userId})
     })
   ]);
-  return {...(detail||{}),partner_clicks:partnerClicks||{count:0,recent:[]}};
+  return {...(detail||{}),partner_clicks:partnerClicks||{count:0,recent:[]},activity:activity||[]};
 }
 
 function miniStat(label,value){
@@ -197,14 +237,14 @@ function renderUserDetail(detail){
   const callerIsAdmin=admin?.role==='admin';
 
   const canEditIdentity=
-    (callerIsSuperadmin&&(!protectedAccount||isSelf)) ||
-    (callerIsAdmin&&(!targetIsStaff||isSelf));
+    (callerIsSuperadmin&&!protectedAccount) ||
+    (callerIsAdmin&&!targetIsStaff);
   const canEditRole=callerIsSuperadmin&&!protectedAccount;
   const canEditStatus=
     (callerIsSuperadmin&&!protectedAccount) ||
     (callerIsAdmin&&!targetIsStaff&&!isSelf);
   const canResetPassword=canEditIdentity;
-  const canSetPassword=callerIsSuperadmin&&(!protectedAccount||isSelf);
+  const canSetPassword=callerIsSuperadmin&&!protectedAccount;
 
   ['editUserName','editUserEmail','editUserPhone','saveUserIdentityBtn']
     .forEach(id=>{const el=$('#'+id); if(el) el.disabled=!canEditIdentity;});
@@ -223,7 +263,7 @@ function renderUserDetail(detail){
   if($('#directUserPasswordConfirm')) $('#directUserPasswordConfirm').value='';
 
   if(admin?.role==='viewer') modalMsg('Viewer access is read only.');
-  else if(protectedAccount&&isSelf) modalMsg('Your superadmin role and account status are protected. You can update your identity and request a password reset.');
+  else if(protectedAccount&&isSelf) modalMsg('Protected superadmin account. Use My Dealzy or the sign-in recovery link for your own identity and password.');
   else if(protectedAccount) modalMsg('Protected superadmin account. Changes are locked.');
   else if(callerIsAdmin&&targetIsStaff&&!isSelf) modalMsg('Admins can view staff accounts but can only modify normal users.');
   else modalMsg('');
@@ -265,10 +305,15 @@ function renderUserDetail(detail){
     return '<div class="history-row"><b>'+esc(o.title||o.provider||'Partner click')+'</b><div class="sub">'+esc(o.provider||'')+(market?' · '+esc(market):'')+'</div><div class="sub">'+esc(o.created_at?new Date(o.created_at).toLocaleString():'')+'</div></div>';
   }).join(''):'<div class="sub">No identified partner clicks yet.</div>';
 
+  const activity=detail?.activity||[];
+  $('#userActivity').innerHTML=activity.length?activity.map(item=>
+    '<div class="history-row"><b>'+esc(item.title||item.kind||'Activity')+'</b><div class="sub">'+esc(item.kind||'')+' · '+esc(item.created_at?new Date(item.created_at).toLocaleString():'')+'</div></div>'
+  ).join(''):'<div class="sub">No recorded account activity yet.</div>';
+
   const adminHistory=detail?.admin_history||[];
   $('#userAdminHistory').innerHTML=adminHistory.length?adminHistory.map(h=>{
     const details=h.details||{};
-    const extra=details.status?(' · '+details.status):details.role?(' · '+details.role):'';
+    const extra=details.status?(' · '+details.status):(details.after||details.role)?(' · '+(details.after||details.role)):'';
     return '<div class="history-row"><b>'+esc(h.action||'Admin action')+'</b><div class="sub">'+esc(h.created_at?new Date(h.created_at).toLocaleString():'')+esc(extra)+'</div></div>';
   }).join(''):'<div class="sub">No recorded admin actions for this account.</div>';
 }
@@ -692,7 +737,7 @@ async function login(){
     const r=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
     const data=await r.json();
     if(!r.ok||!data.access_token) throw new Error(data.error_description||data.msg||'Login failed');
-    session=data;
+    session={...data,expires_at:Math.floor(Date.now()/1000)+Number(data.expires_in||3600)};
     localStorage.setItem(SESSION_KEY,JSON.stringify(session));
     await boot();
   }catch(e){$('#loginMsg').innerHTML='<div class="alert error">'+esc(e.message)+'</div>'}
@@ -702,6 +747,9 @@ function logout(){localStorage.removeItem(SESSION_KEY);session=null;location.rel
 
 async function boot(){
   try{
+    await ensureAdminSession();
+    const access=await api('/rest/v1/rpc/dealzy_account_access',{method:'POST',body:'{}'});
+    if(!access?.allowed) throw new Error('This account is '+(access?.status||'unavailable')+'.');
     const rows=await api('/rest/v1/dealzy_admin_users?select=role,enabled&user_id=eq.'+encodeURIComponent(session.user.id));
     if(!rows||!rows[0]||!rows[0].enabled) throw new Error('This account is not an administrator.');
     admin=rows[0];
