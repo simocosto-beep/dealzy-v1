@@ -49,11 +49,18 @@
 
   async function loadRuntimeContent(){
     try{
-      const r=await fetch('/api/config',{cache:'no-store'});
+      const r=await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/dealzy_runtime_config?select=key,value&public_read=eq.true',{
+        cache:'no-store',
+        headers:{
+          'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+          'Accept':'application/json'
+        }
+      });
       if(!r.ok) return;
-      const data=await r.json();
-      if(!data||data.ok===false) return;
-      runtimePublicConfig=data.config||{};
+      const rows=await r.json();
+      const next={};
+      for(const row of Array.isArray(rows)?rows:[]) next[row.key]=row.value||{};
+      runtimePublicConfig=next;
       runtimeContent=runtimePublicConfig.content||{};
       applyRuntimeContent();
     }catch(_){}
