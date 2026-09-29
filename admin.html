@@ -116,6 +116,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <div class="stat"><span class="sub">Searches · 7d</span><b id="anSearches7">—</b><small class="sub" id="anSearches30">— in 30d</small></div>
         <div class="stat"><span class="sub">Saved deals</span><b id="anSaved">—</b><small class="sub" id="anSaved7">— saved in 7d</small></div>
         <div class="stat"><span class="sub">Orders</span><b id="anOrders">—</b><small class="sub" id="anOrders30">— in 30d</small></div>
+        <div class="stat"><span class="sub">Partner clicks · 7d</span><b id="anClicks7">—</b><small class="sub" id="anClicks30">— in 30d</small></div>
       </div>
 
       <section class="panel">
@@ -131,6 +132,10 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
         <section class="panel" style="margin-top:18px">
           <div class="panel-head"><div><h2>Top categories</h2><p class="sub">Most requested categories in the last 30 days.</p></div></div>
           <div id="analyticsTopCategories"></div>
+        </section>
+        <section class="panel" style="margin-top:18px">
+          <div class="panel-head"><div><h2>Partner clicks</h2><p class="sub">Outbound clicks by provider in the last 30 days.</p></div></div>
+          <div id="analyticsTopProviders"></div>
         </section>
       </div>
 
@@ -690,6 +695,12 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       </div>
 
       <div class="section-box">
+        <h3>Recent partner clicks</h3>
+        <p class="sub">Outbound clicks recorded while this user was signed in.</p>
+        <div id="userPartnerClicks"></div>
+      </div>
+
+      <div class="section-box">
         <h3>Admin history</h3>
         <p class="sub">Role, status, identity and password actions recorded for this account.</p>
         <div id="userAdminHistory"></div>
@@ -697,5 +708,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260929-bulk2"></script>
+<script src="/admin.js?v=20260929-clicks1"></script>
 </body></html>

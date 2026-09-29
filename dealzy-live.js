@@ -575,7 +575,7 @@
     Object.values(saved).forEach((d)=>{if(d&&d.id!=null) catalog.set(Number(d.id),d);});
   }
 
-  function trackPartnerClick(d){
+  async function trackPartnerClick(d){
     try{
       const events=JSON.parse(localStorage.getItem("dealzyPartnerClicks")||"[]");
       events.push({
@@ -588,6 +588,30 @@
       });
       localStorage.setItem("dealzyPartnerClicks",JSON.stringify(events.slice(-200)));
       if(window.DealzyCloud) window.DealzyCloud.queueSync();
+    }catch(_){}
+    try{
+      const session=window.DealzyCloud&&window.DealzyCloud.getSession
+        ? await window.DealzyCloud.getSession()
+        : null;
+      const headers={
+        'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+        'Content-Type':'application/json'
+      };
+      if(session&&session.access_token) headers.Authorization='Bearer '+session.access_token;
+      await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
+        method:'POST',
+        headers,
+        keepalive:true,
+        body:JSON.stringify({
+          p_provider:String(d.provider||d.source||'partner').toLowerCase(),
+          p_source:String(d.source||'').slice(0,80),
+          p_title:String(d.title||'').slice(0,240),
+          p_external_id:d.externalId==null?null:String(d.externalId).slice(0,160),
+          p_country_code:market.country,
+          p_city:market.city,
+          p_currency_code:market.currency
+        })
+      });
     }catch(_){}
   }
 

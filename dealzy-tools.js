@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20260929-content1';
+    liveScript.src='/dealzy-live.js?v=20260929-clicks1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -238,9 +238,9 @@
     const symbol=currency==='CAD'?'CA'+String.fromCharCode(36):String.fromCharCode(36);
     return symbol+Number(v||0).toFixed(0);
   }
-  function recordPartnerClick(provider,title,extra){
+  async function recordPartnerClick(provider,title,extra){
+    let market={country:'US',city:'Miami',currency:'USD'};
     try{
-      let market={country:'US',city:'Miami',currency:'USD'};
       try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
       const events=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]');
       events.push({
@@ -253,6 +253,28 @@
       });
       localStorage.setItem('dealzyPartnerClicks',JSON.stringify(events.slice(-500)));
       queueCloudSync();
+    }catch(_){}
+    try{
+      const session=await getCloudSession();
+      const headers={
+        'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+        'Content-Type':'application/json'
+      };
+      if(session&&session.access_token) headers.Authorization='Bearer '+session.access_token;
+      await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
+        method:'POST',
+        headers,
+        keepalive:true,
+        body:JSON.stringify({
+          p_provider:String(provider||'partner').toLowerCase(),
+          p_source:String((extra&&extra.source)||'clickout').slice(0,80),
+          p_title:String(title||'').slice(0,240),
+          p_external_id:(extra&&extra.externalId)!=null?String(extra.externalId).slice(0,160):null,
+          p_country_code:market.country,
+          p_city:market.city,
+          p_currency_code:market.currency
+        })
+      });
     }catch(_){}
   }
 

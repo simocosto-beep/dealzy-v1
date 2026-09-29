@@ -90,10 +90,17 @@ async function adminEdge(action,payload={}){
 }
 
 async function fetchUserDetail(userId){
-  return api('/rest/v1/rpc/dealzy_admin_user_detail',{
-    method:'POST',
-    body:JSON.stringify({target_user:userId})
-  });
+  const [detail,partnerClicks]=await Promise.all([
+    api('/rest/v1/rpc/dealzy_admin_user_detail',{
+      method:'POST',
+      body:JSON.stringify({target_user:userId})
+    }),
+    api('/rest/v1/rpc/dealzy_admin_user_partner_clicks',{
+      method:'POST',
+      body:JSON.stringify({target_user:userId})
+    })
+  ]);
+  return {...(detail||{}),partner_clicks:partnerClicks||{count:0,recent:[]}};
 }
 
 function miniStat(label,value){
@@ -228,7 +235,8 @@ function renderUserDetail(detail){
     miniStat('Travel searches',c.travel_searches),
     miniStat('Alerts',c.alerts),
     miniStat('Orders',c.orders),
-    miniStat('Booked items',c.booked_trip_items)
+    miniStat('Booked items',c.booked_trip_items),
+    miniStat('Partner clicks',detail?.partner_clicks?.count||0)
   ].join('');
 
   const orders=detail?.orders||[];
@@ -250,6 +258,12 @@ function renderUserDetail(detail){
     const summary=data.destination||data.city||data.query||data.origin||'Travel search';
     return '<div class="history-row"><b>'+esc(o.kind||'Travel')+'</b><div class="sub">'+esc(o.provider||'')+' · '+esc(summary)+'</div><div class="sub">'+esc(o.created_at?new Date(o.created_at).toLocaleString():'')+'</div></div>';
   }).join(''):'<div class="sub">No recent travel activity.</div>';
+
+  const partnerClicks=detail?.partner_clicks?.recent||[];
+  $('#userPartnerClicks').innerHTML=partnerClicks.length?partnerClicks.map(o=>{
+    const market=[o.city,o.country_code].filter(Boolean).join(', ');
+    return '<div class="history-row"><b>'+esc(o.title||o.provider||'Partner click')+'</b><div class="sub">'+esc(o.provider||'')+(market?' · '+esc(market):'')+'</div><div class="sub">'+esc(o.created_at?new Date(o.created_at).toLocaleString():'')+'</div></div>';
+  }).join(''):'<div class="sub">No identified partner clicks yet.</div>';
 
   const adminHistory=detail?.admin_history||[];
   $('#userAdminHistory').innerHTML=adminHistory.length?adminHistory.map(h=>{
@@ -710,12 +724,13 @@ async function boot(){
 }
 
 async function loadAll(){
-  const [cfgRows,stats,health,audit,analytics,userRows,commercialData,orderRows]=await Promise.all([
+  const [cfgRows,stats,health,audit,analytics,clickAnalytics,userRows,commercialData,orderRows]=await Promise.all([
     api('/rest/v1/dealzy_runtime_config?select=key,value,updated_at&order=key.asc'),
     api('/rest/v1/rpc/dealzy_admin_dashboard_stats',{method:'POST',body:'{}'}),
     api('/rest/v1/dealzy_provider_health?select=provider_key,display_name,mode,enabled,healthy,last_checked_at,last_latency_ms,last_error_message&order=provider_key.asc'),
     api('/rest/v1/dealzy_admin_audit_log?select=id,action,target,created_at&order=created_at.desc&limit=20'),
     api('/rest/v1/rpc/dealzy_admin_analytics_snapshot',{method:'POST',body:'{}'}),
+    api('/rest/v1/rpc/dealzy_admin_partner_click_analytics',{method:'POST',body:'{}'}),
     fetchUsers($('#userSearch')?.value||''),
     api('/rest/v1/rpc/dealzy_admin_commercial_snapshot',{method:'POST',body:'{}'}),
     fetchOrders($('#orderSearch')?.value||'')
@@ -724,7 +739,8 @@ async function loadAll(){
   users=userRows||[];
   commercial=commercialData||commercial;
   orders=orderRows||[];
-  analyticsData=analytics||{};renderStats(stats||{});renderAnalytics(analyticsData);renderContent();renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
+  analyticsData={...(analytics||{}),partner_clicks:clickAnalytics||{}};
+  renderStats(stats||{});renderAnalytics(analyticsData);renderContent();renderControls();renderHealth(health||[]);renderAudit(audit||[]);renderUsers(users);renderCommercial();renderOrders(orders);
   showAdminPage(currentAdminPage,{remember:false});
 }
 function renderStats(s){
@@ -742,6 +758,9 @@ function renderAnalytics(a){
   if($('#anSaved7')) $('#anSaved7').textContent=n(a.saved_7d)+' saved in 7d';
   if($('#anOrders')) $('#anOrders').textContent=n(a.orders_total);
   if($('#anOrders30')) $('#anOrders30').textContent=n(a.orders_30d)+' in 30d';
+  const clicks=a.partner_clicks||{};
+  if($('#anClicks7')) $('#anClicks7').textContent=n(clicks.clicks_7d);
+  if($('#anClicks30')) $('#anClicks30').textContent=n(clicks.clicks_30d)+' in 30d';
   if($('#anActive30')) $('#anActive30').textContent=n(a.active_30d)+' active 30d';
   if($('#anOrdersConfirmed')) $('#anOrdersConfirmed').textContent=n(a.orders_confirmed);
   if($('#anOrderValue')) $('#anOrderValue').textContent=money(a.orders_value)+' recorded';
@@ -766,6 +785,7 @@ function renderAnalytics(a){
   };
   ranks('#analyticsTopSearches',a.top_searches,'query');
   ranks('#analyticsTopCategories',a.top_categories,'category');
+  ranks('#analyticsTopProviders',(a.partner_clicks||{}).top_providers,'provider');
 }
 
 async function fetchUsers(search='',opts={}){
