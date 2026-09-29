@@ -390,18 +390,20 @@
   async function accountTool(){
     const profileKey='dealzyLocalProfile';
     const sessionKey='dealzyCloudSession';
+    const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
+    const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
     const profile=JSON.parse(localStorage.getItem(profileKey)||'{"name":"","email":""}');
-    const session=JSON.parse(localStorage.getItem(sessionKey)||'null');
     let configured=false;
-    try{const r=await fetch('/api/cloud-status',{cache:'no-store'}); const s=await r.json(); configured=!!s.configured;}catch(_){}
+    try{const r=await fetch('/api/cloud-status',{cache:'no-store'});const d=await r.json();configured=!!d.configured;}catch(_){}
+
     if(!configured){
-      showPanel(`<h3>👤 My Dealzy</h3>
-        <div class="dz-form">
-          <label>Display name<input id="dzName" value="${esc(profile.name||'')}" placeholder="Your name"></label>
-          <label>Email<input id="dzEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
-        </div>
-        <button class="dz-action" id="dzSaveProfile">Save on this device</button>
-        <div class="dz-result"><b>Cloud sync: ready but not connected</b><br><span class="dz-small">Supabase support is built into Dealzy. Once the cloud project is connected, this screen will switch to real signup/login and sync.</span></div>`);
+      showPanel('<h3>👤 My Dealzy</h3>'+
+        '<div class="dz-form">'+
+          '<label>Display name<input id="dzName" value="'+esc(profile.name||'')+'" placeholder="Your name"></label>'+
+          '<label>Email<input id="dzEmail" type="email" value="'+esc(profile.email||'')+'" placeholder="you@example.com"></label>'+
+        '</div>'+
+        '<button class="dz-action" id="dzSaveProfile">Save on this device</button>'+
+        '<div class="dz-result"><b>Cloud sync is not connected.</b></div>');
       panel.querySelector('#dzSaveProfile').onclick=()=>{
         const name=panel.querySelector('#dzName').value.trim();
         const email=panel.querySelector('#dzEmail').value.trim();
@@ -411,102 +413,324 @@
       return;
     }
 
-    if(session&&session.access_token){
-      showPanel(`<h3>👤 My Dealzy</h3>
-        <div class="dz-result"><b>Cloud account connected</b><br><span class="dz-small">${esc(session.user&&session.user.email?session.user.email:(profile.email||'Signed in'))}</span></div>
-        <div id="dzCloudV2Status" class="dz-small" style="margin:10px 0">Checking Dealzy Cloud V2…</div>
-        <button class="dz-action" id="dzSyncUp">Sync this device → Cloud</button>
-        <button class="dz-action alt" id="dzSyncDown">Restore Cloud → this device</button>
-        <button class="dz-action alt" id="dzLogout">Sign out</button>
-        <div id="dzSyncStatus"></div>`);
-      const status=panel.querySelector('#dzSyncStatus');
-      const cloudV2=panel.querySelector('#dzCloudV2Status');
-      fetch('/api/bootstrap',{headers:{'Authorization':'Bearer '+session.access_token},cache:'no-store'})
-        .then(async r=>({ok:r.ok,status:r.status,data:await r.json()}))
-        .then(({ok,status,data})=>{
-          if(status===403){
-            localStorage.removeItem(sessionKey);
-            localStorage.setItem('dealzyAccountAccessError',String(data&&data.error||'Your Dealzy account is unavailable.'));
-            accountTool();
-            return;
-          }
-          if(!cloudV2) return;
-          if(!ok||!data||!data.ok){cloudV2.textContent='Cloud sync connected · advanced backend temporarily unavailable';return}
-          const unread=Number(data.bootstrap&&data.bootstrap.notifications&&data.bootstrap.notifications.unread_count||0);
-          const onboard=!!(data.bootstrap&&data.bootstrap.onboarding&&data.bootstrap.onboarding.completed);
-          cloudV2.innerHTML='<b>Dealzy Cloud V2 active</b> · '+unread+' unread · '+(onboard?'profile ready':'setup available');
-        })
-        .catch(()=>{if(cloudV2) cloudV2.textContent='Cloud sync connected';});
-      const bundle=()=>{
-        const keys=['dealzyFavs','dealzyTrip','dealzyCoords','dealzyMarket','dealzyLocale','dealzyOnboarding','dealzyLiveSaved','dealzyPartnerClicks','dealzyToolPrefs','dealzyAlerts','dealzyLocalProfile','dealzyPriceWatch','dealzyCoupons','dealzyTravelSearches'];
-        const out={}; keys.forEach(k=>{const v=localStorage.getItem(k); if(v!==null) out[k]=v;}); return out;
-      };
-      panel.querySelector('#dzSyncUp').onclick=async()=>{
-        status.innerHTML='<div class="dz-result">Syncing…</div>';
+    let session=await getCloudSession();
+
+    const authHeaders=(token)=>({
+      'apikey':SB_KEY,
+      'Authorization':'Bearer '+token,
+      'Content-Type':'application/json'
+    });
+
+    const sb=async(path,opts={})=>{
+      const token=(session&&session.access_token)||'';
+      const r=await fetch(SB_URL+path,{...opts,headers:{...authHeaders(token),...(opts.headers||{})}});
+      let data=null;
+      const txt=await r.text();
+      try{data=txt?JSON.parse(txt):null}catch(_){data=txt}
+      if(!r.ok){
+        const msg=(data&&typeof data==='object'&&(data.message||data.msg||data.error_description||data.error))||('HTTP '+r.status);
+        throw new Error(String(msg));
+      }
+      return data;
+    };
+
+    const rpc=(name,body)=>sb('/rest/v1/rpc/'+name,{method:'POST',body:JSON.stringify(body||{})});
+
+    const adminAction=async(payload)=>{
+      const r=await fetch(SB_URL+'/functions/v1/dealzy-admin-user-auth',{
+        method:'POST',
+        headers:authHeaders(session.access_token),
+        body:JSON.stringify(payload||{})
+      });
+      const txt=await r.text();
+      let data={};try{data=txt?JSON.parse(txt):{}}catch(_){data={error:txt}}
+      if(!r.ok||data.ok===false) throw new Error(String(data.error||data.message||('HTTP '+r.status)));
+      return data;
+    };
+
+    if(!session||!session.access_token){
+      const accessError=localStorage.getItem('dealzyAccountAccessError')||'';
+      showPanel('<h3>👤 My Dealzy</h3>'+
+        (accessError?'<div class="dz-result"><b>Account unavailable</b><br><span class="dz-small">'+esc(accessError)+'</span></div>':'')+
+        '<div class="dz-form">'+
+          '<label>Email<input id="dzCloudEmail" type="email" value="'+esc(profile.email||'')+'" placeholder="you@example.com"></label>'+
+          '<label>Password<input id="dzCloudPassword" type="password" minlength="6" placeholder="Your password"></label>'+
+        '</div>'+
+        '<button class="dz-action" id="dzLogin">Sign in</button>'+
+        '<button class="dz-action alt" id="dzSignup">Create account</button>'+
+        '<button class="dz-action alt" id="dzForgot">Forgot password</button>'+
+        '<div id="dzAuthStatus" class="dz-small" style="margin-top:10px">Dealzy Cloud account.</div>');
+
+      const authRun=async action=>{
+        const email=panel.querySelector('#dzCloudEmail').value.trim();
+        const password=panel.querySelector('#dzCloudPassword').value;
+        const out=panel.querySelector('#dzAuthStatus');
+        if(!email||(!password&&action!=='forgot')){out.textContent='Enter your email'+(action==='forgot'?'.':' and password.');return}
         try{
-          const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:bundle()})});
-          const d=await r.json();
-          if(r.status===403){
-            localStorage.removeItem(sessionKey);
-            localStorage.setItem('dealzyAccountAccessError',String(d.error||'Your Dealzy account is unavailable.'));
-            accountTool();
+          if(action==='forgot'){
+            out.textContent='Sending reset email…';
+            const r=await fetch(SB_URL+'/auth/v1/recover?redirect_to='+encodeURIComponent('https://dealzy-v1.vercel.app/'),{
+              method:'POST',
+              headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
+              body:JSON.stringify({email})
+            });
+            let d={};try{d=await r.json()}catch(_){}
+            if(!r.ok) throw new Error(d.msg||d.error_description||'Reset email failed');
+            out.textContent='Reset email sent. Open the link, then change your password in My Dealzy.';
             return;
           }
-          if(!r.ok) throw new Error(d.error||'Sync failed');
-          status.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b><br><span class="dz-small">'+(d.structured&&d.structured.ok?'Structured Supabase tables updated.':'Legacy backup saved; structured sync partially pending.')+'</span></div>';
-        }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Sync failed')+'</div>'}
-      };
-      panel.querySelector('#dzSyncDown').onclick=async()=>{
-        status.innerHTML='<div class="dz-result">Restoring…</div>';
-        try{
-          const r=await fetch('/api/sync',{headers:{'Authorization':'Bearer '+session.access_token}});
+          out.textContent=action==='login'?'Signing in…':'Creating account…';
+          const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,email,password})});
           const d=await r.json();
-          if(r.status===403){
-            localStorage.removeItem(sessionKey);
-            localStorage.setItem('dealzyAccountAccessError',String(d.error||'Your Dealzy account is unavailable.'));
+          if(!r.ok) throw new Error(d.msg||d.message||d.error_description||d.error||'Authentication failed');
+          if(d.access_token){
+            d.expires_at=Math.floor(Date.now()/1000)+Number(d.expires_in||3600);
+            localStorage.removeItem('dealzyAccountAccessError');
+            localStorage.setItem(sessionKey,JSON.stringify(d));
+            localStorage.setItem(profileKey,JSON.stringify({...profile,email,updatedAt:new Date().toISOString()}));
             accountTool();
-            return;
+          }else{
+            out.textContent='Account created. Confirm your email, then sign in.';
           }
-          if(!r.ok) throw new Error(d.error||'Restore failed');
-          if(d.data) Object.entries(d.data).forEach(([k,v])=>localStorage.setItem(k,String(v)));
-          status.innerHTML='<div class="dz-result"><b>Cloud data restored.</b> Reload Dealzy to apply it.</div>';
-        }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Restore failed')+'</div>'}
+        }catch(e){out.textContent=e.message||'Authentication failed'}
       };
-      panel.querySelector('#dzLogout').onclick=()=>{localStorage.removeItem(sessionKey); accountTool();};
+      panel.querySelector('#dzLogin').onclick=()=>authRun('login');
+      panel.querySelector('#dzSignup').onclick=()=>authRun('signup');
+      panel.querySelector('#dzForgot').onclick=()=>authRun('forgot');
       return;
     }
 
-    const accessError=localStorage.getItem('dealzyAccountAccessError')||'';
-    showPanel(`<h3>👤 My Dealzy</h3>
-      ${accessError?'<div class="dz-result"><b>Account unavailable</b><br><span class="dz-small">'+esc(accessError)+'</span></div>':''}
-      <div class="dz-form">
-        <label>Email<input id="dzCloudEmail" type="email" value="${esc(profile.email||'')}" placeholder="you@example.com"></label>
-        <label>Password<input id="dzCloudPassword" type="password" minlength="6" placeholder="Minimum 6 characters"></label>
-      </div>
-      <button class="dz-action" id="dzLogin">Sign in</button>
-      <button class="dz-action alt" id="dzSignup">Create account</button>
-      <div id="dzAuthStatus" class="dz-small" style="margin-top:10px">Cloud sync is available on this deployment.</div>`);
-    const run=async action=>{
-      const email=panel.querySelector('#dzCloudEmail').value.trim(), password=panel.querySelector('#dzCloudPassword').value;
-      const out=panel.querySelector('#dzAuthStatus');
-      if(!email||!password){out.textContent='Enter your email and password.';return}
-      out.textContent=action==='login'?'Signing in…':'Creating account…';
+    let me,profileRow,adminRows,orders;
+    try{
+      me=await sb('/auth/v1/user',{method:'GET'});
+      const uid=me.id;
+      [profileRow,adminRows,orders]=await Promise.all([
+        sb('/rest/v1/dealzy_profiles?select=display_name,country_code,currency_code,home_city&user_id=eq.'+encodeURIComponent(uid)+'&limit=1',{method:'GET'}),
+        sb('/rest/v1/dealzy_admin_users?select=role,enabled&user_id=eq.'+encodeURIComponent(uid)+'&limit=1',{method:'GET'}),
+        sb('/rest/v1/dealzy_orders?select=id,provider,external_order_id,kind,title,status,amount,currency_code,booked_at,created_at&user_id=eq.'+encodeURIComponent(uid)+'&order=created_at.desc&limit=50',{method:'GET'})
+      ]);
+    }catch(e){
+      if(/401|jwt|token|session/i.test(String(e.message||''))){
+        localStorage.removeItem(sessionKey);
+        return accountTool();
+      }
+      showPanel('<h3>👤 My Dealzy</h3><div class="dz-result">'+esc(e.message||'Could not load account')+'</div>');
+      return;
+    }
+
+    const pr=(Array.isArray(profileRow)&&profileRow[0])||{};
+    const admin=(Array.isArray(adminRows)&&adminRows[0])||null;
+    const role=admin&&admin.enabled?String(admin.role||'user'):'user';
+    const canManage=role==='admin'||role==='superadmin';
+    const isSuperadmin=role==='superadmin';
+    const displayName=pr.display_name||me.user_metadata?.display_name||me.user_metadata?.full_name||me.user_metadata?.name||'';
+    const orderRows=Array.isArray(orders)?orders:[];
+
+    const orderHtml=orderRows.length?orderRows.map(o=>{
+      const when=o.booked_at||o.created_at;
+      const amount=o.amount==null?'—':money(Number(o.amount),o.currency_code||'USD');
+      return '<div class="dz-result" style="margin:8px 0">'+
+        '<b>'+esc(o.title||o.kind||'Order')+'</b><br>'+
+        '<span class="dz-small">'+esc(o.provider||'Dealzy')+' · '+esc(o.status||'pending')+' · '+esc(amount)+'</span><br>'+
+        '<span class="dz-small">'+esc(when?new Date(when).toLocaleString():'')+(o.external_order_id?' · #'+esc(o.external_order_id):'')+'</span>'+
+      '</div>';
+    }).join(''):'<div class="dz-result">No Dealzy orders or bookings yet.</div>';
+
+    showPanel('<h3>👤 My Dealzy</h3>'+
+      '<div class="dz-result"><b>Connected account</b><br><span class="dz-small">'+esc(me.email||me.phone||'Signed in')+' · '+esc(role.toUpperCase())+'</span></div>'+
+      '<h3 style="margin-top:18px">Profile</h3>'+
+      '<div class="dz-form">'+
+        '<label>Name<input id="dzAccountName" value="'+esc(displayName)+'" placeholder="Your name"></label>'+
+        '<label>Email<input id="dzAccountEmail" type="email" value="'+esc(me.email||'')+'"></label>'+
+        '<label>Phone<input id="dzAccountPhone" value="'+esc(me.phone||'')+'" placeholder="+1…"></label>'+
+      '</div>'+
+      '<button class="dz-action" id="dzAccountSave">Save profile</button>'+
+      '<div id="dzAccountProfileStatus"></div>'+
+      '<h3 style="margin-top:18px">Password</h3>'+
+      '<div class="dz-form">'+
+        '<label>New password<input id="dzNewPassword" type="password" minlength="8" placeholder="Minimum 8 characters"></label>'+
+        '<label>Confirm password<input id="dzConfirmPassword" type="password" minlength="8" placeholder="Repeat password"></label>'+
+      '</div>'+
+      '<button class="dz-action" id="dzChangePassword">Change password</button>'+
+      '<div id="dzPasswordStatus"></div>'+
+      '<h3 style="margin-top:18px">Order history</h3>'+orderHtml+
+      (canManage?'<h3 style="margin-top:18px">User management</h3>'+
+        '<div class="dz-small">Manage Dealzy users directly inside the app: activate, disable, blacklist, edit identity, orders and roles.</div>'+
+        '<div class="dz-form" style="margin-top:10px"><label>Search users<input id="dzUserSearch" placeholder="name, email or phone"></label></div>'+
+        '<button class="dz-action alt" id="dzFindUsers">Search users</button>'+
+        '<div id="dzUsersResult"></div>':'')+
+      '<h3 style="margin-top:18px">Cloud</h3>'+
+      '<button class="dz-action alt" id="dzSyncUp">Sync this device → Cloud</button>'+
+      '<button class="dz-action alt" id="dzSyncDown">Restore Cloud → this device</button>'+
+      '<button class="dz-action alt" id="dzLogout">Sign out</button>'+
+      '<div id="dzSyncStatus"></div>');
+
+    panel.querySelector('#dzAccountSave').onclick=async()=>{
+      const status=panel.querySelector('#dzAccountProfileStatus');
+      const name=panel.querySelector('#dzAccountName').value.trim();
+      const email=panel.querySelector('#dzAccountEmail').value.trim();
+      const phone=panel.querySelector('#dzAccountPhone').value.trim();
+      status.innerHTML='<div class="dz-result">Saving…</div>';
       try{
-        const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,email,password})});
-        const d=await r.json();
-        if(!r.ok) throw new Error(d.msg||d.message||d.error_description||d.error||'Authentication failed');
-        if(d.access_token){
-          localStorage.removeItem('dealzyAccountAccessError');
-          localStorage.setItem(sessionKey,JSON.stringify(d));
-          localStorage.setItem(profileKey,JSON.stringify({...profile,email,updatedAt:new Date().toISOString()}));
-          accountTool();
-        }else{
-          out.textContent='Account created. Confirm the email, then return to Dealzy and tap Sign in. If the confirmation page shows localhost, the account can still be confirmed.';
-        }
-      }catch(e){out.textContent=e.message||'Authentication failed'}
+        const authPatch={data:{...(me.user_metadata||{}),display_name:name,full_name:name,name}};
+        if(email&&email!==me.email) authPatch.email=email;
+        if(phone&&phone!==(me.phone||'')) authPatch.phone=phone;
+        const updated=await sb('/auth/v1/user',{method:'PUT',body:JSON.stringify(authPatch)});
+        await sb('/rest/v1/dealzy_profiles?on_conflict=user_id',{
+          method:'POST',
+          headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify({user_id:me.id,display_name:name||null,updated_at:new Date().toISOString()})
+        });
+        session.user=updated||session.user;
+        localStorage.setItem(sessionKey,JSON.stringify(session));
+        localStorage.setItem(profileKey,JSON.stringify({name,email:updated?.email||email,phone:updated?.phone||phone,updatedAt:new Date().toISOString()}));
+        status.innerHTML='<div class="dz-result"><b>Profile updated.</b><br><span class="dz-small">Email or phone changes may require verification.</span></div>';
+      }catch(e){status.innerHTML='<div class="dz-result">'+esc(e.message||'Update failed')+'</div>'}
     };
-    panel.querySelector('#dzLogin').onclick=()=>run('login');
-    panel.querySelector('#dzSignup').onclick=()=>run('signup');
+
+    panel.querySelector('#dzChangePassword').onclick=async()=>{
+      const out=panel.querySelector('#dzPasswordStatus');
+      const p=panel.querySelector('#dzNewPassword').value;
+      const c=panel.querySelector('#dzConfirmPassword').value;
+      if(p.length<8){out.innerHTML='<div class="dz-result">Use at least 8 characters.</div>';return}
+      if(p!==c){out.innerHTML='<div class="dz-result">Passwords do not match.</div>';return}
+      out.innerHTML='<div class="dz-result">Updating password…</div>';
+      try{
+        await sb('/auth/v1/user',{method:'PUT',body:JSON.stringify({password:p})});
+        panel.querySelector('#dzNewPassword').value='';
+        panel.querySelector('#dzConfirmPassword').value='';
+        out.innerHTML='<div class="dz-result"><b>Password changed.</b></div>';
+      }catch(e){out.innerHTML='<div class="dz-result">'+esc(e.message||'Password update failed')+'</div>'}
+    };
+
+    const syncStatus=panel.querySelector('#dzSyncStatus');
+    panel.querySelector('#dzSyncUp').onclick=async()=>{
+      syncStatus.innerHTML='<div class="dz-result">Syncing…</div>';
+      try{
+        const r=await fetch('/api/sync',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},body:JSON.stringify({data:cloudBundle()})});
+        const d=await r.json();
+        if(!r.ok) throw new Error(d.error||'Sync failed');
+        syncStatus.innerHTML='<div class="dz-result"><b>Cloud sync complete.</b></div>';
+      }catch(e){syncStatus.innerHTML='<div class="dz-result">'+esc(e.message||'Sync failed')+'</div>'}
+    };
+    panel.querySelector('#dzSyncDown').onclick=async()=>{
+      syncStatus.innerHTML='<div class="dz-result">Restoring…</div>';
+      try{
+        const r=await fetch('/api/sync',{headers:{'Authorization':'Bearer '+session.access_token}});
+        const d=await r.json();
+        if(!r.ok) throw new Error(d.error||'Restore failed');
+        if(d.data) Object.entries(d.data).forEach(([k,v])=>localStorage.setItem(k,String(v)));
+        syncStatus.innerHTML='<div class="dz-result"><b>Cloud data restored.</b> Reload Dealzy to apply it.</div>';
+      }catch(e){syncStatus.innerHTML='<div class="dz-result">'+esc(e.message||'Restore failed')+'</div>'}
+    };
+    panel.querySelector('#dzLogout').onclick=()=>{localStorage.removeItem(sessionKey);accountTool();};
+
+    if(canManage){
+      const resultBox=panel.querySelector('#dzUsersResult');
+
+      const loadUserDetail=async uid=>{
+        resultBox.innerHTML='<div class="dz-result">Loading user…</div>';
+        try{
+          const d=await rpc('dealzy_admin_user_detail',{target_user:uid});
+          const u=d.user||{};
+          const protectedUser=!!u.protected_superadmin;
+          const targetOrders=Array.isArray(d.orders)?d.orders:[];
+          const targetOrderHtml=targetOrders.length?targetOrders.slice(0,20).map(o=>
+            '<div class="dz-small" style="padding:7px 0;border-bottom:1px solid #eef0f4">'+
+            '<b>'+esc(o.title||o.kind||'Order')+'</b> · '+esc(o.provider||'')+' · '+esc(o.status||'')+
+            (o.amount!=null?' · '+esc(money(Number(o.amount),o.currency_code||'USD')):'')+
+            '</div>'
+          ).join(''):'<div class="dz-small">No orders.</div>';
+
+          resultBox.innerHTML='<div class="dz-result">'+
+            '<b>'+esc(u.display_name||u.email||'Dealzy user')+'</b><br>'+
+            '<span class="dz-small">'+esc(u.email||'')+(u.phone?' · '+esc(u.phone):'')+' · '+esc(String(u.status||'active').toUpperCase())+' · '+esc(String(u.role||'user').toUpperCase())+'</span>'+
+            (protectedUser?'<br><span class="dz-small"><b>Protected superadmin</b></span>':'')+
+            '</div>'+
+            '<div class="dz-form" style="margin-top:10px">'+
+              '<label>Name<input id="dzTargetName" value="'+esc(u.display_name||'')+'"></label>'+
+              '<label>Email<input id="dzTargetEmail" type="email" value="'+esc(u.email||'')+'"></label>'+
+              '<label>Phone<input id="dzTargetPhone" value="'+esc(u.phone||'')+'"></label>'+
+              '<label>Status<select id="dzTargetStatus">'+['active','disabled','blacklisted'].map(x=>'<option '+(String(u.status||'active')===x?'selected':'')+'>'+x+'</option>').join('')+'</select></label>'+
+              '<label>Reason<input id="dzTargetReason" value="'+esc(u.status_reason||'')+'" placeholder="Optional reason"></label>'+
+              (isSuperadmin?'<label>Role<select id="dzTargetRole">'+['user','viewer','admin'].map(x=>'<option '+(String(u.role||'user')===x?'selected':'')+'>'+x+'</option>').join('')+'</select></label>':'')+
+            '</div>'+
+            '<button class="dz-action" id="dzTargetSave" '+(protectedUser?'disabled':'')+'>Save user</button>'+
+            (isSuperadmin&&!protectedUser?'<div class="dz-form" style="margin-top:10px"><label>Set new password<input id="dzTargetPassword" type="password" minlength="12" placeholder="12+ chars, upper/lower/number"></label></div><button class="dz-action alt" id="dzTargetSetPassword">Set password</button>':'')+
+            '<div id="dzTargetStatusBox"></div>'+
+            '<h3 style="margin-top:16px">User orders</h3>'+targetOrderHtml+
+            '<button class="dz-action alt" id="dzBackUsers">← Back to users</button>';
+
+          panel.querySelector('#dzBackUsers').onclick=()=>loadUsers(panel.querySelector('#dzUserSearch')?.value||'');
+
+          if(!protectedUser){
+            panel.querySelector('#dzTargetSave').onclick=async()=>{
+              const out=panel.querySelector('#dzTargetStatusBox');
+              out.innerHTML='<div class="dz-result">Saving user…</div>';
+              try{
+                const identity={
+                  action:'update_identity',
+                  target_user:uid,
+                  display_name:panel.querySelector('#dzTargetName').value.trim(),
+                  email:panel.querySelector('#dzTargetEmail').value.trim(),
+                  phone:panel.querySelector('#dzTargetPhone').value.trim()
+                };
+                await adminAction(identity);
+                await adminAction({
+                  action:'set_status',
+                  target_user:uid,
+                  status:panel.querySelector('#dzTargetStatus').value,
+                  reason:panel.querySelector('#dzTargetReason').value.trim()
+                });
+                if(isSuperadmin&&panel.querySelector('#dzTargetRole')){
+                  await rpc('dealzy_superadmin_set_staff',{target_user:uid,new_role:panel.querySelector('#dzTargetRole').value});
+                }
+                out.innerHTML='<div class="dz-result"><b>User updated.</b></div>';
+                setTimeout(()=>loadUserDetail(uid),500);
+              }catch(e){out.innerHTML='<div class="dz-result">'+esc(e.message||'User update failed')+'</div>'}
+            };
+
+            if(isSuperadmin&&panel.querySelector('#dzTargetSetPassword')){
+              panel.querySelector('#dzTargetSetPassword').onclick=async()=>{
+                const out=panel.querySelector('#dzTargetStatusBox');
+                const password=panel.querySelector('#dzTargetPassword').value;
+                out.innerHTML='<div class="dz-result">Updating password…</div>';
+                try{
+                  await adminAction({action:'set_password',target_user:uid,password});
+                  panel.querySelector('#dzTargetPassword').value='';
+                  out.innerHTML='<div class="dz-result"><b>Password changed for this user.</b></div>';
+                }catch(e){out.innerHTML='<div class="dz-result">'+esc(e.message||'Password update failed')+'</div>'}
+              };
+            }
+          }
+        }catch(e){
+          resultBox.innerHTML='<div class="dz-result">'+esc(e.message||'Could not load user')+'</div>';
+        }
+      };
+
+      const loadUsers=async query=>{
+        resultBox.innerHTML='<div class="dz-result">Loading users…</div>';
+        try{
+          const data=await rpc('dealzy_admin_users_page',{search_text:String(query||''),status_filter:'all',role_filter:'all',page_size:30,page_offset:0});
+          const rows=Array.isArray(data.rows)?data.rows:[];
+          resultBox.innerHTML='<div class="dz-small" style="margin:8px 0"><b>'+Number(data.total||rows.length)+' user'+(Number(data.total||rows.length)===1?'':'s')+'</b></div>'+
+            (rows.length?rows.map(u=>
+              '<button class="dz-tool" data-dz-user="'+esc(u.user_id)+'" style="width:100%;min-height:auto;margin:7px 0">'+
+                '<b>'+esc(u.display_name||u.email||'Dealzy user')+'</b>'+
+                '<span>'+esc(u.email||'')+(u.phone?' · '+esc(u.phone):'')+'</span>'+
+                '<span>'+esc(String(u.account_status||'active').toUpperCase())+' · '+esc(String(u.admin_role||'user').toUpperCase())+'</span>'+
+              '</button>'
+            ).join(''):'<div class="dz-result">No users found.</div>');
+          resultBox.querySelectorAll('[data-dz-user]').forEach(b=>b.onclick=()=>loadUserDetail(b.getAttribute('data-dz-user')));
+        }catch(e){
+          resultBox.innerHTML='<div class="dz-result">'+esc(e.message||'Could not load users')+'</div>';
+        }
+      };
+
+      panel.querySelector('#dzFindUsers').onclick=()=>loadUsers(panel.querySelector('#dzUserSearch').value.trim());
+      panel.querySelector('#dzUserSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadUsers(e.target.value.trim())});
+      loadUsers('');
+    }
   }
 
   function plannerTool(){
@@ -931,6 +1155,9 @@
     const t=btn.dataset.tool;
     ({compare:compareTool,budget:budgetTool,savings:savingsTool,alerts:alertsTool,notifications:notificationsTool,search:providerSearchTool,nearby:nearbyTool,account:accountTool,planner:plannerTool,travel:travelTool,watch:watchTool,coupons:couponsTool,backup:backupTool,split:splitTool,providers:providersTool,app:appTool}[t]||(()=>{}))();
   });
+  window.DealzyOpenAccount=()=>{wrap.classList.add('open');accountTool();};
+  const dealzyAccountBtn=document.getElementById('openDealzyAccount');
+  if(dealzyAccountBtn) dealzyAccountBtn.onclick=window.DealzyOpenAccount;
 
   // Quietly check saved watches after the app settles. This creates in-app notifications only when a signed-in user has watches.
   setTimeout(()=>checkPriceWatches(false),3500);
