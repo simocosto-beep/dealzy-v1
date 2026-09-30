@@ -57,6 +57,19 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.dealzyai.com"
+        }
+      ],
+      "destination": "/admin",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/health",
