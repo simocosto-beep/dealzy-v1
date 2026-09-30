@@ -48,6 +48,8 @@
     "Travel":"Voyage",
     "All":"Tout",
     "Loading live deals…":"Chargement des offres en direct…",
+    "No live offers available in {city} right now.":"Aucune offre en direct disponible à {city} pour le moment.",
+    "Try again":"Réessayer",
     "Loading live results…":"Chargement des résultats en direct…",
     "Live search":"Recherche en direct",
     "Price on provider":"Prix chez le partenaire",
