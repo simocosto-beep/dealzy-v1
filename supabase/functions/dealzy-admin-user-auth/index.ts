@@ -5,11 +5,12 @@ import { targetActionDenied } from "./permissions.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const ADMIN_ORIGIN = "https://dealzy-v1.vercel.app";
+const ADMIN_ORIGIN = "https://admin.dealzyai.com";
 const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, { auth:{ persistSession:false, autoRefreshToken:false } });
 
 const ALLOWED_ORIGINS = new Set([
   ADMIN_ORIGIN,
+  "https://dealzy-v1.vercel.app",
   "https://appassets.androidplatform.net"
 ]);
 

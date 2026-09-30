@@ -477,7 +477,7 @@
         try{
           if(action==='forgot'){
             out.textContent='Sending reset email…';
-            const r=await fetch(SB_URL+'/auth/v1/recover?redirect_to='+encodeURIComponent('https://dealzy-v1.vercel.app/'),{
+            const r=await fetch(SB_URL+'/auth/v1/recover?redirect_to='+encodeURIComponent('https://dealzyai.com/'),{
               method:'POST',
               headers:{'apikey':SB_KEY,'Content-Type':'application/json'},
               body:JSON.stringify({email})
