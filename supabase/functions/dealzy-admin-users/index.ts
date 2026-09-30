@@ -2,7 +2,7 @@
 // checked user-auth function or the checked role RPC using the caller's JWT.
 const BASE = Deno.env.get("SUPABASE_URL") ?? "";
 const PUBLIC_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const ORIGINS = new Set(["https://admin.dealzyai.com", "https://dealzy-v1.vercel.app"]);
+const ORIGINS = new Set(["https://admin.dealzyai.com", "https://dealzyai.com", "https://dealzy-v1.vercel.app"]);
 const headersFor = (request: Request) => ({
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": ORIGINS.has(request.headers.get("Origin") ?? "") ? request.headers.get("Origin")! : "https://admin.dealzyai.com",

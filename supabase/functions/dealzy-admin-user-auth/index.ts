@@ -10,6 +10,7 @@ const adminClient = createClient(SUPABASE_URL, SERVICE_KEY, { auth:{ persistSess
 
 const ALLOWED_ORIGINS = new Set([
   ADMIN_ORIGIN,
+  "https://dealzyai.com",
   "https://dealzy-v1.vercel.app",
   "https://appassets.androidplatform.net"
 ]);
