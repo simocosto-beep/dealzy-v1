@@ -142,7 +142,16 @@ window.DealzyHandleBack=function(){
 };
 $$('.navBtn').forEach(b=>b.onclick=()=>show(b.dataset.view));$('#closeDetail').onclick=()=>$('#detailOverlay').classList.add('hidden');$('#detailOverlay').onclick=e=>{if(e.target===$('#detailOverlay'))$('#detailOverlay').classList.add('hidden')};
 function aiSearch(q){const t=q.toLowerCase();state.filter=t.includes('spa')||t.includes('massage')?'Spa & Beauty':t.includes('dinner')||t.includes('food')||t.includes('restaurant')||t.includes('brunch')?'Food & Drink':t.includes('family')||t.includes('kids')?'Family':t.includes('hotel')||t.includes('travel')||t.includes('stay')?'Travel':t.includes('boat')||t.includes('cruise')||t.includes('things to do')?'Things to Do':'All';const m=t.match(/(?:under|below|max|less than)\s*\$?\s*(\d{1,4})/);state.maxPrice=m?Number(m[1]):null;$('#exploreQuery').value=q.replace(/date night|tonight|this weekend|near me|under \$?\d+|below \$?\d+|max \$?\d+|less than \$?\d+/gi,'').trim();show('explore');renderExplore();toast('Dealzy AI interpreted category'+(state.maxPrice?' + budget':''))}
-$('#askBtn').onclick=()=>aiSearch($('#aiQuery').value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});
+const aiQuery=$('#aiQuery');
+aiQuery.dataset.exampleValue=aiQuery.value;
+aiQuery.addEventListener('focus',()=>{
+  if(!aiQuery.dataset.userEdited && aiQuery.value===aiQuery.dataset.exampleValue){
+    aiQuery.value='';
+    aiQuery.dataset.userEdited='1';
+  }
+});
+aiQuery.addEventListener('input',()=>{aiQuery.dataset.userEdited='1'});
+$('#askBtn').onclick=()=>aiSearch(aiQuery.value);$$('[data-q]').forEach(b=>b.onclick=()=>aiSearch(b.dataset.q));$('#exploreSearch').onclick=renderExplore;$('#exploreQuery').addEventListener('keydown',e=>{if(e.key==='Enter')renderExplore()});
 $('#tripAdd').onclick=()=>{state.trip=[...new Set([...state.trip,...state.favorites])];localStorage.setItem('dealzyTrip',JSON.stringify(state.trip));if(window.DealzyCloud)window.DealzyCloud.queueSync();renderTrips();toast('Favorites added to Miami Weekend')};
 function updateGeoUI(){
   let m={country:'US',city:'',currency:'USD'};
@@ -198,4 +207,4 @@ if(brandHome){
 }
 renderAll();updateGeoUI();
 </script>
-<script src="/dealzy-providers.js"></script><script src="/dealzy-tools.js?v=20260930-loading1"></script><script src="/dealzy-account.js?v=20260929-account2"></script><script src="/dealzy-assistant.js?v=20260930-assistant1" defer></script></body></html>
+<script src="/dealzy-providers.js"></script><script src="/dealzy-tools.js?v=20260930-search1"></script><script src="/dealzy-account.js?v=20260929-account2"></script><script src="/dealzy-assistant.js?v=20260930-search1" defer></script></body></html>

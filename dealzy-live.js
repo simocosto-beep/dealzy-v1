@@ -1779,12 +1779,12 @@
     }
 
     const query=document.getElementById("aiQuery");
-    if(query && (!query.dataset.marketTouched || /Miami|Toronto|Montreal|Montréal|Vancouver|Calgary|Ottawa|New York|Los Angeles|Chicago|Las Vegas|Orlando|San Francisco|Boston|Seattle|Washington|Dallas|Houston|San Diego|Philadelphia|Atlanta|New Orleans|Austin|Denver|Nashville|Phoenix|Honolulu/i.test(query.value))){
+    if(query && !query.dataset.userEdited && document.activeElement!==query){
       const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
         ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
         : "Date night in "+market.city+" tonight under "+moneyFor(preferred,market.currency);
-      query.dataset.marketTouched="1";
+      query.dataset.exampleValue=query.value;
     }
 
     const tripCard=document.querySelector("#tripsView .tripCard");
