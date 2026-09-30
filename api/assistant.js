@@ -1,15 +1,9 @@
 const MODEL = 'gemini-3.5-flash-lite';
 const requests = new Map();
+const searchHandler = require('./search');
 
 async function searchDeals(req, res) {
-  const deployedHost = process.env.VERCEL_URL;
-  const localHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers?.host || '') ? req.headers.host : null;
-  const host = deployedHost || localHost;
-  if (!host) throw new Error('search_origin_unavailable');
-  const url = new URL('/api/search', `${localHost && !deployedHost ? 'http' : 'https'}://${host}`);
-  for (const [key, value] of Object.entries(req.query)) url.searchParams.set(key, String(value));
-  const response = await fetch(url, { headers:{ Accept:'application/json' }, signal:AbortSignal.timeout(7000) });
-  return res.status(response.status).json(await response.json());
+  return searchHandler(req, res);
 }
 
 function cleanText(value, limit) {

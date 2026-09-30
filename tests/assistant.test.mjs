@@ -58,6 +58,45 @@ test('Gemini sees selected city and verified live offers, not GPS or account fie
   assert.equal(result.output.offers.length, 2);
 });
 
+test('default assistant search reads live inventory without calling its own protected Preview URL', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalVercelUrl = process.env.VERCEL_URL;
+  const requested = [];
+  let modelRequest;
+  process.env.VERCEL_URL = 'protected-preview.example';
+  globalThis.fetch = async url => {
+    requested.push(String(url));
+    if (String(url).includes('/rest/v1/dealzy_runtime_config')) return new Response('[]', { status:200 });
+    if (String(url).includes('/rest/v1/dealzy_direct_deals')) return new Response(JSON.stringify([{
+      id:'dinner-1', title:'Dinner for two', description:'Dinner', category:'Food & Drink',
+      country_code:'US', city:'Miami', address:'Downtown', price:70, old_price:90,
+      currency_code:'USD', partner_url:'https://example.com/dinner', featured:true
+    }]), { status:200 });
+    throw new Error('No other network request is allowed in this test');
+  };
+  try {
+    const handler = createHandler({ key:() => 'server-key', rateLimit:() => false,
+      generate:async (_url, options) => {
+        modelRequest = JSON.parse(options.body);
+        return { ok:true, status:200, json:async () => ({
+          candidates:[{ content:{ parts:[{ text:'Une offre vérifiée est disponible.' }] } }]
+        }) };
+      }
+    });
+    const result = await call(handler, { body:{ message:'Dîner moins de 80 $', city:'Miami', locale:'fr' } });
+    assert.equal(result.code, 200);
+    assert.equal(result.output.offers[0].title, 'Dinner for two');
+    assert.equal(result.output.offers[0].url, 'https://example.com/dinner');
+    assert.match(modelRequest.contents.at(-1).parts[0].text, /Dinner for two/);
+    assert.equal(requested.some(url => url.includes('/api/search')), false);
+    assert.equal(requested.some(url => url.includes('protected-preview.example')), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalVercelUrl === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = originalVercelUrl;
+  }
+});
+
 test('demo data is not presented as verified live offers; quota errors stay explicit', async () => {
   let modelRequest;
   const handler = createHandler({
