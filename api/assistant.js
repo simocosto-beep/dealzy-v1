@@ -141,5 +141,7 @@ function createHandler({ search = searchDeals, generate = fetch, key = () => pro
   };
 }
 
-export default createHandler();
-export { createHandler, intentFor, safeOffer };
+module.exports = createHandler();
+module.exports.createHandler = createHandler;
+module.exports.intentFor = intentFor;
+module.exports.safeOffer = safeOffer;
