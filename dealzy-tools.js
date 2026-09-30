@@ -1281,7 +1281,7 @@
   if('serviceWorker' in navigator){
     window.addEventListener('load',async()=>{
       try{
-        const reg=await navigator.serviceWorker.register('/sw.js?v=20260930-loading1');
+        const reg=await navigator.serviceWorker.register('/sw.js?v=20260930-assistant1');
         await reg.update();
       }catch(_){}
     });

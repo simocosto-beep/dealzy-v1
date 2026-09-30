@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 
 test('all deployed API entry points load as callable functions', () => {
   for (const route of [
-    'auth', 'bootstrap', 'cloud-status', 'health', 'notifications',
+    'assistant', 'auth', 'bootstrap', 'cloud-status', 'notifications',
     'price-history', 'providers', 'recommend', 'search', 'sync',
     'viator-status', 'watch-check'
   ]) {
@@ -14,11 +14,11 @@ test('all deployed API entry points load as callable functions', () => {
   }
 });
 
-test('the public health endpoint responds without external credentials', async () => {
-  const handler = require('../api/health.js');
+test('the shared cloud-status endpoint serves the public health route', async () => {
+  const handler = require('../api/cloud-status.js');
   let status;
   let body;
-  await handler({ method:'GET' }, {
+  await handler({ query:{ view:'health' } }, {
     setHeader() {},
     status(value) { status = value; return this; },
     json(value) { body = value; return this; }

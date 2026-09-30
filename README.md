@@ -26,6 +26,7 @@ Dealzy is evolving into an AI-powered deals super-app: one search experience for
 - PWA manifest + service worker app shell
 - Server-side `/api/search` provider gateway with demo fallback
 - `/api/recommend` intent-aware recommendation endpoint
+- In-app Dealzy Assistant chat (FR/EN): real Gemini replies grounded in Dealzy live search results when `GEMINI_API_KEY` is set on the server. Otherwise it offers the existing guided search without presenting it as an AI conversation.
 - `/api/providers` source-status endpoint
 - `/api/health` service health endpoint
 - Security headers via `vercel.json`
@@ -42,6 +43,9 @@ Planned adapters:
 - Additional local commerce APIs where licensing permits
 
 No credentials or secrets should be committed to this repository. Live API calls should use Vercel server-side functions and environment variables.
+
+## Free AI assistant setup
+Create a Gemini API key in Google AI Studio on a **Free tier** project, restrict it to the Gemini API, and set `GEMINI_API_KEY` as a Vercel server-side environment variable for Preview and Production. Redeploy after setting it. The assistant uses `gemini-3.5-flash-lite`, calls the model only after a visitor sends a message, and has short inputs/outputs plus a per-instance request throttle. The Free tier has project-specific limits; if it is exhausted, the chat reports the temporary limit and does not switch to paid usage on its own. Do not enable billing for this key if zero spend is required. The UI discloses that messages are sent to Google on the Free tier; Dealzy sends the chosen city and a small set of public live offers, not precise GPS or account data. Chat history is held in memory for the current page only.
 
 ## Product principle
 One search bar should understand intent: what, where, when, budget, party size and preferences. The user should not need to understand which provider supplies the deal.
