@@ -150,7 +150,10 @@
   function guidedSearch() {
     close();
     const query = document.getElementById('aiQuery');
-    if (query) query.value = input.value || say('suggestions')[0];
+    if (query) {
+      query.value = input.value || say('suggestions')[0];
+      query.dataset.userEdited = '1';
+    }
     if (typeof window.DealzyGuidedSearch === 'function') window.DealzyGuidedSearch(query?.value || '');
     else document.getElementById('askBtn')?.click();
   }
