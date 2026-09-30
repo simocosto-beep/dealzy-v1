@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://dealzy-v1.vercel.app/sitemap.xml
+Sitemap: https://dealzyai.com/sitemap.xml

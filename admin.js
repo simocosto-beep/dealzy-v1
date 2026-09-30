@@ -2,7 +2,7 @@
 const SB_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const SB_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
 const SESSION_KEY='dealzy_admin_session_v1';
-const ADMIN_URL='https://dealzy-v1.vercel.app/reset-password';
+const ADMIN_URL='https://admin.dealzyai.com/reset-password';
 let session=null, admin=null, config={}, users=[], selectedUser=null, selectedUserDetail=null, commercial={summary:{},partners:[],contracts:[],deals:[],transactions:[],coupons:[]}, stripeData=null;
 let sessionRefresh=null;
 let userPage={offset:0,size:20,total:0,hasMore:false};
