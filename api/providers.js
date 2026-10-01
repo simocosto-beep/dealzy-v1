@@ -55,7 +55,7 @@ module.exports = async function handler(req,res){
       {name:'Viator Experiences',status:!runtimeEnabled(p,'viator',true)?'disabled-by-admin':(viatorProductionConfigured?'production-ready':(viatorSandboxConfigured?'sandbox-ready':'pending-key')),kind:'affiliate-api'},
       {name:'Ticketmaster Events',status:status('ticketmaster',ticketmasterConfigured),kind:'events-api'},
       {name:'Yelp Places',status:status('yelp',yelpConfigured),kind:'local-places-api'},
-      {name:'Groupon / Affiliate feed',status:'pending',kind:'affiliate'},
+      {name:'Groupon North America (CJ)',status:'application-declined',kind:'affiliate'},
       {name:'CJ Affiliate',status:'pending',kind:'affiliate'},
       {name:'Awin Offers',status:status('awin',awinConfigured),kind:'affiliate-promotions'},
       {name:'Skyscanner Flight Search',status:runtimeEnabled(p,'skyscanner',true)?'active-clickout':'disabled-by-admin',kind:'travel'},
