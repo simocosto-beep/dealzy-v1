@@ -82,14 +82,14 @@
   let homeLoading=true;
   let homeLoadSequence=0;
 
-  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,checkedAt:0};
+  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,seasonalPartner:null,checkedAt:0};
   async function refreshDealzyProviderRuntime(force=false){
     if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
     try{
       const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});
       if(!r.ok) throw new Error("providers");
       const data=await r.json();
-      const next={booking:true,skyscanner:true,expedia:true,awin:false,checkedAt:Date.now()};
+      const next={booking:true,skyscanner:true,expedia:true,awin:false,seasonalPartner:null,checkedAt:Date.now()};
       for(const row of Array.isArray(data.providers)?data.providers:[]){
         const name=String(row.name||"").toLowerCase();
         const status=String(row.status||"").toLowerCase();
@@ -99,9 +99,13 @@
         if(name.includes("expedia")) next.expedia=enabled;
         if(name==="awin offers") next.awin=status==="configured";
       }
+      if(data.seasonalPartner?.name==='Abracadabra NYC'&&data.seasonalPartner.countryCode==='US'){
+        const url=partnerHref(data.seasonalPartner.url);
+        if(url) next.seasonalPartner={url};
+      }
       dealzyProviderRuntime=next;
     }catch(_){
-      dealzyProviderRuntime={...dealzyProviderRuntime,checkedAt:Date.now()};
+      dealzyProviderRuntime={...dealzyProviderRuntime,seasonalPartner:null,checkedAt:Date.now()};
     }
     return dealzyProviderRuntime;
   }
@@ -1443,6 +1447,14 @@
     bindCards($("#popularGrid"));
     const retry=$("#retryHomeDeals");
     if(retry) retry.onclick=()=>hydrateHome();
+    const seasonal=$("#dealzySeasonalPartner");
+    const seasonalLink=$("#dealzySeasonalLink");
+    if(seasonal&&seasonalLink){
+      const url=market.country==='US'?dealzyProviderRuntime.seasonalPartner?.url:null;
+      seasonal.classList.toggle('hidden',!url);
+      seasonalLink.href=url||'#';
+      seasonalLink.onclick=url?()=>trackPartnerClick({provider:'cj',source:'Abracadabra NYC',title:'Halloween costume ideas',externalId:'7889430'}):null;
+    }
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
     renderTrips();
