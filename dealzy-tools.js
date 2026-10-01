@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261001-awin1';
+    liveScript.src='/dealzy-live.js?v=20261001-seasonal1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261001-awin1';
+  i18nScript.src='/dealzy-i18n.js?v=20261001-seasonal1';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
