@@ -76,13 +76,35 @@
 
 
   const LIVE_CATEGORIES=["Food & Drink","Spa & Beauty","Things to Do","Travel"];
-  const activeCategories=()=>dealzyProviderRuntime.awin?[...LIVE_CATEGORIES,"Shopping"]:LIVE_CATEGORIES;
+  const activeCategories=()=>[
+    ...(seasonalPartnerUrl()?["Halloween"]:[]),
+    ...LIVE_CATEGORIES,
+    ...(dealzyProviderRuntime.awin?["Shopping"]:[])
+  ];
   const catalog=new Map();
   let homeDeals=[];
   let homeLoading=true;
   let homeLoadSequence=0;
 
   let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,seasonalPartner:null,checkedAt:0};
+  function seasonalPartnerUrl(){
+    return market.country==="US"?dealzyProviderRuntime.seasonalPartner?.url||null:null;
+  }
+
+  function seasonalDealCard(url){
+    const isFr=locale()==="fr";
+    return '<a class="seasonalDeal" href="'+h(url)+'" target="_blank" rel="sponsored noopener noreferrer" aria-label="'+h(isFr?'Voir les costumes Halloween chez Abracadabra NYC':'Browse Halloween costumes at Abracadabra NYC')+'">'+
+      '<div class="dealImg"><img src="https://abracadabranyc.com/cdn/shop/collections/scary.jpg?v=1719418547" alt="'+h(isFr?'Costumes Halloween Abracadabra NYC':'Abracadabra NYC Halloween costumes')+'" loading="lazy"><span class="badge">'+h(isFr?'Partenaire saisonnier':'Seasonal partner')+'</span></div>'+
+      '<div class="dealBody"><h3>'+h(isFr?'Costumes pour Halloween':'Halloween costumes & accessories')+'</h3>'+
+      '<div class="meta">Abracadabra NYC · '+h(isFr?'Boutique en ligne · États-Unis':'Online shop · United States')+'</div>'+
+      '<div class="row"><small class="partnerNote">'+h(isFr?'Lien partenaire · commission possible. Prix chez le marchand.':'Partner link · we may earn a commission. Prices at merchant.')+'</small><span class="shopAction">'+h(isFr?'Voir les costumes ↗':'Browse costumes ↗')+'</span></div></div></a>';
+  }
+
+  function bindSeasonalCard(root){
+    root?.querySelectorAll('.seasonalDeal').forEach(link=>{
+      link.addEventListener('click',()=>trackPartnerClick({provider:'cj',source:'Abracadabra NYC',title:'Halloween costumes',externalId:'7889430'}));
+    });
+  }
   async function refreshDealzyProviderRuntime(force=false){
     if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
     try{
@@ -617,13 +639,15 @@
     const profile=readOnboarding();
     const interests=Array.isArray(profile.interests)?profile.interests:[];
     const available=[...cats,...(dealzyProviderRuntime.awin?[["🛍️","Shopping"]]:[])];
-    if(!interests.length) return available;
+    const seasonal=seasonalPartnerUrl()?["🎃","Halloween"]:null;
+    if(!interests.length) return seasonal?[seasonal,...available]:available;
     const priority=new Map(interests.map((id,index)=>[id,index]));
-    return available.sort((a,b)=>{
+    available.sort((a,b)=>{
       const ai=priority.has(categoryInterestId(a[1]))?priority.get(categoryInterestId(a[1])):999;
       const bi=priority.has(categoryInterestId(b[1]))?priority.get(categoryInterestId(b[1])):999;
       return ai-bi;
     });
+    return seasonal?[seasonal,...available]:available;
   }
 
   function toDeal(raw){
@@ -976,7 +1000,7 @@
     await refreshDealzyProviderRuntime(false);
     const perCategory=Math.max(6,Math.min(16,Number(limitEach)||10));
     const groups=await Promise.all(
-      activeCategories().map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
+      activeCategories().filter(cat=>cat!=="Halloween").map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
     );
     const interleaved=[];
     for(let i=0;i<perCategory;i++){
@@ -1335,8 +1359,19 @@
     const isFr=locale()==="fr";
     const prefs=readExplorePrefs();
 
+    if(state.filter==="Halloween"&&!seasonalPartnerUrl()) state.filter="All";
+
     $("#filters").innerHTML=["All",...activeCategories()].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;exploreCache={key:"",rows:[]};renderExplore(true);});
+
+    if(state.filter==="Halloween"){
+      if(count) count.textContent=isFr?"1 partenaire saisonnier · États-Unis":"1 seasonal partner · United States";
+      if(root){
+        root.innerHTML=seasonalDealCard(seasonalPartnerUrl());
+        bindSeasonalCard(root);
+      }
+      return;
+    }
 
     const requestKey=exploreRequestKey(q);
     let rawList=[];
@@ -1434,27 +1469,22 @@
   };
 
   renderAll=function(){
+    const seasonalUrl=seasonalPartnerUrl();
     const visibleCats=orderedCategories();
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     const personalized=personalizedHome(homeDeals);
-    $("#popularGrid").innerHTML=personalized.length
+    const liveResults=personalized.length
       ? personalized.slice(0,12).map(dealCard).join("")
       : homeLoading
         ? '<div class="empty" style="grid-column:1/-1">'+h(tr("Loading live deals…"))+'</div>'
         : '<div class="empty" style="grid-column:1/-1">'+h(tr("No live offers available in {city} right now.",{city:marketCityLabel()}))+
           '<br><button type="button" class="pill" id="retryHomeDeals" style="margin-top:14px">'+h(tr("Try again"))+'</button></div>';
+    $("#popularGrid").innerHTML=(seasonalUrl?seasonalDealCard(seasonalUrl):"")+liveResults;
     bindCards($("#popularGrid"));
+    bindSeasonalCard($("#popularGrid"));
     const retry=$("#retryHomeDeals");
     if(retry) retry.onclick=()=>hydrateHome();
-    const seasonal=$("#dealzySeasonalPartner");
-    const seasonalLink=$("#dealzySeasonalLink");
-    if(seasonal&&seasonalLink){
-      const url=market.country==='US'?dealzyProviderRuntime.seasonalPartner?.url:null;
-      seasonal.classList.toggle('hidden',!url);
-      seasonalLink.href=url||'#';
-      seasonalLink.onclick=url?()=>trackPartnerClick({provider:'cj',source:'Abracadabra NYC',title:'Halloween costume ideas',externalId:'7889430'}):null;
-    }
     if(!$("#exploreView").classList.contains("hidden")) renderExplore();
     renderFavs();
     renderTrips();
