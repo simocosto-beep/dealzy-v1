@@ -47,6 +47,10 @@ No credentials or secrets should be committed to this repository. Live API calls
 ## Free AI assistant setup
 Create a Gemini API key in Google AI Studio on a **Free tier** project, restrict it to the Gemini API, and set `GEMINI_API_KEY` as a Vercel server-side environment variable for Preview and Production. Redeploy after setting it. The assistant uses `gemini-3.5-flash-lite`, calls the model only after a visitor sends a message, and has short inputs/outputs plus a per-instance request throttle. The Free tier has project-specific limits; if it is exhausted, the chat reports the temporary limit and does not switch to paid usage on its own. Do not enable billing for this key if zero spend is required. The UI discloses that messages are sent to Google on the Free tier; Dealzy sends the chosen city and a small set of public live offers, not precise GPS or account data. Chat history is held in memory for the current page only.
 
+### Admin AI moderation
+
+The **IA Modération** tab reviews existing direct deals on demand; **Deals → Vérifier le brouillon avec l’IA** reviews a proposed direct deal before publishing. Both call the existing `/api/assistant` function with `action: "moderate_deal"`, so this adds no Vercel function. The server verifies the Supabase JWT and current admin role; existing offers are fetched again from Supabase by ID. Only offer fields needed for review go to Gemini, with contact strings and URL query parameters stripped. Google may use Free-tier inputs to improve its products. Model output and basic field checks are advisory. Publishing and disabling still require an admin using the existing audited RPC actions. No user-submitted listings or automatic moderation queue exist in this version. The feature needs `GEMINI_API_KEY` in the deployment environment where it runs; without it, the UI reports that AI is not configured.
+
 ## Product principle
 One search bar should understand intent: what, where, when, budget, party size and preferences. The user should not need to understand which provider supplies the deal.
 

@@ -1,6 +1,7 @@
 const MODEL = 'gemini-3.5-flash-lite';
 const requests = new Map();
 const searchHandler = require('./search');
+const moderationHandler = require('./_moderation');
 
 async function searchDeals(req, res) {
   return searchHandler(req, res);
@@ -65,7 +66,7 @@ async function within(promise, ms) {
   } finally { clearTimeout(timer); }
 }
 
-function createHandler({ search = searchDeals, generate = fetch, key = () => process.env.GEMINI_API_KEY, rateLimit = limited } = {}) {
+function createHandler({ search = searchDeals, generate = fetch, key = () => process.env.GEMINI_API_KEY, rateLimit = limited, moderate = moderationHandler } = {}) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'GET') return res.status(200).json({ available: Boolean(key()) });
@@ -75,10 +76,11 @@ function createHandler({ search = searchDeals, generate = fetch, key = () => pro
     if (origin && (!req.headers?.host || (() => { try { return new URL(origin).host !== req.headers.host; } catch (_) { return true; } })())) {
       return res.status(403).json({ error: 'invalid_origin' });
     }
-    if (Number(req.headers?.['content-length'] || 0) > 5000) return res.status(413).json({ error: 'too_large' });
+    if (Number(req.headers?.['content-length'] || 0) > 5000 || JSON.stringify(req.body || '').length > 5000) return res.status(413).json({ error: 'too_large' });
     let body = req.body;
     try { if (typeof body === 'string') body = JSON.parse(body); } catch (_) { return res.status(400).json({ error: 'invalid_request' }); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'invalid_request' });
+    if (body.action === 'moderate_deal') return moderate(req, res, body);
     if (typeof body.message !== 'string') return res.status(400).json({ error: 'invalid_message' });
     const message = cleanText(body.message, 501);
     if (!message || message.length > 500) return res.status(400).json({ error: 'invalid_message' });
