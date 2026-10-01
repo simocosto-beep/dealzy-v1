@@ -23,21 +23,22 @@ const ADMIN_PAGES={
   payments:{title:'Payments',subtitle:'Stripe payments, customers, subscriptions, refunds and disputes.'},
   partners:{title:'Partners',subtitle:'Partners and commercial contracts.'},
   deals:{title:'Deals',subtitle:'Direct Dealzy offers and partner deals.'},
+  moderation:{title:'IA Modération',subtitle:'Examiner les offres directes avec un avis IA.'},
   billing:{title:'Billing',subtitle:'Billing records, refunds, credits and coupons.'},
   system:{title:'System',subtitle:'Maintenance mode and admin activity.'}
 };
 
 function showAdminPage(page,{remember=true}={}){
   if(!ADMIN_PAGES[page]) page='overview';
-  if(admin?.role==='viewer'&&page==='users') page='overview';
+  if(admin?.role==='viewer'&&['users','moderation'].includes(page)) page='overview';
   currentAdminPage=page;
 
   document.querySelectorAll('[data-admin-page]').forEach(el=>{
     el.classList.toggle('hidden',el.dataset.adminPage!==page);
   });
   document.querySelectorAll('[data-admin-tab]').forEach(btn=>{
-    const hideUsers=btn.dataset.adminTab==='users'&&admin?.role==='viewer';
-    btn.classList.toggle('hidden',hideUsers);
+    const hideRestricted=admin?.role==='viewer'&&['users','moderation'].includes(btn.dataset.adminTab);
+    btn.classList.toggle('hidden',hideRestricted);
     btn.classList.toggle('active',btn.dataset.adminTab===page);
     btn.setAttribute('aria-selected',btn.dataset.adminTab===page?'true':'false');
   });
@@ -504,6 +505,91 @@ function numOrNull(id){const v=val(id);return v===''?null:Number(v)}
 function isoOrNull(id){const v=val(id);return v?new Date(v).toISOString():null}
 function dateOrNull(id){const v=val(id);return v||null}
 
+const moderationErrors={
+  forbidden:'Accès administrateur requis.',auth_unavailable:'Vérification du compte indisponible.',
+  not_configured:'Clé Gemini non configurée sur ce déploiement.',
+  provider_quota:'Quota gratuit Gemini atteint. Réessayez plus tard.',
+  rate_limited:'Trop de vérifications. Réessayez dans un moment.',
+  provider_unavailable:'Gemini est temporairement indisponible.',
+  invalid_model_output:'Réponse IA illisible. Aucune décision n’a été prise.',
+  deal_not_found:'Offre introuvable. Actualisez la liste.',
+  moderation_unavailable:'La vérification est temporairement indisponible.'
+};
+function draftDealForReview(){
+  return {
+    title:val('cdTitle'),description:val('cdDescription'),category:val('cdCategory'),
+    country_code:val('cdCountry'),city:val('cdCity'),address:val('cdAddress'),
+    price:val('cdPrice'),old_price:val('cdOldPrice'),currency_code:val('cdCurrency'),
+    image_url:val('cdImage'),partner_url:val('cdUrl'),
+    starts_at:val('cdStart'),ends_at:val('cdEnd')
+  };
+}
+async function requestModeration(payload){
+  await ensureAdminSession();
+  const send=()=>fetch('/api/assistant',{
+    method:'POST',cache:'no-store',headers:{'Authorization':'Bearer '+session.access_token,'Content-Type':'application/json'},
+    body:JSON.stringify({action:'moderate_deal',...payload})
+  });
+  const oldToken=session.access_token;
+  let response=await send();
+  if(response.status===401&&session?.refresh_token){
+    if(oldToken===session.access_token) await refreshAdminSession();
+    response=await send();
+  }
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(moderationErrors[result.error]||('Erreur HTTP '+response.status));
+  return result;
+}
+function renderModerationResult(target,data){
+  const {assessment,checks=[]}=data;
+  const riskLabel={low:'Peu de signaux',review:'À vérifier',high:'Attention'}[assessment.risk]||'À vérifier';
+  const items=rows=>rows.length?'<ul>'+rows.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':'<p class="sub">Aucun point signalé.</p>';
+  target.innerHTML='<div class="moderation-result"><strong>Avis IA · '+esc(riskLabel)+'</strong>'+
+    '<p>'+esc(assessment.summary)+'</p><b>Contrôles des champs</b>'+items(checks)+
+    '<b>Points à vérifier</b>'+items(assessment.concerns||[])+
+    '<b>Améliorations suggérées</b>'+items(assessment.suggested_edits||[])+
+    '<small class="sub">Avis indicatif. Vérifiez l’offre et le marchand vous-même avant de publier ou de la laisser en ligne.</small></div>';
+}
+async function reviewDraftDeal(){
+  const target=$('#draftModerationResult'),button=$('#checkDraftDealBtn');
+  if(admin?.role==='viewer') return;
+  const deal=draftDealForReview();
+  if(!deal.title.trim()){target.innerHTML='<div class="alert error">Ajoutez d’abord un titre.</div>';return;}
+  button.disabled=true;
+  target.innerHTML='<div class="alert">Analyse du brouillon…</div>';
+  try{
+    const analysis=await requestModeration({source:'draft',deal});
+    if(JSON.stringify(deal)!==JSON.stringify(draftDealForReview())){
+      target.innerHTML='<div class="alert">Le brouillon a changé pendant l’analyse. Relancez la vérification.</div>';
+    }else renderModerationResult(target,analysis);
+  }
+  catch(e){target.innerHTML='<div class="alert error">'+esc(e.message)+'</div>';}
+  finally{button.disabled=false;}
+}
+function renderModerationRows(){
+  const target=$('#moderationRows');
+  if(!target) return;
+  const deals=commercial.deals||[];
+  if(!deals.length){target.innerHTML='<p class="sub">Aucune offre directe pour le moment. Vous pouvez vérifier un brouillon dans l’onglet Deals avant publication.</p>';return;}
+  target.innerHTML=deals.map(deal=>'<div class="user-card" data-moderation-card="'+esc(deal.id)+'">'+
+    '<div class="user-top"><div><b>'+esc(deal.title)+'</b><div class="sub">'+esc(deal.partner_name||'')+' · '+esc(deal.city||'')+' · '+esc(deal.price??'—')+' '+esc(deal.currency_code||'')+'</div></div>'+
+    '<span class="pill '+(deal.live_now?'ok':'bad')+'">'+(deal.live_now?'EN LIGNE':'HORS LIGNE')+'</span></div>'+
+    '<div class="moderation-actions"><button class="btn btn-ghost" data-review-deal="'+esc(deal.id)+'">✦ Analyser avec l’IA</button>'+
+    '<button class="btn btn-ghost" data-manage-deal="'+esc(deal.id)+'">Gérer dans Deals</button></div>'+
+    '<div data-moderation-result="'+esc(deal.id)+'" aria-live="polite"></div></div>').join('');
+  target.querySelectorAll('[data-review-deal]').forEach(button=>button.onclick=async()=>{
+    const id=button.dataset.reviewDeal;
+    const card=button.closest('[data-moderation-card]');
+    const result=card.querySelector('[data-moderation-result]');
+    button.disabled=true;
+    result.innerHTML='<div class="alert">Analyse de l’offre…</div>';
+    try{renderModerationResult(result,await requestModeration({source:'existing',deal_id:id}));}
+    catch(e){result.innerHTML='<div class="alert error">'+esc(e.message)+'</div>';}
+    finally{button.disabled=false;}
+  });
+  target.querySelectorAll('[data-manage-deal]').forEach(button=>button.onclick=()=>showAdminPage('deals'));
+}
+
 async function loadCommercial(){
   commercial=await api('/rest/v1/rpc/dealzy_admin_commercial_snapshot',{method:'POST',body:'{}'})||commercial;
   renderCommercial();
@@ -580,6 +666,7 @@ function renderCommercial(){
   document.querySelectorAll('[data-partner-status]').forEach(el=>el.onchange=()=>setCommercialPartnerStatus(el.dataset.partnerStatus,el.value));
   document.querySelectorAll('[data-contract-status]').forEach(el=>el.onchange=()=>setCommercialContractStatus(el.dataset.contractStatus,el.value));
   document.querySelectorAll('[data-deal-toggle]').forEach(el=>el.onclick=()=>setCommercialDealActive(el.dataset.dealToggle,el.dataset.active!=='1'));
+  renderModerationRows();
 }
 
 async function commercialRpc(name,payload){
@@ -623,6 +710,7 @@ async function createCommercialDeal(){
       p_featured:val('cdFeatured')==='true'
     });
     flash('Direct deal published.');
+    $('#draftModerationResult').innerHTML='';
   }catch(e){flash(e.message,true)}
 }
 async function recordCommercialTransaction(){
@@ -1533,6 +1621,8 @@ document.querySelectorAll('[data-refresh-commercial]').forEach(btn=>btn.onclick=
 $('#createPartnerBtn').onclick=createCommercialPartner;
 $('#createContractBtn').onclick=createCommercialContract;
 $('#createDirectDealBtn').onclick=createCommercialDeal;
+$('#checkDraftDealBtn').onclick=reviewDraftDeal;
+$('#refreshModerationBtn').onclick=()=>loadCommercial().catch(e=>flash(e.message,true));
 $('#recordTransactionBtn').onclick=recordCommercialTransaction;
 $('#createCouponBtn').onclick=createCommercialCoupon;
 $('#applyCouponBtn').onclick=applyCommercialCoupon;

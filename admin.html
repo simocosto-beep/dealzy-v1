@@ -36,6 +36,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
 .analytics-rank:first-child{border-top:0}
 .analytics-rank-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .analytics-rank-count{font-weight:850}
+.moderation-result{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#f8f9fd}.moderation-result strong{display:block;margin-bottom:6px}.moderation-result ul{margin:6px 0 10px;padding-left:22px}.moderation-result li{margin:4px 0}.moderation-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
 @media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr}.main{padding:14px}.top{padding:0 14px}.admin-nav{padding:9px 14px}.page-title{padding:14px 14px 0}.form-grid{grid-template-columns:1fr}.mini-grid{grid-template-columns:1fr 1fr}.user-toolbar .field,.user-toolbar .select{flex:1 1 100%;min-width:0}.user-toolbar .btn{flex:1 1 calc(50% - 6px)}}@media(max-width:480px){.login{align-items:start;padding-top:32px}.login-card{padding:22px;border-radius:20px}.logo{width:48px;height:48px;border-radius:14px}h1{font-size:28px}.field{padding:11px 13px}.grid{grid-template-columns:1fr 1fr}.stat b{font-size:22px}.top .btn span{display:none}}
 </style>
 </head>
@@ -91,6 +92,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <button class="admin-tab" data-admin-tab="payments">💳 Payments</button>
       <button class="admin-tab" data-admin-tab="partners">🤝 Partners</button>
       <button class="admin-tab" data-admin-tab="deals">🏷 Deals</button>
+      <button class="admin-tab" data-admin-tab="moderation">🛡 IA Modération</button>
       <button class="admin-tab" data-admin-tab="billing">🧾 Billing</button>
       <button class="admin-tab" data-admin-tab="system">⚙ System</button>
     </div>
@@ -438,9 +440,20 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
             <div><label>Deal ends</label><input id="cdEnd" class="field" type="datetime-local"></div>
           </div>
           <button id="createDirectDealBtn" class="btn btn-primary commercial-write">Publish deal</button>
+          <button id="checkDraftDealBtn" class="btn btn-ghost commercial-write" style="margin-top:10px">✦ Vérifier le brouillon avec l’IA</button>
+          <div id="draftModerationResult" aria-live="polite"></div>
         </div>
       </div>
       <div class="section-box"><h3>Direct deals</h3><div id="commercialDeals"></div></div>
+    </section>
+
+    <section id="moderationPanel" class="panel" data-admin-page="moderation">
+      <div class="panel-head">
+        <div><h2>IA · Modération des offres</h2><p class="sub">Demandez un avis sur une offre directe, puis décidez vous-même de l’activer ou de la désactiver.</p></div>
+        <button id="refreshModerationBtn" class="btn btn-ghost">↻ Actualiser</button>
+      </div>
+      <div class="alert">Analyse à la demande avec Gemini (quota gratuit limité). Seuls les champs publics de l’offre sont envoyés à Google ; sur l’offre gratuite, ils peuvent servir à améliorer ses produits. L’IA ne visite pas les liens, ne vérifie pas les prix et ne modifie jamais le site.</div>
+      <div id="moderationRows" class="user-list" aria-live="polite"></div>
     </section>
 
     <section id="billingPanel" class="panel" data-admin-page="billing">
@@ -714,5 +727,5 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20260930-domain1"></script>
+<script src="/admin.js?v=20261001-moderation1"></script>
 </body></html>
