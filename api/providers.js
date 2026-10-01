@@ -26,6 +26,15 @@ function runtimeEnabled(group,key,defaultValue=true){
   return row.enabled;
 }
 
+function halloweenPartnerUrl(now=Date.now(),value=process.env.CJ_ABRACADABRA_URL){
+  // The public CJ click URL is supplied only after the advertiser relationship is active.
+  if(now<Date.UTC(2026,9,1)||now>=Date.UTC(2026,10,1)) return null;
+  try{
+    const url=new URL(String(value||''));
+    return url.protocol==='https:'&&!url.username&&!url.password?url.href:null;
+  }catch(_){return null;}
+}
+
 module.exports = async function handler(req,res){
   if(req.method!=='GET') return res.status(405).json({ok:false,error:'Method not allowed'});
   const viatorSandboxConfigured=!!process.env.VIATOR_API_KEY;
@@ -37,6 +46,7 @@ module.exports = async function handler(req,res){
   const app=runtime.app||{};
   const p=runtime.providers||{};
   const markets=runtime.markets||{};
+  const abracadabraUrl=runtimeEnabled(p,'cjAbracadabra',true)?halloweenPartnerUrl():null;
 
   const status=(key,configured,activeStatus='configured')=>{
     if(!runtimeEnabled(p,key,true)) return 'disabled-by-admin';
@@ -47,6 +57,7 @@ module.exports = async function handler(req,res){
   res.status(200).json({
     ok:true,
     maintenance:app.maintenance===true,
+    seasonalPartner:abracadabraUrl?{name:'Abracadabra NYC',countryCode:'US',url:abracadabraUrl}:null,
     providers:[
       {name:'Dealzy Demo Inventory',status:'active',kind:'fallback'},
       {name:'Browser Location',status:'active',kind:'device'},
@@ -77,3 +88,4 @@ module.exports = async function handler(req,res){
     note:'Provider and market availability is controlled by Dealzy Admin.'
   });
 };
+module.exports.halloweenPartnerUrl=halloweenPartnerUrl;

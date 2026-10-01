@@ -46,6 +46,9 @@ Other planned adapters:
 
 No credentials or secrets should be committed to this repository. Live API calls should use Vercel server-side functions and environment variables.
 
+### Abracadabra NYC seasonal link
+After confirming the CJ advertiser relationship and obtaining a real CJ click URL, set `CJ_ABRACADABRA_URL` in Vercel. The small Halloween partner panel appears only for visitors browsing the US market during October 2026. It is hidden when the URL is absent, invalid, or disabled with the public runtime provider setting `cjAbracadabra.enabled=false`. The panel links to the merchant; it makes no discount or price claim. Review the destination and CJ tracking before setting Production, and remove the variable when the campaign ends.
+
 ## Free AI assistant setup
 Create a Gemini API key in Google AI Studio on a **Free tier** project, restrict it to the Gemini API, and set `GEMINI_API_KEY` as a Vercel server-side environment variable for Preview and Production. Redeploy after setting it. The assistant uses `gemini-3.5-flash-lite`, calls the model only after a visitor sends a message, and has short inputs/outputs plus a per-instance request throttle. The Free tier has project-specific limits; if it is exhausted, the chat reports the temporary limit and does not switch to paid usage on its own. Do not enable billing for this key if zero spend is required. The UI discloses that messages are sent to Google on the Free tier; Dealzy sends the chosen city and a small set of public live offers, not precise GPS or account data. Chat history is held in memory for the current page only.
 
