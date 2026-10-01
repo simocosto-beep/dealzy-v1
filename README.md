@@ -39,7 +39,7 @@ The UI must remain provider-agnostic. Live affiliate/provider feeds should map i
 The Awin Offers adapter is wired into live search but remains inactive until an approved publisher account supplies both `AWIN_PUBLISHER_ID` and `AWIN_ACCESS_TOKEN` as **server-only** Vercel environment variables. It requests active US/CA offers from joined advertisers, keeps only HTTPS tracking links, and exposes an online Shopping category when configured. The API has no verified price fields, so Dealzy displays a promotion or voucher code without a fabricated original price or percentage saving. Set the variables in Preview first, verify actual response shape and joined offers, then set Production. The token must never be placed in client code or GitHub.
 
 Other planned adapters:
-- Groupon / approved affiliate source
+- Groupon / approved affiliate source (the current Groupon North America application in CJ was declined; no live Groupon inventory or commission access is configured)
 - CJ Affiliate
 - Travel/ticket providers
 - Additional local commerce APIs where licensing permits
