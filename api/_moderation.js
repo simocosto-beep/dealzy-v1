@@ -7,13 +7,18 @@ function text(value, max = 300) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
 }
 
+function redactContacts(value) {
+  return value.replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, '[email removed]')
+    .replace(/\+?\d[\d ().-]{8,}\d/g, '[phone removed]');
+}
+
 function publicDeal(input) {
   const fields = {
     title: 140, description: 1000, category: 60, country_code: 2, city: 100,
     address: 150, currency_code: 3, starts_at: 40, ends_at: 40
   };
   const deal = {};
-  for (const [name, length] of Object.entries(fields)) deal[name] = text(input?.[name], length);
+  for (const [name, length] of Object.entries(fields)) deal[name] = redactContacts(text(input?.[name], length));
   for (const name of ['price', 'old_price']) {
     const number = input?.[name] === '' || input?.[name] == null ? null : Number(input[name]);
     deal[name] = Number.isFinite(number) ? number : null;
@@ -26,10 +31,7 @@ function publicDeal(input) {
     } catch { deal[name] = ''; }
     deal[name + '_provided'] = Boolean(url);
   }
-  // Keep personal contact details and tracking parameters out of the free-tier request.
-  deal.description = deal.description
-    .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, '[email removed]')
-    .replace(/\+?\d[\d ().-]{8,}\d/g, '[phone removed]');
+  // Keep contact details and tracking parameters out of the free-tier request.
   return deal;
 }
 

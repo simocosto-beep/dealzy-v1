@@ -52,12 +52,15 @@ test('moderation refuses visitors, viewers and disabled admins before contacting
 test('draft sends only public fields, removes contacts and query tokens, and cannot write to Supabase', async () => {
   const mock = mockRequest();
   const handler = createHandler({ request: mock.request, key: () => 'secret', rateLimit: () => false });
-  const result = await call(handler, { source: 'draft', deal: { ...draft, private_note: 'do-not-send', account: { email: 'account@example.com' } } });
+  const result = await call(handler, { source: 'draft', deal: {
+    ...draft, title: 'Dinner - title@example.com', address: 'Call +1 212 555 6789',
+    private_note: 'do-not-send', account: { email: 'account@example.com' }
+  } });
   assert.equal(result.status, 200);
   assert.equal(result.payload.assessment.risk, 'low');
   const modelCall = mock.calls.find(call => call.url.includes('generativelanguage'));
   assert.equal(modelCall.options.headers['x-goog-api-key'], 'secret');
-  assert.doesNotMatch(modelCall.options.body, /do-not-send|person@example|account@example|token=secret|212 555 1234/);
+  assert.doesNotMatch(modelCall.options.body, /do-not-send|person@example|title@example|account@example|token=secret|212 555 (1234|6789)/);
   assert.match(modelCall.options.body, /merchant\.example/);
   assert.equal(mock.calls.some(call => call.url.includes('/rest/v1/') && call.options.method && call.options.method !== 'GET'), false);
 });
