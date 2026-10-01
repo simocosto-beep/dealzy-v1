@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261001-seasonal1';
+    liveScript.src='/dealzy-live.js?v=20261001-seasonal2';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -1281,7 +1281,7 @@
   if('serviceWorker' in navigator){
     window.addEventListener('load',async()=>{
       try{
-        const reg=await navigator.serviceWorker.register('/sw.js?v=20261001-awin1');
+        const reg=await navigator.serviceWorker.register('/sw.js?v=20261001-halloween2');
         await reg.update();
       }catch(_){}
     });
