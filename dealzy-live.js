@@ -227,6 +227,30 @@
   }
 
   function readMarket(){
+    const params=new URLSearchParams(location.search);
+    const requestedCountry=params.get("country");
+    const requestedCity=params.get("city");
+    if((requestedCountry==="US"||requestedCountry==="CA")&&requestedCity){
+      const knownCity=MARKET_CITIES[requestedCountry].find(row=>row.value.toLowerCase()===requestedCity.toLowerCase());
+      if(knownCity){
+        const next={country:requestedCountry,city:knownCity.value,currency:requestedCountry==="CA"?"CAD":"USD"};
+        localStorage.setItem("dealzyMarket",JSON.stringify(next));
+        localStorage.setItem("dealzyLocationMode","manual");
+        localStorage.setItem("dealzyLocationChoice","manual");
+        localStorage.removeItem("dealzyCoords");
+        state.coords=null;
+        const requestedLanguage=params.get("lang");
+        if(requestedLanguage==="fr"||requestedLanguage==="en"){
+          window.DealzyI18n?.setLocale(requestedLanguage);
+          params.delete("lang");
+        }
+        params.delete("country");
+        params.delete("city");
+        const remaining=params.toString();
+        history.replaceState(null,"",location.pathname+(remaining?"?"+remaining:"")+location.hash);
+        return next;
+      }
+    }
     let saved=null;
     try{saved=JSON.parse(localStorage.getItem("dealzyMarket")||"null");}catch(_){}
     const country=saved&&saved.country==="CA"?"CA":"US";
