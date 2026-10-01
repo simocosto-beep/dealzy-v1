@@ -8,6 +8,11 @@
 <meta name="application-name" content="Dealzy AI" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <link rel="canonical" href="https://dealzyai.com/" />
+<link rel="alternate" hreflang="en-US" href="https://dealzyai.com/united-states.html" />
+<link rel="alternate" hreflang="en-CA" href="https://dealzyai.com/canada.html" />
+<link rel="alternate" hreflang="fr-CA" href="https://dealzyai.com/canada-fr.html" />
+<link rel="alternate" hreflang="x-default" href="https://dealzyai.com/" />
+<meta name="google-site-verification" content="0VOSqe2Ws7nFTm8081myA17iopD8o3bgiON63oe3Ebo" />
 <meta name='impact-site-verification' value='c3f53a71-f39f-4cde-88af-2bbb6ee03f93'>
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -21,6 +26,7 @@
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="Dealzy AI — find your next favorite experience in the USA and Canada" />
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Dealzy AI","url":"https://dealzyai.com/"}</script>
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Dealzy AI — Live Deals & Travel in USA and Canada" />
 <meta name="twitter:description" content="Live deals, experiences and travel options across the USA and Canada — powered by Dealzy AI." />
@@ -43,6 +49,7 @@
 <div class="section"><div class="sectionHead"><h2>Explore categories</h2><span>Live providers</span></div><div class="cats" id="cats"></div></div>
 <div class="section"><div class="sectionHead"><h2 id="popularHeading">Popular in Miami</h2><span>Curated by Dealzy AI</span></div><div class="grid" id="popularGrid"></div></div>
 <div class="legal">Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.</div>
+<nav class="legal" aria-label="Browse by country"><strong>Browse by country</strong> · <a href="/united-states.html">United States</a> · <a href="/canada.html">Canada (English)</a> · <a href="/canada-fr.html" lang="fr-CA">Canada (Français)</a></nav>
 </section>
 <section id="exploreView" class="hidden"><div class="sectionHead"><h2>Explore deals</h2><span id="resultCount"></span></div><div class="searchTop"><input id="exploreQuery" placeholder="Search: spa, dinner, boat tour…"><button class="pill" id="exploreSearch">Search ✦</button></div><div class="filters" id="filters"></div><div class="grid" id="exploreGrid" style="margin-top:14px"></div></section>
 <section id="favoritesView" class="hidden"><div class="sectionHead"><h2>Favorites</h2><span>Saved on this device</span></div><div id="favoritesGrid" class="grid"></div></section>
@@ -54,15 +61,7 @@
 <div id="detailOverlay" class="detailOverlay hidden"><div class="detail"><div id="detailHero" class="detailHero"><button class="close" id="closeDetail">←</button></div><div class="detailContent"><div id="detailBadge" class="badge" style="position:static;display:inline-block"></div><h2 id="detailTitle"></h2><div class="meta" id="detailMeta"></div><div class="row"><div><span class="price" id="detailPrice"></span><span class="old" id="detailOld"></span></div><span class="save" id="detailSave"></span></div><p id="detailText" style="line-height:1.65;color:#475467"></p><a class="partner" id="partnerBtn" href="#">View Deal on Partner ↗</a><div class="note">You’ll be redirected to our partner to complete your purchase. We may earn a commission on eligible purchases.</div></div></div></div>
 <div id="toast" class="toast hidden"></div>
 <script>
-const deals=[
-{id:1,title:'Waterfront Dinner for Two',cat:'Food & Drink',place:'Bayside • 0.8 mi',rating:'★ 4.8 (1,200+)',price:59,old:120,badge:'Best Match',img:'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80',text:'Enjoy a memorable three-course dinner for two with waterfront views, upscale ambiance and a perfect date-night setting.'},
-{id:2,title:'Miami Night Cruise Experience',cat:'Things to Do',place:'Bayside • 1.2 mi',rating:'★ 4.6 (850+)',price:49,old:99,badge:'51% OFF',img:'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=80',text:'A 90-minute evening cruise with skyline views, music and a relaxed open-air experience on Biscayne Bay.'},
-{id:3,title:'Luxury Spa Day & Massage',cat:'Spa & Beauty',place:'Brickell • 1.9 mi',rating:'★ 4.9 (640+)',price:79,old:150,badge:'Top Rated',img:'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=80',text:'Recharge with a full spa escape including a massage, relaxation lounge access and premium wellness amenities.'},
-{id:4,title:'Everglades Airboat Adventure',cat:'Things to Do',place:'Miami • 24 mi',rating:'★ 4.7 (2,100+)',price:38,old:68,badge:'Popular',img:'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=80',text:'Explore the Everglades by airboat with wildlife viewing and an expert local guide.'},
-{id:5,title:'Rooftop Brunch for Two',cat:'Food & Drink',place:'South Beach • 4.1 mi',rating:'★ 4.7 (980+)',price:45,old:80,badge:'Weekend Pick',img:'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=80',text:'A relaxed rooftop brunch for two with city views and a curated menu.'},
-{id:6,title:'Family Aquarium Pass',cat:'Family',place:'Downtown • 2.6 mi',rating:'★ 4.5 (520+)',price:54,old:88,badge:'Family Deal',img:'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=1200&q=80',text:'A family-friendly aquarium visit with access to immersive exhibits and marine-life experiences.'},
-{id:7,title:'Boutique Hotel Weekend',cat:'Travel',place:'Miami Beach • 5.0 mi',rating:'★ 4.8 (730+)',price:129,old:219,badge:'Travel Deal',img:'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',text:'A stylish one-night boutique hotel stay near the beach, ideal for a quick weekend escape.'}
-];
+const deals=[];
 const cats=[['🍽️','Food & Drink'],['🎟️','Things to Do'],['🪷','Spa & Beauty'],['🧳','Travel'],['👨‍👩‍👧','Family']];
 const state={filter:'All',maxPrice:null,coords:JSON.parse(localStorage.getItem('dealzyCoords')||'null'),favorites:new Set(JSON.parse(localStorage.getItem('dealzyFavs')||'[]')),trip:JSON.parse(localStorage.getItem('dealzyTrip')||'[]')};
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -217,4 +216,4 @@ if(brandHome){
 }
 renderAll();updateGeoUI();
 </script>
-<script src="/dealzy-providers.js"></script><script src="/dealzy-tools.js?v=20261001-seasonal2"></script><script src="/dealzy-account.js?v=20260929-account2"></script><script src="/dealzy-assistant.js?v=20260930-search1" defer></script></body></html>
+<script src="/dealzy-providers.js"></script><script src="/dealzy-tools.js?v=20261001-seo1"></script><script src="/dealzy-account.js?v=20260929-account2"></script><script src="/dealzy-assistant.js?v=20260930-search1" defer></script></body></html>

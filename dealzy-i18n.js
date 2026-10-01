@@ -237,7 +237,8 @@
     "Cancel":"Annuler",
     "Start exploring":"Commencer à explorer",
     "Save preferences":"Enregistrer les préférences",
-    "Preferences saved":"Préférences enregistrées"
+    "Preferences saved":"Préférences enregistrées",
+    "Browse by country":"Explorer par pays"
   };
 
   const EN=Object.fromEntries(Object.entries(FR).map(([k,v])=>[v,k]));
