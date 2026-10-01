@@ -32,6 +32,7 @@ module.exports = async function handler(req,res){
   const viatorProductionConfigured=!!process.env.VIATOR_PRODUCTION_API_KEY;
   const ticketmasterConfigured=!!process.env.TICKETMASTER_API_KEY;
   const yelpConfigured=!!process.env.YELP_API_KEY;
+  const awinConfigured=!!(process.env.AWIN_ACCESS_TOKEN&&/^\d+$/.test(String(process.env.AWIN_PUBLISHER_ID||'')));
   const runtime=await getDealzyRuntimeConfig();
   const app=runtime.app||{};
   const p=runtime.providers||{};
@@ -56,6 +57,7 @@ module.exports = async function handler(req,res){
       {name:'Yelp Places',status:status('yelp',yelpConfigured),kind:'local-places-api'},
       {name:'Groupon / Affiliate feed',status:'pending',kind:'affiliate'},
       {name:'CJ Affiliate',status:'pending',kind:'affiliate'},
+      {name:'Awin Offers',status:status('awin',awinConfigured),kind:'affiliate-promotions'},
       {name:'Skyscanner Flight Search',status:runtimeEnabled(p,'skyscanner',true)?'active-clickout':'disabled-by-admin',kind:'travel'},
       {name:'Booking.com Travel Search',status:runtimeEnabled(p,'booking',true)?'active-clickout':'disabled-by-admin',kind:'travel'},
       {name:'Expedia Dealzy Travel Shop',status:runtimeEnabled(p,'expedia',true)?'active-affiliate-clickout':'disabled-by-admin',kind:'travel'},
@@ -64,7 +66,8 @@ module.exports = async function handler(req,res){
     liveExternalProviders:
       (runtimeEnabled(p,'viator',true)&&viatorProductionConfigured?1:0)+
       (runtimeEnabled(p,'ticketmaster',true)&&ticketmasterConfigured?1:0)+
-      (runtimeEnabled(p,'yelp',true)&&yelpConfigured?1:0),
+      (runtimeEnabled(p,'yelp',true)&&yelpConfigured?1:0)+
+      (runtimeEnabled(p,'awin',true)&&awinConfigured?1:0),
     markets:[
       ...(runtimeEnabled(markets,'US',true)?['US']:[]),
       ...(runtimeEnabled(markets,'CA',true)?['CA']:[])

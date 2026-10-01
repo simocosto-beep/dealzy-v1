@@ -46,6 +46,7 @@
     "Things to Do":"Activités",
     "Spa & Beauty":"Spa & beauté",
     "Travel":"Voyage",
+    "Shopping":"Achats & promos",
     "All":"Tout",
     "Loading live deals…":"Chargement des offres en direct…",
     "No live offers available in {city} right now.":"Aucune offre en direct disponible à {city} pour le moment.",

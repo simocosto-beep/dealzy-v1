@@ -1,4 +1,5 @@
 const deals = require('./_demoDeals');
+const {searchAwin} = require('./_awin');
 
 const DEALZY_SUPABASE_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const DEALZY_SUPABASE_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
@@ -474,6 +475,7 @@ module.exports = async function handler(req,res){
   const wantsTicketmaster=(demo.category==='All'||demo.category==='Things to Do')&&runtimeEnabled(providerConfig,'ticketmaster',true);
   const wantsViator=(demo.category==='All'||demo.category==='Things to Do'||demo.category==='Travel')&&runtimeEnabled(providerConfig,'viator',true);
   const wantsYelp=(demo.category==='Food & Drink'||demo.category==='Spa & Beauty')&&runtimeEnabled(providerConfig,'yelp',true);
+  const wantsAwin=(demo.category==='All'||demo.category==='Shopping')&&runtimeEnabled(providerConfig,'awin',true);
   const liveRows=[];
   const liveProviders=[];
 
@@ -535,6 +537,15 @@ module.exports = async function handler(req,res){
       }
     }catch(_){}
   }
+  if(wantsAwin){
+    try{
+      const awin=await searchAwin({q:demo.q,maxPrice:demo.maxPrice,limit:Math.min(40,Math.max(demo.limit,24)),countryCode,currency});
+      if(awin.ok&&awin.results.length){
+        liveRows.push(...awin.results);
+        liveProviders.push({name:'awin',status:'live'});
+      }
+    }catch(_){}
+  }
 
   if(liveRows.length){
     const seen=new Set();
@@ -564,7 +575,8 @@ module.exports = async function handler(req,res){
       {name:'demo',status:'active'},
       {name:'ticketmaster',status:process.env.TICKETMASTER_API_KEY?'configured':'not-configured'},
       {name:'viator',status:process.env.VIATOR_PRODUCTION_API_KEY?'configured-production':'sandbox-only'},
-      {name:'yelp',status:process.env.YELP_API_KEY?'configured':'not-configured'}
+      {name:'yelp',status:process.env.YELP_API_KEY?'configured':'not-configured'},
+      {name:'awin',status:process.env.AWIN_ACCESS_TOKEN&&process.env.AWIN_PUBLISHER_ID?'configured':'not-configured'}
     ],
     results:demo.rows,
     generatedAt:new Date().toISOString()

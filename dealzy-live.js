@@ -76,19 +76,20 @@
 
 
   const LIVE_CATEGORIES=["Food & Drink","Spa & Beauty","Things to Do","Travel"];
+  const activeCategories=()=>dealzyProviderRuntime.awin?[...LIVE_CATEGORIES,"Shopping"]:LIVE_CATEGORIES;
   const catalog=new Map();
   let homeDeals=[];
   let homeLoading=true;
   let homeLoadSequence=0;
 
-  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,checkedAt:0};
+  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,checkedAt:0};
   async function refreshDealzyProviderRuntime(force=false){
     if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
     try{
       const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});
       if(!r.ok) throw new Error("providers");
       const data=await r.json();
-      const next={booking:true,skyscanner:true,expedia:true,checkedAt:Date.now()};
+      const next={booking:true,skyscanner:true,expedia:true,awin:false,checkedAt:Date.now()};
       for(const row of Array.isArray(data.providers)?data.providers:[]){
         const name=String(row.name||"").toLowerCase();
         const status=String(row.status||"").toLowerCase();
@@ -96,6 +97,7 @@
         if(name.includes("booking.com")) next.booking=enabled;
         if(name.includes("skyscanner")) next.skyscanner=enabled;
         if(name.includes("expedia")) next.expedia=enabled;
+        if(name==="awin offers") next.awin=status==="configured";
       }
       dealzyProviderRuntime=next;
     }catch(_){
@@ -610,9 +612,10 @@
   function orderedCategories(){
     const profile=readOnboarding();
     const interests=Array.isArray(profile.interests)?profile.interests:[];
-    if(!interests.length) return [...cats];
+    const available=[...cats,...(dealzyProviderRuntime.awin?[["🛍️","Shopping"]]:[])];
+    if(!interests.length) return available;
     const priority=new Map(interests.map((id,index)=>[id,index]));
-    return [...cats].sort((a,b)=>{
+    return available.sort((a,b)=>{
       const ai=priority.has(categoryInterestId(a[1]))?priority.get(categoryInterestId(a[1])):999;
       const bi=priority.has(categoryInterestId(b[1]))?priority.get(categoryInterestId(b[1])):999;
       return ai-bi;
@@ -844,7 +847,7 @@
       const key=String(d.provider||d.source||"partner").toLowerCase();
       counts[key]=(counts[key]||0)+1;
     });
-    const sourceLabels={yelp:"Yelp",viator:"Viator",ticketmaster:"Ticketmaster"};
+    const sourceLabels={yelp:"Yelp",viator:"Viator",ticketmaster:"Ticketmaster",awin:"Awin"};
     const sourceChipStyle=(active)=>[
       "flex:0 0 auto",
       "border:1px solid "+(active?"#7768ff":"#e2e5ec"),
@@ -966,9 +969,10 @@
   }
 
   async function fetchMixed(q="",limitEach=10){
+    await refreshDealzyProviderRuntime(false);
     const perCategory=Math.max(6,Math.min(16,Number(limitEach)||10));
     const groups=await Promise.all(
-      LIVE_CATEGORIES.map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
+      activeCategories().map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
     );
     const interleaved=[];
     for(let i=0;i<perCategory;i++){
@@ -1112,10 +1116,11 @@
     const favorite=state.favorites.has(numericId);
     const inTrip=state.trip.includes(numericId);
     const hasPhone=!!String(d.phone||"").trim();
+    const onlineOffer=String(d.provider||'').toLowerCase()==='awin';
     actions.innerHTML=
       '<button id="dzDetailFav" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(favorite?"♥ ":"♡ ")+h(locale()==="fr"?(favorite?"Favori":"Ajouter aux favoris"):(favorite?"Saved":"Save"))+'</button>'+
       '<button id="dzDetailTrip" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">'+(inTrip?"✓ ":"✈ ")+h(locale()==="fr"?(inTrip?"Dans le voyage":"Ajouter au voyage"):(inTrip?"In trip":"Add to trip"))+'</button>'+
-      '<button id="dzDetailDirections" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">🗺 '+h(locale()==="fr"?"Itinéraire":"Directions")+'</button>'+
+      (onlineOffer?'':'<button id="dzDetailDirections" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">🗺 '+h(locale()==="fr"?"Itinéraire":"Directions")+'</button>')+
       '<button id="dzDetailShare" style="border:1px solid #e7e9f0;background:#fff;border-radius:14px;padding:12px;font-weight:800">↗ '+h(locale()==="fr"?"Partager":"Share")+'</button>'+
       (hasPhone?'<button id="dzDetailCall" style="grid-column:1/-1;border:1px solid #dfe3eb;background:#f8f9fc;border-radius:14px;padding:12px;font-weight:800">📞 '+h(locale()==="fr"?"Appeler":"Call")+'</button>':"");
 
@@ -1129,7 +1134,8 @@
       toast(locale()==="fr"?"Ajouté au voyage":"Added to trip");
       openDeal(numericId);
     };
-    actions.querySelector("#dzDetailDirections").onclick=()=>window.open(dealDirectionsUrl(d),"_blank","noopener,noreferrer");
+    const directions=actions.querySelector("#dzDetailDirections");
+    if(directions) directions.onclick=()=>window.open(dealDirectionsUrl(d),"_blank","noopener,noreferrer");
     actions.querySelector("#dzDetailShare").onclick=()=>shareDeal(d);
     const call=actions.querySelector("#dzDetailCall");
     if(call) call.onclick=()=>{location.href="tel:"+String(d.phone).replace(/[^+\d]/g,"");};
@@ -1325,7 +1331,7 @@
     const isFr=locale()==="fr";
     const prefs=readExplorePrefs();
 
-    $("#filters").innerHTML=["All",...LIVE_CATEGORIES].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
+    $("#filters").innerHTML=["All",...activeCategories()].map((x)=>'<button class="'+(state.filter===x?"active":"")+'" data-filter="'+h(x)+'">'+h(tr(x))+"</button>").join("");
     $("#filters").querySelectorAll("button").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.filter;exploreCache={key:"",rows:[]};renderExplore(true);});
 
     const requestKey=exploreRequestKey(q);
