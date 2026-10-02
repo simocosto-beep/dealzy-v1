@@ -54,6 +54,9 @@ declare b dealzy_ops.email_alert_batches%rowtype; target_email text; n integer;
 keys text[]; lines text; subject_line text;
 begin
  perform pg_advisory_xact_lock(hashtextextended('dealzy-ops-email',0));
+ if exists(select 1 from dealzy_ops.email_alert_batches where status='unknown') then
+   return jsonb_build_object('state','needs_review','reason','An unconfirmed send requires manual review before further emails.');
+ end if;
  select * into b from dealzy_ops.email_alert_batches where status='pending' order by created_at limit 1;
  if found then
    if b.created_at<now()-interval '23 hours' then
