@@ -16,10 +16,16 @@ async function accountAccess(jwt){
     let data={};
     try{data=await r.json()}catch(_){}
     if(!r.ok) return {ok:false,allowed:false,status:'unknown',error:data.message||data.error||('Account access check failed: '+r.status)};
+    if(!data || typeof data !== 'object' || Array.isArray(data) ||
+       typeof data.ok !== 'boolean' || typeof data.allowed !== 'boolean' ||
+       !['active','disabled','blacklisted','anonymous','missing'].includes(data.status) ||
+       (data.allowed && (!data.ok || data.status !== 'active'))){
+      return {ok:false,allowed:false,status:'unknown',error:'Invalid account access response'};
+    }
     return {
-      ok:data.ok!==false,
-      allowed:data.allowed!==false,
-      status:String(data.status||'active'),
+      ok:data.ok === true,
+      allowed:data.ok === true && data.allowed === true && data.status === 'active',
+      status:data.status,
       reason:data.reason||null
     };
   }catch(_){
