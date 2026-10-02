@@ -12,6 +12,7 @@ let notificationCampaigns=[];
 let currentAdminPage='overview';
 
 const ADMIN_PAGES={
+  assistantOps:{title:'Assistant admin',subtitle:'Surveillance intégrée, actions et interventions.'},
   overview:{title:'Overview',subtitle:'Dealzy at a glance.'},
   analytics:{title:'Analytics',subtitle:'Usage, engagement and commerce trends.'},
   content:{title:'Content',subtitle:'Homepage copy, announcements and featured presentation.'},
@@ -48,6 +49,7 @@ function showAdminPage(page,{remember=true}={}){
   if($('#adminPageSubtitle')) $('#adminPageSubtitle').textContent=meta.subtitle;
   if(remember){try{localStorage.setItem('dealzy_admin_page_v1',page)}catch(_){}}
   window.scrollTo({top:0,behavior:'auto'});
+  if(page==='assistantOps'&&session?.access_token) loadOps().catch(e=>flash(e.message,true));
   if(page==='notifications'&&session?.access_token){
     loadAdminNotifications().catch(e=>flash(e.message,true));
   }
@@ -499,6 +501,24 @@ async function exportUsersCsv(){
   }catch(e){flash(e.message,true)}
 }
 
+
+async function loadOps(){
+  const data=await api('/rest/v1/rpc/dealzy_admin_ops_snapshot',{method:'POST',body:'{}'});
+  $('#opsStatus').textContent=(data.scheduled?'Surveillance active. ':'Surveillance non programmée. ')+(data.email_configured?'Connexion email configurée.':'Envoi email à connecter.');
+  $('#opsConfig').classList.toggle('hidden',admin?.role!=='superadmin');
+  const labels={no_action:'Aucune intervention détectée',email_not_configured:'Email à connecter',needs_review:'Intervention nécessaire',send:'Email en file d’envoi'};
+  const rows=(values,format,empty)=>values.length?values.map(x=>'<div class="history-row">'+format(x)+'</div>').join(''):'<p class="sub">'+esc(empty)+'</p>';
+  $('#opsInterventions').innerHTML=rows(data.interventions||[],x=>'<b>'+esc(x.summary)+'</b><p>'+esc(x.action)+'</p>','Aucune intervention détectée dans les diagnostics.');
+  $('#opsRuns').innerHTML=rows(data.runs||[],x=>esc(new Date(x.created_at).toLocaleString())+' · '+esc(labels[x.result.state]||x.result.state)+' · '+esc(x.result.retired_offers||0)+' offre(s) expirée(s) désactivée(s)','Aucune vérification enregistrée.');
+  $('#opsEmails').innerHTML=rows(data.emails||[],x=>esc(new Date(x.created_at).toLocaleString())+' · '+esc(({pending:'En attente',accepted:'Accepté par Resend',delivered:'Livré',failed:'Échec',unknown:'Envoi à vérifier'})[x.status]||x.status)+(x.last_error?'<p>'+esc(x.last_error)+'</p>':''),'Aucun email envoyé.');
+}
+$('#refreshOpsBtn').onclick=()=>loadOps().catch(e=>flash(e.message,true));
+$('#opsKeyForm').onsubmit=async e=>{
+ e.preventDefault();const input=$('#opsEmailKey'),button=e.submitter;button.disabled=true;
+ try{await api('/rest/v1/rpc/dealzy_admin_ops_configure',{method:'POST',body:JSON.stringify({p_key:input.value.trim()})});input.value='';await loadOps();flash('Connexion email enregistrée.');}
+ catch(_){flash('Connexion email non enregistrée. Vérifiez la clé et votre accès superadmin.',true);}
+ finally{input.value='';button.disabled=false;}
+};
 
 function val(id){const el=$('#'+id);return el?el.value:''}
 function numOrNull(id){const v=val(id);return v===''?null:Number(v)}
@@ -1693,3 +1713,4 @@ if(recovery){
   if(session?.access_token&&session?.user?.id) boot();
 }
 })();
+

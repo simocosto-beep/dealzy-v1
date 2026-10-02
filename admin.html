@@ -92,6 +92,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
       <button class="admin-tab" data-admin-tab="payments">💳 Payments</button>
       <button class="admin-tab" data-admin-tab="partners">🤝 Partners</button>
       <button class="admin-tab" data-admin-tab="deals">🏷 Deals</button>
+      <button class="admin-tab" data-admin-tab="assistantOps">🤖 Assistant admin</button>
       <button class="admin-tab" data-admin-tab="moderation">🛡 IA Modération</button>
       <button class="admin-tab" data-admin-tab="billing">🧾 Billing</button>
       <button class="admin-tab" data-admin-tab="system">⚙ System</button>
@@ -105,6 +106,21 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
   </div>
   <main class="main">
     <div id="flash"></div>
+    <section class="panel hidden" data-admin-page="assistantOps">
+      <h2>Assistant administratif Dealzy</h2>
+      <p class="sub">Vérification automatique toutes les 10 minutes, même lorsque cet écran est fermé. Les offres dont la date de fin est passée sont désactivées et chaque action est enregistrée. Les fournisseurs, contrats et erreurs de synchronisation qui demandent une décision vous sont signalés par email.</p>
+      <button type="button" class="btn" id="refreshOpsBtn">Actualiser le suivi</button>
+      <div id="opsStatus" role="status" class="section-box">Chargement du suivi…</div>
+      <div id="opsConfig" class="section-box hidden">
+        <h3>Connecter l’envoi d’emails</h3>
+        <p class="sub">Clé Resend réservée à l’envoi sur dealzyai.com. Elle est conservée dans le coffre serveur ; elle ne sera jamais réaffichée.</p>
+        <form id="opsKeyForm"><label for="opsEmailKey">Clé d’envoi</label><input type="password" id="opsEmailKey" autocomplete="off" spellcheck="false" required><button type="submit" class="btn">Enregistrer la connexion email</button></form>
+      </div>
+      <h3>Votre intervention</h3><div id="opsInterventions"></div>
+      <h3>Dernières vérifications</h3><div id="opsRuns"></div>
+      <h3>Emails</h3><div id="opsEmails"></div>
+      <p class="sub">Un email accepté par le service n’est pas encore une livraison confirmée. Le suivi repose sur les diagnostics enregistrés ; l’assistant ne renouvelle pas vos contrats, ne change pas les droits des comptes et ne répare pas les données privées.</p>
+    </section>
     <div id="statsGrid" class="grid" data-admin-page="overview">
       <div class="stat"><span class="sub">Users</span><b id="stUsers">—</b></div>
       <div class="stat"><span class="sub">Saved deals</span><b id="stSaved">—</b></div>
@@ -729,3 +745,4 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
 </div>
 <script src="/admin.js?v=20261001-moderation1"></script>
 </body></html>
+
