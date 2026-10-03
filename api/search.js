@@ -149,7 +149,20 @@ function bestTicketmasterImage(images){
   return [...images].sort((a,b)=>(Number(b.width||0)*Number(b.height||0))-(Number(a.width||0)*Number(a.height||0)))[0]?.url||'';
 }
 
-function normalizeTicketmaster(row,defaultCurrency='USD'){
+function ticketmasterAffiliateUrl(value,countryCode){
+  if(!value) return null;
+  try{
+    const destination=new URL(value);
+    if(countryCode!=='US'||destination.protocol!=='https:'||
+       !['ticketmaster.com','www.ticketmaster.com'].includes(destination.hostname)||
+       destination.username||destination.password) return value;
+    const tracking=new URL('https://ticketmaster.evyy.net/c/7851126/264167/4272');
+    tracking.searchParams.set('u',destination.href);
+    return tracking.href;
+  }catch(_){return null;}
+}
+
+function normalizeTicketmaster(row,defaultCurrency='USD',countryCode='US'){
   const venue=row?._embedded?.venues?.[0]||{};
   const pr=Array.isArray(row.priceRanges)&&row.priceRanges.length?row.priceRanges[0]:{};
   const min=Number(pr.min||0), max=Number(pr.max||min||0);
@@ -168,7 +181,7 @@ function normalizeTicketmaster(row,defaultCurrency='USD'){
     rating:'',
     image:bestTicketmasterImage(row.images),
     text:[classification,localDate,localTime].filter(Boolean).join(' · '),
-    partnerUrl:row.url||null,
+    partnerUrl:ticketmasterAffiliateUrl(row.url,countryCode),
     source:'Ticketmaster',
     provider:'ticketmaster',
     currency:pr.currency||defaultCurrency,
@@ -206,7 +219,7 @@ async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',curren
   }
   const data=await r.json();
   const events=data?._embedded?.events||[];
-  return {ok:true,results:events.map(row=>normalizeTicketmaster(row,currency)),total:Number(data?.page?.totalElements||events.length)};
+  return {ok:true,results:events.map(row=>normalizeTicketmaster(row,currency,countryCode)),total:Number(data?.page?.totalElements||events.length)};
 }
 
 async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US',currency='USD',lat=null,lng=null,radius=25}){
