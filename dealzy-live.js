@@ -106,6 +106,19 @@
     });
   }
 
+  function renderAffiliateHome(){
+    let expediaHome=document.getElementById('expediaHome');
+    if(!expediaHome){
+      expediaHome=document.createElement('div');
+      expediaHome.id='expediaHome';
+      $("#cats").after(expediaHome);
+    }
+    expediaHome.innerHTML=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
+    DealzyAffiliates.bind(expediaHome,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
+    const expediaHomeLink=expediaHome.querySelector('.expediaHomeCard');
+    if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
+  }
+
   function expediaHomeCard(){
     if(dealzyProviderRuntime.expedia===false) return '';
     const isFr=locale()==='fr';
@@ -1509,16 +1522,7 @@
     const visibleCats=orderedCategories();
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
-    let expediaHome=document.getElementById('expediaHome');
-    if(!expediaHome){
-      expediaHome=document.createElement('div');
-      expediaHome.id='expediaHome';
-      $("#cats").after(expediaHome);
-    }
-    expediaHome.innerHTML=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
-    DealzyAffiliates.bind(expediaHome,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
-    const expediaHomeLink=expediaHome.querySelector('.expediaHomeCard');
-    if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
+    renderAffiliateHome();
     const personalized=personalizedHome(homeDeals);
     const liveResults=personalized.length
       ? personalized.slice(0,12).map(dealCard).join("")
@@ -1852,6 +1856,7 @@
   }
 
   function updateMarketUI(){
+    renderAffiliateHome();
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
     const countryName=market.country==="CA"?"Canada":"United States";
     const locationBtn=document.getElementById("locationBtn");
