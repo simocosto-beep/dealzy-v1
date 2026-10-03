@@ -39,7 +39,7 @@ The UI must remain provider-agnostic. Live affiliate/provider feeds should map i
 The Awin Offers adapter is wired into live search but remains inactive until an approved publisher account supplies both `AWIN_PUBLISHER_ID` and `AWIN_ACCESS_TOKEN` as **server-only** Vercel environment variables. It requests active US/CA offers from joined advertisers, keeps only HTTPS tracking links, and exposes an online Shopping category when configured. The API has no verified price fields, so Dealzy displays a promotion or voucher code without a fabricated original price or percentage saving. Set the variables in Preview first, verify actual response shape and joined offers, then set Production. The token must never be placed in client code or GitHub.
 
 Other planned adapters:
-- Groupon / approved affiliate source (the current Groupon North America application in CJ was declined; no live Groupon inventory or commission access is configured)
+- Groupon / approved affiliate source (the Groupon North America application in CJ is pending as verified on 3 October 2026; no live Groupon inventory or commission access is configured)
 - CJ Affiliate
 - Travel/ticket providers
 - Additional local commerce APIs where licensing permits
@@ -48,6 +48,9 @@ No credentials or secrets should be committed to this repository. Live API calls
 
 ### Abracadabra NYC seasonal link
 After confirming the CJ advertiser relationship and obtaining a real CJ click URL, set `CJ_ABRACADABRA_URL` in Vercel. An image card and Halloween category appear only for visitors browsing the US market during October 2026. They are hidden when the URL is absent, invalid, or disabled with the public runtime provider setting `cjAbracadabra.enabled=false`. The card links to the merchant; it makes no discount or price claim. Review the destination and CJ tracking before setting Production, and remove the variable when the campaign ends.
+
+### Expedia Travel Creator shop
+The approved Dealzy Travel Creator shop is linked from Home, Explore and the Travel Hub. Home uses the same existing shop URL and affiliate disclosure, with click tracking and the public `expedia.enabled` switch. It is an external booking destination, not an Expedia price feed. The shop profile was verified on 3 October 2026; no hotel collections were visible. Expedia US/Canada applications through CJ are separate and still pending.
 
 ## Search visibility
 The homepage and localized US, Canadian English, and Canadian French landing pages are linked in HTML, use distinct canonical URLs and reciprocal `hreflang` tags, and appear in `sitemap.xml`. Country page city links use validated `country`, `city`, and `lang` query parameters to open the app in the selected market; the app consumes those parameters and removes them from its URL. Public country pages describe functionality and provider limitations without indexing individual, short-lived offers. Keep the Search Console verification meta tag in the homepage while the URL-prefix property is in use.
