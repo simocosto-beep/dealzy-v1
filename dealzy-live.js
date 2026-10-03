@@ -105,6 +105,16 @@
       link.addEventListener('click',()=>trackPartnerClick({provider:'cj',source:'Abracadabra NYC',title:'Halloween costumes',externalId:'7889430'}));
     });
   }
+
+  function expediaHomeCard(){
+    if(dealzyProviderRuntime.expedia===false) return '';
+    const isFr=locale()==='fr';
+    return '<a class="expediaHomeCard" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="sponsored noopener noreferrer">'+
+      '<span class="expediaHomeIcon" aria-hidden="true">🧳</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
+      '<h3>Expedia · Dealzy AI</h3><p>'+h(isFr?'Retrouvez la boutique voyage de Dealzy sur Expedia.':'Visit Dealzy’s travel shop on Expedia.')+'</p>'+
+      '<span class="expediaHomeAction">'+h(isFr?'Ouvrir la boutique Expedia ↗':'Open the Expedia shop ↗')+'</span>'+
+      '<small class="expediaHomeNote">'+h(isFr?'Réservation chez Expedia. Commission possible sur les achats éligibles.':'Book on Expedia. We may earn a commission on eligible purchases.')+'</small></div></a>';
+  }
   async function refreshDealzyProviderRuntime(force=false){
     if(!force && Date.now()-Number(dealzyProviderRuntime.checkedAt||0)<15000) return dealzyProviderRuntime;
     try{
@@ -1459,7 +1469,7 @@
     ].filter(Boolean).join("");
     const travelCards=travelButtons
       ? '<div style="grid-column:1/-1;margin:2px 0 10px">'+
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Réservez sans quitter Explorer":"Search travel without leaving Explore")+'</div></div></div>'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><div><div style="font-size:17px;font-weight:850">'+(isFr?"Voyage":"Travel")+'</div><div class="meta">'+(isFr?"Recherchez ici, réservez chez le partenaire":"Search here, book with the partner")+'</div></div></div>'+
           '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">'+travelButtons+'</div>'+
           '<div id="dzExploreTravelForm" style="margin-top:10px"></div>'+
         '</div>'
@@ -1497,6 +1507,15 @@
     const visibleCats=orderedCategories();
     $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
+    let expediaHome=document.getElementById('expediaHome');
+    if(!expediaHome){
+      expediaHome=document.createElement('div');
+      expediaHome.id='expediaHome';
+      $("#cats").after(expediaHome);
+    }
+    expediaHome.innerHTML=expediaHomeCard();
+    const expediaHomeLink=expediaHome.querySelector('a');
+    if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
     const personalized=personalizedHome(homeDeals);
     const liveResults=personalized.length
       ? personalized.slice(0,12).map(dealCard).join("")
