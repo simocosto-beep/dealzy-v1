@@ -1,0 +1,37 @@
+/* Approved Impact links, generated 2026-10-03. Country destinations stay separate. */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==='object'&&module.exports) module.exports=api;
+  else root.DealzyAffiliates=api;
+})(typeof window!=='undefined'?window:this,function(){
+  'use strict';
+  const partners=[
+    {id:'pelago',name:'Pelago',icon:'🎟️',label:{en:'Activities & experiences',fr:'Activités et expériences'},urls:{US:'https://pelago.pxf.io/4ajAW1',CA:'https://pelago.pxf.io/6k51gN'}},
+    {id:'tours4fun',name:'Tours4fun',icon:'🏞️',label:{en:'Tours & day trips',fr:'Circuits et excursions'},urls:{US:'https://easygoinc.pxf.io/B5o9P4',CA:'https://easygoinc.pxf.io/gRk7G0'}},
+    {id:'kkday',name:'KKday',icon:'🎡',label:{en:'Attractions & experiences',fr:'Attractions et expériences'},urls:{US:'https://kkdaygreaterchina.sjv.io/xJDv5O',CA:'https://kkdaygreaterchina.sjv.io/KB3GXz'}},
+    {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}}
+  ];
+  const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
+  const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function forCountry(country,enabledIds=[]){
+    if(country!=='US'&&country!=='CA') return [];
+    return partners.filter(p=>enabledIds.includes(p.id)).map(p=>({...p,url:p.urls[country],country}));
+  }
+  function render(country,locale,enabledIds){
+    const rows=forCountry(country,enabledIds);
+    if(!rows.length) return '';
+    const fr=locale==='fr';
+    const place=country==='CA'?'Canada':fr?'États-Unis':'United States';
+    return '<section class="affiliateSection" aria-label="'+(fr?'Partenaires voyage':'Travel partners')+'"><div class="affiliateHeading"><h3>'+(fr?'Encore plus à découvrir':'More to explore')+'</h3><span>'+place+'</span></div><p class="affiliateDisclosure">'+(fr?'Liens affiliés : Dealzy peut recevoir une commission. Prix, disponibilité et réservation chez le partenaire.':'Affiliate links: Dealzy may earn a commission. Check prices, availability and book with the partner.')+'</p><div class="affiliateGrid">'+rows.map(p=>{
+      const description=p.id==='tours4fun'&&country==='US'?(fr?'Circuits dans l’Ouest américain':'Tours in the American West'):p.label[fr?'fr':'en'];
+      return '<a class="affiliateCard" data-affiliate-partner="'+p.id+'" href="'+escape(p.url)+'" target="_blank" rel="sponsored noopener noreferrer"><span aria-hidden="true">'+p.icon+'</span><div><b>'+p.name+'</b><small>'+description+'</small></div><span class="affiliateArrow" aria-hidden="true">↗</span></a>';
+    }).join('')+'</div></section>';
+  }
+  function bind(root,onClick){
+    root?.querySelectorAll('[data-affiliate-partner]').forEach(link=>{
+      const p=partners.find(row=>row.id===link.dataset.affiliatePartner);
+      if(p) link.onclick=()=>onClick(p);
+    });
+  }
+  return {partners,forCountry,render,bind,expediaUrl:country=>expedia[country]||''};
+});

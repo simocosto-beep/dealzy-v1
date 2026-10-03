@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261001-seo1';
+    liveScript.src='/dealzy-live.js?v=20261003-affiliates';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -100,14 +100,14 @@
   `;
 
 
-  let dzRuntimeProviders={booking:true,skyscanner:true,expedia:true,checkedAt:0};
+  let dzRuntimeProviders={booking:true,skyscanner:true,expedia:true,affiliateIds:[],checkedAt:0};
   async function loadDzRuntimeProviders(force=false){
     if(!force && Date.now()-Number(dzRuntimeProviders.checkedAt||0)<15000) return dzRuntimeProviders;
     try{
       const r=await fetch('/api/providers',{cache:'no-store',headers:{'Accept':'application/json'}});
       if(!r.ok) throw new Error('providers');
       const data=await r.json();
-      const next={booking:true,skyscanner:true,expedia:true,checkedAt:Date.now()};
+      const next={booking:true,skyscanner:true,expedia:true,affiliateIds:[],checkedAt:Date.now()};
       for(const row of Array.isArray(data.providers)?data.providers:[]){
         const name=String(row.name||'').toLowerCase();
         const enabled=String(row.status||'').toLowerCase()!=='disabled-by-admin';
@@ -115,6 +115,7 @@
         if(name.includes('skyscanner')) next.skyscanner=enabled;
         if(name.includes('expedia')) next.expedia=enabled;
       }
+      next.affiliateIds=Array.isArray(data.affiliatePartners)?data.affiliatePartners:[];
       dzRuntimeProviders=next;
     }catch(_){
       dzRuntimeProviders={...dzRuntimeProviders,checkedAt:Date.now()};
@@ -797,13 +798,14 @@
     showPanel(`<h3>🧳 Travel Hub</h3>
       <div class="dz-small">Plan hotels, flights, cars and things to do. Dealzy saves your search details privately and opens official providers when public API access is not yet available.</div>
 
-      ${runtime.expedia!==false?'<div class="dz-result" style="margin:12px 0"><b>Expedia · Dealzy AI Travel Shop</b><br><span class="dz-small">Hotels, packages and travel inspiration through Dealzy\'s official Expedia creator shop.</span><br><a class="dz-action" id="dzExpediaShop" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a></div>':''}
+      ${runtime.expedia!==false?'<div class="dz-result" style="margin:12px 0"><b>Expedia · Dealzy AI Travel Shop</b><br><span class="dz-small">Hotels, packages and travel inspiration through Dealzy\'s official Expedia creator shop.</span><br><a class="dz-action" id="dzExpediaShop" href="'+esc(DealzyAffiliates.expediaUrl(market.country))+'" target="_blank" rel="noopener noreferrer sponsored" style="display:inline-block;text-decoration:none;margin-top:9px">Open Expedia Dealzy Shop</a></div>':''}
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
         ${runtime.booking!==false?'<button class="dz-action alt" data-travel-tab="hotel">🏨 Hotels</button><button class="dz-action alt" data-travel-tab="car">🚗 Cars</button><button class="dz-action alt" data-travel-tab="activity">🎟️ Things to do</button>':''}
         ${runtime.skyscanner!==false?'<button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>':''}
       </div>
 
+      ${DealzyAffiliates.render(market.country,typeof locale==='function'?locale():'en',runtime.affiliateIds)}
       <div id="dzTravelForm"></div>
 
       <div class="dz-result">
@@ -815,6 +817,7 @@
         Expedia is connected through Dealzy's official Travel Creator Shop. Booking.com and Skyscanner remain provider clickouts. External prices are never presented as native Dealzy inventory unless returned by an approved live API.
       </div>`);
 
+    DealzyAffiliates.bind(panel,p=>recordPartnerClick(p.name,p.name+' · '+market.country));
     const form=panel.querySelector('#dzTravelForm');
     const expediaLink=panel.querySelector('#dzExpediaShop');
     if(expediaLink) expediaLink.onclick=()=>recordPartnerClick('Expedia','Dealzy AI Travel Shop');

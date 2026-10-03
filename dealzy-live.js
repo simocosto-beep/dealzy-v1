@@ -86,7 +86,7 @@
   let homeLoading=true;
   let homeLoadSequence=0;
 
-  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,seasonalPartner:null,checkedAt:0};
+  let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,affiliateIds:[],seasonalPartner:null,checkedAt:0};
   function seasonalPartnerUrl(){
     return market.country==="US"?dealzyProviderRuntime.seasonalPartner?.url||null:null;
   }
@@ -109,7 +109,7 @@
   function expediaHomeCard(){
     if(dealzyProviderRuntime.expedia===false) return '';
     const isFr=locale()==='fr';
-    return '<a class="expediaHomeCard" href="https://expedia.com/shop/dealzy-ai" target="_blank" rel="sponsored noopener noreferrer">'+
+    return '<a class="expediaHomeCard" href="'+h(DealzyAffiliates.expediaUrl(market.country))+'" target="_blank" rel="sponsored noopener noreferrer">'+
       '<span class="expediaHomeIcon" aria-hidden="true">🧳</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
       '<h3>Expedia · Dealzy AI</h3><p>'+h(isFr?'Retrouvez la boutique voyage de Dealzy sur Expedia.':'Visit Dealzy’s travel shop on Expedia.')+'</p>'+
       '<span class="expediaHomeAction">'+h(isFr?'Ouvrir la boutique Expedia ↗':'Open the Expedia shop ↗')+'</span>'+
@@ -121,7 +121,7 @@
       const r=await fetch("/api/providers",{cache:"no-store",headers:{Accept:"application/json"},signal:AbortSignal.timeout(8000)});
       if(!r.ok) throw new Error("providers");
       const data=await r.json();
-      const next={booking:true,skyscanner:true,expedia:true,awin:false,seasonalPartner:null,checkedAt:Date.now()};
+      const next={booking:true,skyscanner:true,expedia:true,awin:false,affiliateIds:[],seasonalPartner:null,checkedAt:Date.now()};
       for(const row of Array.isArray(data.providers)?data.providers:[]){
         const name=String(row.name||"").toLowerCase();
         const status=String(row.status||"").toLowerCase();
@@ -135,6 +135,7 @@
         const url=partnerHref(data.seasonalPartner.url);
         if(url) next.seasonalPartner={url};
       }
+      next.affiliateIds=Array.isArray(data.affiliatePartners)?data.affiliatePartners:[];
       dealzyProviderRuntime=next;
     }catch(_){
       dealzyProviderRuntime={...dealzyProviderRuntime,seasonalPartner:null,checkedAt:Date.now()};
@@ -1381,7 +1382,7 @@
     host.querySelector("#dzTravelClose").onclick=()=>host.innerHTML="";
     host.querySelector("#dzExpediaGo").onclick=()=>{
       saveExploreTravelSearch("expedia",{city:market.city},"Expedia · "+marketCityLabel());
-      openExploreTravelPartner("Expedia","https://expedia.com/shop/dealzy-ai","Dealzy AI Travel Shop");
+      openExploreTravelPartner("Expedia",DealzyAffiliates.expediaUrl(market.country),"Dealzy AI Travel Shop");
     };
   }
 
@@ -1479,7 +1480,8 @@
       const liveHtml=list.length
         ? list.map(dealCard).join("")
         : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre ne correspond à ces filtres. Élargis le rayon ou choisis Toutes les sources.":"No offers match these filters. Increase the radius or choose All sources.")+'</div>';
-      root.innerHTML=controls+travelCards+liveHtml;
+      root.innerHTML=controls+travelCards+((state.filter==='All'||state.filter==='Travel')?DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds):'')+liveHtml;
+      DealzyAffiliates.bind(root,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
 
       const sortBtn=root.querySelector("#dzExploreSortBtn");
       const radiusBtn=root.querySelector("#dzExploreRadiusBtn");
@@ -1513,8 +1515,9 @@
       expediaHome.id='expediaHome';
       $("#cats").after(expediaHome);
     }
-    expediaHome.innerHTML=expediaHomeCard();
-    const expediaHomeLink=expediaHome.querySelector('a');
+    expediaHome.innerHTML=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
+    DealzyAffiliates.bind(expediaHome,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
+    const expediaHomeLink=expediaHome.querySelector('.expediaHomeCard');
     if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
     const personalized=personalizedHome(homeDeals);
     const liveResults=personalized.length

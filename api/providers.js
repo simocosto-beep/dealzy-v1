@@ -1,3 +1,4 @@
+const {partners:affiliatePartners}=require('../dealzy-affiliates.js');
 
 const DEALZY_SUPABASE_URL='https://stkmhgeuavsidpapqvyw.supabase.co';
 const DEALZY_SUPABASE_KEY='sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh';
@@ -58,7 +59,9 @@ module.exports = async function handler(req,res){
     ok:true,
     maintenance:app.maintenance===true,
     seasonalPartner:abracadabraUrl?{name:'Abracadabra NYC',countryCode:'US',url:abracadabraUrl}:null,
+    affiliatePartners:affiliatePartners.filter(row=>runtimeEnabled(p,row.id,true)).map(row=>row.id),
     providers:[
+      ...affiliatePartners.map(row=>({name:row.name,status:runtimeEnabled(p,row.id,true)?'active-affiliate-clickout':'disabled-by-admin',kind:'affiliate-clickout'})),
       {name:'Dealzy Demo Inventory',status:'active',kind:'fallback'},
       {name:'Browser Location',status:'active',kind:'device'},
       {name:'Price History Engine',status:'active',kind:'cloud'},
