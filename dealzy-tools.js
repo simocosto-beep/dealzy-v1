@@ -789,6 +789,8 @@
   }
 
   async function travelTool(){
+    let market={country:'US'};
+    try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
     const runtime=await loadDzRuntimeProviders(false);
     const key='dealzyTravelSearches';
     let saved=[];
@@ -805,7 +807,7 @@
         ${runtime.skyscanner!==false?'<button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>':''}
       </div>
 
-      ${DealzyAffiliates.render(market.country,typeof locale==='function'?locale():'en',runtime.affiliateIds)}
+      ${DealzyAffiliates.render(market.country,window.DealzyI18n?.getLocale()||'en',runtime.affiliateIds)}
       <div id="dzTravelForm"></div>
 
       <div class="dz-result">
