@@ -9,7 +9,8 @@
     {id:'pelago',name:'Pelago',icon:'🎟️',label:{en:'Activities & experiences',fr:'Activités et expériences'},urls:{US:'https://pelago.pxf.io/4ajAW1',CA:'https://pelago.pxf.io/6k51gN'}},
     {id:'tours4fun',name:'Tours4fun',icon:'🏞️',label:{en:'Tours & day trips',fr:'Circuits et excursions'},urls:{US:'https://easygoinc.pxf.io/B5o9P4',CA:'https://easygoinc.pxf.io/gRk7G0'}},
     {id:'kkday',name:'KKday',icon:'🎡',label:{en:'Attractions & experiences',fr:'Attractions et expériences'},urls:{US:'https://kkdaygreaterchina.sjv.io/xJDv5O',CA:'https://kkdaygreaterchina.sjv.io/KB3GXz'}},
-    {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}}
+    {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}},
+    {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books — 45% off first subscription book',fr:'Livres personnalisés pour enfants — 45 % sur le premier livre avec abonnement'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
   ];
   const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
