@@ -111,9 +111,17 @@
     if(!expediaHome){
       expediaHome=document.createElement('div');
       expediaHome.id='expediaHome';
-      $("#cats").after(expediaHome);
+      expediaHome.className='partnerShelf';
+      const popularSection=$("#popularGrid")?.closest('.section');
+      const legal=document.querySelector('#homeView .legal');
+      if(popularSection) popularSection.after(expediaHome);
+      else if(legal) legal.before(expediaHome);
+      else $("#cats").after(expediaHome);
     }
-    expediaHome.innerHTML=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
+    const isFr=locale()==='fr';
+    const partnerCount=(Array.isArray(dealzyProviderRuntime.affiliateIds)?dealzyProviderRuntime.affiliateIds.length:0)+(dealzyProviderRuntime.expedia===false?0:1);
+    const partnerContent=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
+    expediaHome.innerHTML='<details class="affiliateHomeDetails"><summary><span><b>'+h(isFr?'Plus de bons plans partenaires':'More partner deals')+'</b><small>'+h(isFr?'Expedia, eSIM, gaming et autres offres':'Expedia, eSIM, gaming and more')+'</small></span><span class="partnerShelfCount">'+partnerCount+' ↘</span></summary><div class="affiliateHomeBody">'+partnerContent+'</div></details>';
     DealzyAffiliates.bind(expediaHome,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
     const expediaHomeLink=expediaHome.querySelector('.expediaHomeCard');
     if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
