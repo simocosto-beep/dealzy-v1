@@ -111,22 +111,32 @@
     if(!expediaHome){
       expediaHome=document.createElement('div');
       expediaHome.id='expediaHome';
-      expediaHome.className='partnerShelf';
-      const popularSection=$("#popularGrid")?.closest('.section');
-      const legal=document.querySelector('#homeView .legal');
-      if(popularSection) popularSection.after(expediaHome);
-      else if(legal) legal.before(expediaHome);
-      else $("#cats").after(expediaHome);
+      expediaHome.className='partnerTicker';
+      $("#cats").after(expediaHome);
     }
     const isFr=locale()==='fr';
-    const partnerCount=(Array.isArray(dealzyProviderRuntime.affiliateIds)?dealzyProviderRuntime.affiliateIds.length:0)+(dealzyProviderRuntime.expedia===false?0:1);
-    const partnerContent=expediaHomeCard()+DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds);
-    expediaHome.innerHTML='<details class="affiliateHomeDetails"><summary><span><b>'+h(isFr?'Plus de bons plans partenaires':'More partner deals')+'</b><small>'+h(isFr?'Expedia, eSIM, gaming et autres offres':'Expedia, eSIM, gaming and more')+'</small></span><span class="partnerShelfCount">'+partnerCount+' ↘</span></summary><div class="affiliateHomeBody">'+partnerContent+'</div></details>';
-    DealzyAffiliates.bind(expediaHome,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
-    const expediaHomeLink=expediaHome.querySelector('.expediaHomeCard');
-    if(expediaHomeLink) expediaHomeLink.onclick=()=>trackPartnerClick({provider:'expedia',source:'Expedia',title:'Dealzy AI Travel Shop'});
+    const affiliates=DealzyAffiliates.forCountry(market.country,dealzyProviderRuntime.affiliateIds);
+    const items=[];
+    if(dealzyProviderRuntime.expedia!==false){
+      items.push({id:'expedia',name:'Expedia · Dealzy AI',icon:'🧳',url:DealzyAffiliates.expediaUrl(market.country)});
+    }
+    affiliates.forEach(p=>items.push({id:p.id,name:p.name,icon:p.icon||'✨',url:p.url}));
+    if(!items.length){ expediaHome.innerHTML=''; return; }
+    const renderItems=()=>items.map(p=>
+      '<a class="partnerTickerItem" data-partner-ticker="'+h(p.id)+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
+      '<span class="partnerTickerIcon" aria-hidden="true">'+h(p.icon)+'</span><b>'+h(p.name)+'</b><span aria-hidden="true">↗</span></a>'
+    ).join('');
+    expediaHome.innerHTML=
+      '<div class="partnerTickerLabel"><b>'+h(isFr?'Bons plans partenaires':'Partner deals')+'</b><small>'+h(isFr?'Offres externes sélectionnées':'Selected external offers')+'</small></div>'+
+      '<div class="partnerTickerViewport"><div class="partnerTickerTrack">'+renderItems()+renderItems()+'</div></div>';
+    expediaHome.querySelectorAll('[data-partner-ticker]').forEach(link=>{
+      link.onclick=()=>{
+        const id=link.dataset.partnerTicker;
+        const item=items.find(x=>x.id===id);
+        if(item) trackPartnerClick({provider:id,source:item.name,title:item.name+' · '+market.country});
+      };
+    });
   }
-
   function expediaHomeCard(){
     if(dealzyProviderRuntime.expedia===false) return '';
     const isFr=locale()==='fr';
