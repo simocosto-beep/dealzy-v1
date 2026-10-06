@@ -1,4 +1,4 @@
-/* Approved Impact links, generated 2026-10-03. Country destinations stay separate. */
+/* Approved affiliate links, updated 2026-10-06. Country destinations stay separate where available. */
 (function(root,factory){
   const api=factory();
   if(typeof module==='object'&&module.exports) module.exports=api;
@@ -10,6 +10,8 @@
     {id:'tours4fun',name:'Tours4fun',icon:'🏞️',label:{en:'Tours & day trips',fr:'Circuits et excursions'},urls:{US:'https://easygoinc.pxf.io/B5o9P4',CA:'https://easygoinc.pxf.io/gRk7G0'}},
     {id:'kkday',name:'KKday',icon:'🎡',label:{en:'Attractions & experiences',fr:'Attractions et expériences'},urls:{US:'https://kkdaygreaterchina.sjv.io/xJDv5O',CA:'https://kkdaygreaterchina.sjv.io/KB3GXz'}},
     {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}},
+    {id:'airzlink',name:'AirZlink eSIM',icon:'🌐',label:{en:'Global travel eSIM — 200+ countries & regions',fr:'eSIM voyage mondiale — plus de 200 pays et régions'},urls:{US:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402',CA:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402'}},
+    {id:'gearup',name:'GearUP for Mobile',icon:'🎮',label:{en:'Mobile gaming network booster',fr:'Accélérateur réseau pour jeux mobiles'},urls:{US:'https://gearupapp.pxf.io/c/7851126/3931528/53368',CA:'https://gearupapp.pxf.io/c/7851126/3931528/53368'}},
     {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books — 45% off first subscription book',fr:'Livres personnalisés pour enfants — 45 % sur le premier livre avec abonnement'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
   ];
   const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
