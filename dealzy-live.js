@@ -1318,7 +1318,7 @@
     const link=document.createElement("a");
     link.href=href;
     link.target="_blank";
-    link.rel="noopener noreferrer";
+    link.rel="sponsored noopener noreferrer";
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1362,7 +1362,8 @@
         }
         const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:"1"});
         saveExploreTravelSearch("hotel",{dest,cin,cout,adults},dest+" · "+cin+" → "+cout);
-        openExploreTravelPartner("Booking.com","https://www.booking.com/searchresults.html?"+p.toString(),"Hotel search · "+dest);
+        const bookingDestination="https://www.booking.com/searchresults.html?"+p.toString();
+        openExploreTravelPartner("Booking.com",DealzyAffiliates.bookingUrl(bookingDestination),"Hotel search · "+dest);
       };
       return;
     }
