@@ -21,13 +21,13 @@
   function applyRuntimeContent(){
     const c=runtimeContent||{};
     const tag=document.querySelector('.brand .tag');
-    if(tag&&c.brand_tagline) tag.textContent=String(c.brand_tagline);
+    if(tag&&c.brand_tagline) tag.textContent=tr(String(c.brand_tagline));
 
     const hero=document.querySelector('#homeView .hero');
     const title=document.querySelector('#homeView .hero h1');
     const subtitle=document.querySelector('#homeView .hero p');
-    if(title&&c.hero_title) title.textContent=String(c.hero_title);
-    if(subtitle&&c.hero_subtitle) subtitle.textContent=String(c.hero_subtitle);
+    if(title&&c.hero_title) title.textContent=tr(String(c.hero_title));
+    if(subtitle&&c.hero_subtitle) subtitle.textContent=tr(String(c.hero_subtitle));
     if(hero){
       const img=validRuntimeImage(c.hero_image_url);
       hero.style.backgroundImage=img
@@ -51,7 +51,7 @@
     }
 
     const legal=document.querySelector('#homeView .legal');
-    if(legal&&c.legal_notice) legal.textContent=String(c.legal_notice);
+    if(legal&&c.legal_notice) legal.textContent=tr(String(c.legal_notice));
   }
 
   async function loadRuntimeContent(){
@@ -85,6 +85,8 @@
   let homeDeals=[];
   let homeLoading=true;
   let homeLoadSequence=0;
+  let marketRevision=0;
+  let exploreLoadSequence=0;
 
   let dealzyProviderRuntime={booking:true,skyscanner:true,expedia:true,awin:false,affiliateIds:[],seasonalPartner:null,checkedAt:0};
   function seasonalPartnerUrl(){
@@ -359,6 +361,7 @@
   };
 
   async function ensureMarketCityCoords(){
+    const revision=marketRevision;
     if(state.coords&&coordsAllowedForMarket(state.coords,market.country)) return state.coords;
 
     const known=(MARKET_CITY_COORDS[market.country]||{})[market.city];
@@ -391,6 +394,7 @@
       });
       if(response.ok){
         const rows=await response.json();
+        if(revision!==marketRevision) return null;
         const first=Array.isArray(rows)?rows[0]:null;
         const lat=first?Number(first.lat):NaN;
         const lng=first?Number(first.lon):NaN;
@@ -416,8 +420,17 @@
     localStorage.setItem("dealzyLocationChoice",locationMode);
     state.coords=null;
     localStorage.removeItem("dealzyCoords");
+    marketRevision++;
+    homeLoadSequence++;
+    exploreLoadSequence++;
     catalog.clear();
     homeDeals=[];
+    homeLoading=true;
+    deals.splice(0,deals.length);
+    for(const id of ['popularGrid','exploreGrid']){
+      const grid=document.getElementById(id);
+      if(grid) grid.innerHTML='<div class="empty" style="grid-column:1/-1" role="status">'+h(tr('Loading live results…'))+'</div>';
+    }
     exploreCache={key:"",rows:[]};
     if(window.DealzyCloud) window.DealzyCloud.queueSync();
   }
@@ -976,8 +989,10 @@
     '</div>';
   }
 
-  async function fetchLive(category,q="",limit=8){
+  async function fetchLive(category,q="",limit=8,maxPrice=state.maxPrice){
+    const revision=marketRevision;
     await ensureMarketCityCoords();
+    if(revision!==marketRevision) return [];
     const params=new URLSearchParams({
       category,
       limit:String(limit),
@@ -986,7 +1001,7 @@
       currency:market.currency
     });
     if(q) params.set("q",q);
-    if(state.maxPrice) params.set("maxPrice",String(state.maxPrice));
+    if(maxPrice) params.set("maxPrice",String(maxPrice));
     if(state.coords&&coordsAllowedForMarket(state.coords,market.country)){
       params.set("lat",String(state.coords.lat));
       params.set("lng",String(state.coords.lng));
@@ -1000,6 +1015,7 @@
     });
     if(!response.ok) return [];
     const data=await response.json();
+    if(revision!==marketRevision) return [];
     if(!data||data.mode==="demo-fallback") return [];
 
     let raw=Array.isArray(data.results)?data.results:[];
@@ -1047,27 +1063,33 @@
     return remember(normalized);
   }
 
-  async function fetchCategoryBoosted(category,q="",target=12){
+  async function fetchCategoryBoosted(category,q="",target=12,maxPrice=state.maxPrice){
+    const revision=marketRevision;
     const wanted=Math.max(4,Math.min(30,Number(target)||12));
     let primary=[];
-    try{ primary=await fetchLive(category,q,wanted); }catch(_){ primary=[]; }
+    try{ primary=await fetchLive(category,q,wanted,maxPrice); }catch(_){ primary=[]; }
 
+    if(revision!==marketRevision) return [];
     // If a strict query returns too little, keep those matches and add popular live
     // inventory from the same category. Nothing synthetic is added here.
     if(q && primary.length<Math.min(6,wanted)){
       let broad=[];
-      try{ broad=await fetchLive(category,"",wanted); }catch(_){ broad=[]; }
+      try{ broad=await fetchLive(category,"",wanted,maxPrice); }catch(_){ broad=[]; }
       primary=dedupe([...primary,...broad]);
     }
+    if(revision!==marketRevision) return [];
     return remember(primary.slice(0,wanted));
   }
 
-  async function fetchMixed(q="",limitEach=10){
+  async function fetchMixed(q="",limitEach=10,maxPrice=state.maxPrice){
+    const revision=marketRevision;
     await refreshDealzyProviderRuntime(false);
+    if(revision!==marketRevision) return [];
     const perCategory=Math.max(6,Math.min(16,Number(limitEach)||10));
     const groups=await Promise.all(
-      activeCategories().filter(cat=>cat!=="Halloween").map((cat)=>fetchCategoryBoosted(cat,q,perCategory).catch(()=>[]))
+      activeCategories().filter(cat=>cat!=="Halloween").map((cat)=>fetchCategoryBoosted(cat,q,perCategory,maxPrice).catch(()=>[]))
     );
+    if(revision!==marketRevision) return [];
     const interleaved=[];
     for(let i=0;i<perCategory;i++){
       groups.forEach((group)=>{ if(group[i]) interleaved.push(group[i]); });
@@ -1090,7 +1112,7 @@
       : "";
     const scorePill='<span title="'+h(tr("Personalized relevance score"))+'" style="display:inline-flex;align-items:center;gap:5px;background:#f1efff;color:#5145cd;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:850;margin-top:9px">✦ '+scoreInfo.score+' '+h(tr("Dealzy AI"))+'</span>';
     const bg=d.img?"background-image:url(&quot;"+h(d.img)+"&quot;)":"background:linear-gradient(135deg,#eef2ff,#f8f9fc)";
-    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="Save">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(distanceText?" · 📍 "+h(distanceText):"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
+    return '<article class="deal" data-id="'+d.id+'"><div class="dealImg" style="'+bg+'"><span class="badge">'+h(d.badge||d.source||"Live")+'</span><button class="heart" data-heart="'+d.id+'" aria-label="'+h(tr("Save"))+'">'+(saved?"♥":"♡")+'</button></div><div class="dealBody"><h3>'+h(d.title)+'</h3><div class="meta">'+h(d.place||"")+(distanceText?" · 📍 "+h(distanceText):"")+(d.rating?" · "+h(d.rating):"")+'</div>'+scorePill+'<div class="row"><div><span class="price">'+h(priceText)+"</span>"+oldText+"</div>"+saveText+"</div></div></article>";
   };
 
   toggleFav=function(id){
@@ -1263,7 +1285,7 @@
     loadSavedIntoCatalog();
     const snapshots=getSavedSnapshots();
     const list=state.trip.map((id)=>catalog.get(Number(id))||snapshots[String(id)]).filter(Boolean);
-    $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):h(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">Your trip is empty.</div>';
+    $("#tripItems").innerHTML=list.length?list.map((d)=>'<div class="tripCard"><b>'+h(d.title)+'</b><div class="meta">'+h(d.place||"")+" · "+(Number(d.price)>0?moneyFor(d.price,d.currency):h(d.priceLabel||"Price on provider"))+" · "+h(d.source||"Live")+"</div></div>").join(""):'<div class="empty">'+h(tr('Your trip is empty.'))+'</div>';
   };
 
   function travelDateOffset(days){
@@ -1419,7 +1441,13 @@
   }
 
   renderExplore=async function(force=false){
+    const requestId=++exploreLoadSequence;
+    const revision=marketRevision;
+    const initialRoot=$("#exploreGrid");
+    if(initialRoot) initialRoot.innerHTML='<div class="empty" style="grid-column:1/-1" role="status">'+h(tr("Loading live results…"))+'</div>';
+    if($("#resultCount")) $("#resultCount").textContent=tr("Live search");
     await refreshDealzyProviderRuntime(false);
+    if(requestId!==exploreLoadSequence||revision!==marketRevision) return;
     const root=$("#exploreGrid");
     const count=$("#resultCount");
     const q=($("#exploreQuery")?.value||"").trim();
@@ -1452,6 +1480,7 @@
       if(count) count.textContent=tr("Live search");
       try{
         rawList=state.filter==="All"?await fetchMixed(q,12):await fetchCategoryBoosted(state.filter,q,30);
+        if(requestId!==exploreLoadSequence||revision!==marketRevision) return;
         if(rawList.length<8&&q){
           broadened=true;
           const broad=state.filter==="All"?await fetchMixed("",12):await fetchCategoryBoosted(state.filter,"",30);
@@ -1461,6 +1490,7 @@
         rawList=[];
       }
 
+      if(requestId!==exploreLoadSequence||revision!==marketRevision) return;
       if(state.maxPrice){
         const exact=rawList.filter((d)=>Number(d.price)>0&&Number(d.price)<=state.maxPrice);
         const unknown=rawList.filter((d)=>!(Number(d.price)>0));
@@ -1472,6 +1502,7 @@
       exploreCache={key:requestKey,rows:[...rawList]};
     }
 
+    includesUnknownPrice=rawList.some(d=>!(Number(d.price)>0));
     const sourceUniverse=applyExplorePrefs(rawList,{...prefs,source:"all"}).slice(0,40);
     const list=prefs.source==="all"
       ? [...sourceUniverse]
@@ -1512,7 +1543,9 @@
       const liveHtml=list.length
         ? list.map(dealCard).join("")
         : '<div class="empty" style="grid-column:1/-1">'+h(isFr?"Aucune offre ne correspond à ces filtres. Élargis le rayon ou choisis Toutes les sources.":"No offers match these filters. Increase the radius or choose All sources.")+'</div>';
-      root.innerHTML=controls+travelCards+((state.filter==='All'||state.filter==='Travel')?DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds):'')+liveHtml;
+      const budgetNotice=state.maxPrice&&includesUnknownPrice
+        ? '<p class="meta" style="grid-column:1/-1" role="note">'+h(isFr?'Budget non garanti pour les résultats sans prix exact. Vérifiez le prix et les disponibilités chez le partenaire.':'Budget is not verified for results without an exact price. Check price and availability with the partner.')+'</p>' : '';
+      root.innerHTML=controls+travelCards+budgetNotice+((state.filter==='All'||state.filter==='Travel')?DealzyAffiliates.render(market.country,locale(),dealzyProviderRuntime.affiliateIds,state.filter==='Travel'):'')+liveHtml;
       DealzyAffiliates.bind(root,p=>trackPartnerClick({provider:p.id,source:p.name,title:p.name+' · '+market.country}));
 
       const sortBtn=root.querySelector("#dzExploreSortBtn");
@@ -2005,6 +2038,7 @@
     state.maxPrice=budget?Number(budget[1]):null;
 
     let cleaned=original
+      .replace(/\bdîner\b|\bdiner\b|\bdinner\b/gi," restaurants ")
       .replace(/date night|tonight|this weekend|near me|ce soir|ce week[- ]?end|près de moi/gi," ")
       .replace(/(?:under|below|max|less than|moins de|sous)\s*(?:ca\$|cad|\$)?\s*\d{1,5}/gi," ");
 
@@ -2041,6 +2075,8 @@
   async function hydrateHome(){
     const requestId=++homeLoadSequence;
     homeLoading=true;
+    const loadingGrid=$("#popularGrid");
+    if(loadingGrid) loadingGrid.innerHTML='<div class="empty" style="grid-column:1/-1" role="status">'+h(tr("Loading live deals…"))+'</div>';
     await loadRuntimeContent();
     if(requestId!==homeLoadSequence) return;
     updateMarketUI();
@@ -2053,15 +2089,11 @@
     const familyIndex=cats.findIndex((x)=>x[1]==="Family");
     if(familyIndex>=0) cats.splice(familyIndex,1);
 
-    const previousMaxPrice=state.maxPrice;
-    state.maxPrice=null;
     let freshDeals=[];
     try{
-      freshDeals=await fetchMixed("",8);
+      freshDeals=await fetchMixed("",8,null);
     }catch(error){
       console.warn("[Dealzy] Home offers unavailable",error);
-    }finally{
-      state.maxPrice=previousMaxPrice;
     }
     if(requestId!==homeLoadSequence) return;
     homeDeals=freshDeals;
@@ -2074,7 +2106,7 @@
     });
     const legal=document.querySelector("#homeView .legal");
     if(legal){
-      legal.textContent=String(runtimeContent.legal_notice||'').trim()||
+      legal.textContent=tr(String(runtimeContent.legal_notice||'').trim())||
         tr("Live inventory is supplied by connected providers including Viator, Ticketmaster and Yelp. Travel clickouts include Expedia, Booking.com and Skyscanner. We may earn a commission on eligible partner purchases.");
     }
 
