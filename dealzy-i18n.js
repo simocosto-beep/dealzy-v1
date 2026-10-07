@@ -2,6 +2,18 @@
   "use strict";
 
   const FR={
+    "Save":"Enregistrer",
+    "Find hotels & travel":"Rechercher hôtels et voyages",
+    "Account & preferences":"Compte et préférences",
+    "My Dealzy account":"Mon compte Dealzy",
+    "Manage my account":"Gérer mon compte",
+    "Manage your name, email, phone, password and order history. Admin accounts also get user-management tools.":"Gérez votre nom, e-mail, téléphone, mot de passe et historique de commandes. Les administrateurs disposent aussi des outils de gestion des utilisateurs.",
+    "🧳 Travel Hub":"🧳 Espace voyage",
+    "🏨 Hotels":"🏨 Hôtels",
+    "🚗 Cars":"🚗 Voitures",
+    "🎟️ Things to do":"🎟️ Activités",
+    "✈️ Flights":"✈️ Vols",
+    "Check-out must be after check-in.":"La date de départ doit être après la date d’arrivée.",
     "Amazing Deals. Smarter Choices.":"Des offres incroyables. Des choix plus intelligents.",
     "Find amazing experiences with AI.":"Trouvez des expériences incroyables avec l’IA.",
     "Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.":"Restaurants, activités, spas, voyages, événements et plus — personnalisés selon votre budget, votre lieu et le moment.",

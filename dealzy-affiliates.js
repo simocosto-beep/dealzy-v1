@@ -31,10 +31,10 @@
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function forCountry(country,enabledIds=[]){
     if(country!=='US'&&country!=='CA') return [];
-    return partners.filter(p=>enabledIds.includes(p.id)).map(p=>({...p,url:p.urls[country],country}));
+    return partners.filter(p=>enabledIds.includes(p.id)&&/^https:\/\//.test(p.urls[country]||'')).map(p=>({...p,url:p.urls[country],country}));
   }
-  function render(country,locale,enabledIds){
-    const rows=forCountry(country,enabledIds);
+  function render(country,locale,enabledIds,travelOnly=false){
+    const rows=forCountry(country,enabledIds).filter(p=>!travelOnly||!['gearup','magicstory'].includes(p.id));
     if(!rows.length) return '';
     const fr=locale==='fr';
     const place=country==='CA'?'Canada':fr?'États-Unis':'United States';

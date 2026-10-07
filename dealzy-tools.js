@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261006-partnerticker';
+    liveScript.src='/dealzy-live.js?v=20261007-repair1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261001-seo1';
+  i18nScript.src='/dealzy-i18n.js?v=20261007-repair1';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
@@ -807,7 +807,7 @@
         ${runtime.skyscanner!==false?'<button class="dz-action alt" data-travel-tab="flight">✈️ Flights</button>':''}
       </div>
 
-      ${DealzyAffiliates.render(market.country,window.DealzyI18n?.getLocale()||'en',runtime.affiliateIds)}
+      ${DealzyAffiliates.render(market.country,window.DealzyI18n?.getLocale()||'en',runtime.affiliateIds,true)}
       <div id="dzTravelForm"></div>
 
       <div class="dz-result">
@@ -834,7 +834,7 @@
       if(runtime.booking===false){form.innerHTML='<div class="dz-result">Booking.com is temporarily disabled by Dealzy Admin.</div>';return;}
       form.innerHTML=`
         <div class="dz-form">
-          <label>Destination<input id="dzHotelDest" placeholder="Miami"></label>
+          <label>Destination<input id="dzHotelDest" value="${esc(market.city||'')}" placeholder="${market.country==='CA'?'Toronto':'Miami'}"></label>
           <label>Adults<input id="dzHotelAdults" type="number" min="1" value="2"></label>
           <label>Check-in<input id="dzHotelIn" type="date"></label>
           <label>Check-out<input id="dzHotelOut" type="date"></label>
@@ -846,10 +846,11 @@
         const cin=form.querySelector('#dzHotelIn').value;
         const cout=form.querySelector('#dzHotelOut').value;
         if(!dest||!cin||!cout){showPanel('<h3>🏨 Hotels</h3><div class="dz-result">Enter destination, check-in and check-out dates.</div>');return}
+        if(cout<=cin){alert(window.DealzyI18n?.t('Check-out must be after check-in.')||'Check-out must be after check-in.');return;}
         saveSearch('hotel',{dest,adults,cin,cout},dest+' · '+cin+' → '+cout);
         const p=new URLSearchParams({ss:dest,checkin:cin,checkout:cout,group_adults:String(adults),no_rooms:'1'});
         recordPartnerClick('Booking.com','Hotel search · '+dest);
-        window.open('https://www.booking.com/searchresults.html?'+p.toString(),'_blank','noopener,noreferrer');
+        window.open(DealzyAffiliates.bookingUrl('https://www.booking.com/searchresults.html?'+p.toString()),'_blank','noopener,noreferrer');
       };
     };
 
@@ -919,10 +920,22 @@
 
     panel.querySelectorAll('[data-travel-tab]').forEach(b=>b.onclick=()=>{
       ({hotel:renderHotel,flight:renderFlight,car:renderCar,activity:renderActivity}[b.dataset.travelTab]||renderHotel)();
+      window.DealzyI18n?.apply(form);
     });
     if(runtime.booking!==false) renderHotel();
     else if(runtime.skyscanner!==false) renderFlight();
     else form.innerHTML='<div class="dz-result">Travel clickout providers are temporarily disabled by Dealzy Admin.</div>';
+    window.DealzyI18n?.apply(form);
+  }
+
+  const tripView=document.getElementById('tripsView');
+  if(tripView){
+    const bookingEntry=document.createElement('button');
+    bookingEntry.className='pill';
+    bookingEntry.textContent='Find hotels & travel';
+    bookingEntry.onclick=()=>{wrap.classList.add('open');travelTool();};
+    tripView.insertBefore(bookingEntry,tripView.firstChild);
+    window.DealzyI18n?.apply(tripView);
   }
 
   function watchTool(){
