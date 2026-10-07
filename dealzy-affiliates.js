@@ -15,6 +15,19 @@
     {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books — 45% off first subscription book',fr:'Livres personnalisés pour enfants — 45 % sur le premier livre avec abonnement'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
   ];
   const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
+
+  const booking={
+    id:'booking',
+    name:'Booking.com',
+    icon:'🏨',
+    label:{en:'Hotels & stays',fr:'Hôtels et hébergements'},
+    evergreen:'https://www.jdoqocy.com/click-101895085-15734710',
+    deepLinkBase:'https://www.tkqlhce.com/click-101895085-15734710'
+  };
+  function bookingUrl(destination='https://www.booking.com'){
+    const target=String(destination||'https://www.booking.com');
+    return booking.deepLinkBase+'?url='+encodeURIComponent(target);
+  }
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function forCountry(country,enabledIds=[]){
     if(country!=='US'&&country!=='CA') return [];
@@ -36,5 +49,5 @@
       if(p) link.onclick=()=>onClick(p);
     });
   }
-  return {partners,forCountry,render,bind,expediaUrl:country=>expedia[country]||''};
+  return {partners,forCountry,render,bind,booking,bookingUrl,expediaUrl:country=>expedia[country]||''};
 });
