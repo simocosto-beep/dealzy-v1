@@ -165,7 +165,7 @@ function ticketmasterAffiliateUrl(value,countryCode){
 function normalizeTicketmaster(row,defaultCurrency='USD',countryCode='US'){
   const venue=row?._embedded?.venues?.[0]||{};
   const pr=Array.isArray(row.priceRanges)&&row.priceRanges.length?row.priceRanges[0]:{};
-  const min=Number(pr.min||0), max=Number(pr.max||min||0);
+  const min=pr.min!=null&&pr.min!==''&&Number.isFinite(Number(pr.min))&&Number(pr.min)>=0?Number(pr.min):null;
   const localDate=row?.dates?.start?.localDate||'';
   const localTime=row?.dates?.start?.localTime||'';
   const classification=row?.classifications?.[0]?.segment?.name||'Event';
@@ -177,7 +177,8 @@ function normalizeTicketmaster(row,defaultCurrency='USD',countryCode='US'){
     lat:Number(venue.location?.latitude)||null,
     lng:Number(venue.location?.longitude)||null,
     price:min,
-    old:max||min,
+    // A ticket price range is not a discount or a previous selling price.
+    old:min,
     rating:'',
     image:bestTicketmasterImage(row.images),
     text:[classification,localDate,localTime].filter(Boolean).join(' · '),
@@ -199,7 +200,8 @@ async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',curren
     apikey:key,
     countryCode,
     size:String(Math.min(20,Math.max(1,limit))),
-    sort:'date,asc'
+    sort:'date,asc',
+    startDateTime:new Date().toISOString().replace(/\.\d{3}Z$/,'Z')
   });
   if(Number.isFinite(lat)&&Number.isFinite(lng)){
     p.set('latlong',String(lat)+','+String(lng));
@@ -218,7 +220,10 @@ async function ticketmasterRequest({q,limit,city='Miami',countryCode='US',curren
     return {ok:false,reason:'http-'+r.status,error:msg.slice(0,180),results:[]};
   }
   const data=await r.json();
-  const events=data?._embedded?.events||[];
+  const events=(data?._embedded?.events||[]).filter(row=>{
+    const start=Date.parse(row?.dates?.start?.dateTime||'');
+    return (!Number.isFinite(start)||start>=Date.now())&&row?.dates?.status?.code!=='canceled';
+  });
   return {ok:true,results:events.map(row=>normalizeTicketmaster(row,currency,countryCode)),total:Number(data?.page?.totalElements||events.length)};
 }
 
@@ -233,7 +238,7 @@ async function searchTicketmaster({q,maxPrice,limit,city='Miami',countryCode='US
       rows=[...rows,...broad.results.filter(x=>!seen.has(x.id))];
     }
   }
-  if(maxPrice) rows=rows.filter(d=>!d.price||d.price<=maxPrice);
+  if(maxPrice) rows=rows.filter(d=>d.price!=null&&Number.isFinite(d.price)&&d.price<=maxPrice);
   return {...live,results:rows.slice(0,limit)};
 }
 
@@ -260,7 +265,7 @@ function normalizeYelp(row,category,currency='USD'){
     rating:Number(row.rating||0)||'',
     reviewCount:Number(row.review_count||0),
     image:row.image_url||'',
-    text:Array.isArray(row.categories)?row.categories.map(x=>x.title).filter(Boolean).join(' · '):'',
+    text:Array.isArray(row.categories)?[...new Set(row.categories.map(x=>String(x.title||'').trim()).filter(Boolean))].join(' · '):'',
     partnerUrl:row.url||null,
     source:'Yelp',
     provider:'yelp',
