@@ -168,7 +168,7 @@
       '<b class="partnerWordmark">'+h(p.name)+'</b><span class="partnerDescription">'+h(partnerLabel(p))+'</span>'+
       (featured?'<span class="partnerVisit">'+h(isFr?'Découvrir':'Explore')+' <span aria-hidden="true">→</span></span>':'')+'</a>';
     expediaHome.innerHTML=
-      '<div class="partnerShowcaseHeading"><div><span class="eyebrow">'+h(isFr?'LES PARTENAIRES DEALZY':'THE DEALZY PARTNERS')+'</span><h2 id="partnerHeading">'+h(isFr?'De l’envie au départ.':'From someday to let’s go.')+'</h2></div><span class="partnerSelection">'+h(isFr?'Séjours, expériences et petits plus.':'Stays, experiences & a little more.')+'</span></div>'+
+      '<div class="partnerShowcaseHeading"><div><span class="eyebrow">'+h(isFr?'LES PARTENAIRES DEALZYAI':'THE DEALZYAI PARTNERS')+'</span><h2 id="partnerHeading">'+h(isFr?'De l’envie au départ.':'From someday to let’s go.')+'</h2></div><span class="partnerSelection">'+h(isFr?'Séjours, expériences et petits plus.':'Stays, experiences & a little more.')+'</span></div>'+
       '<div class="partnerFeaturedGrid">'+primary.map(p=>renderItem(p,true)).join('')+'</div>'+
       (others.length?'<div class="partnerMoreGrid">'+others.map(p=>renderItem(p)).join('')+'</div>':'')+
       '<p class="partnerFootnote">'+h(isFr?'Liens affiliés · Une commission peut être versée à Dealzy. Réservation et conditions chez le partenaire.':'Affiliate links · Dealzy may earn a commission. Bookings and terms are handled by the partner.')+'</p>';
@@ -1013,10 +1013,10 @@
       "box-shadow:"+(active?"0 4px 12px rgba(81,69,205,.10)":"none")
     ].join(";");
     const sourceButtons=[
-      '<button data-source="all" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
+      '<button data-source="all" aria-pressed="'+String(prefs.source==="all")+'" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
     ];
     Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
-      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
+      sourceButtons.push('<button data-source="'+h(key)+'" aria-pressed="'+String(prefs.source===key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
     });
 
     const sortLabels={best:isFr?"Meilleur":"Best",nearest:isFr?"Plus proche":"Nearest",rating:isFr?"Mieux noté":"Top rated",price:isFr?"Prix bas":"Price low"};
@@ -1406,7 +1406,7 @@
 
     if(kind==="hotel"){
       host.innerHTML=
-        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🏨 Booking.com</b><div class="meta">'+(isFr?"Recherche d’hôtel":"Hotel search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
             '<label class="meta" style="grid-column:1/-1">'+(isFr?"Destination":"Destination")+'<input id="dzHotelDest" '+inputStyle+' value="'+h(selectedCity)+'"></label>'+
@@ -1436,7 +1436,7 @@
 
     if(kind==="flight"){
       host.innerHTML=
-        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">✈️ Skyscanner</b><div class="meta">'+(isFr?"Comparateur de vols":"Flight search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
             '<label class="meta">'+(isFr?"Départ (IATA)":"From (IATA)")+'<input id="dzFlightFrom" maxlength="3" autocapitalize="characters" '+inputStyle+' placeholder="JFK"></label>'+
@@ -1472,7 +1472,7 @@
     }
 
     host.innerHTML=
-      '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+      '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🧳 Expedia · Dealzy AI</b><div class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
         '<p class="meta" style="line-height:1.5">'+(isFr?"Hôtels, séjours et inspiration voyage via la boutique Expedia de Dealzy AI.":"Hotels, stays and travel inspiration through Dealzy AI’s Expedia shop.")+'</p>'+
         '<button id="dzExpediaGo" '+accent+'>'+(isFr?"Ouvrir Expedia Dealzy ↗":"Open Expedia Dealzy ↗")+'</button>'+

@@ -1,0 +1,146 @@
+/* DealzyAI — sunlight by day, moonlight by night. */
+.brandAI{color:#e6bd76;font-weight:550;letter-spacing:-1.6px}
+.brandWord::after{display:none}
+.srOnly{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.themeToggle{position:relative;display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border:1px solid #eac98366;border-radius:50%;background:radial-gradient(circle at 50% 30%,#e9bd7830,#e9bd7806);color:#f0cb83;overflow:hidden;box-shadow:inset 0 1px #fff2bc14;transition:background .5s,border-color .5s,box-shadow .5s}
+.themeToggle svg{grid-area:1/1;width:25px;height:25px;transition:transform .65s var(--ease),opacity .4s;pointer-events:none}
+.themeMoonIcon{opacity:0;transform:translateY(28px) rotate(-40deg)}
+.themeToggle:hover{border-color:#f2d6a2;box-shadow:0 0 24px #efc16e20}
+.themeToggle:focus-visible{outline:3px solid #e6bd76;outline-offset:4px}
+html[data-theme=night] .themeToggle{color:#cbeaff;border-color:#a4d1eb55;background:radial-gradient(circle at 50% 30%,#92c8ff21,#92c8ff03)}
+html[data-theme=night] .themeSunIcon{opacity:0;transform:translateY(-28px) rotate(75deg)}
+html[data-theme=night] .themeMoonIcon{opacity:1;transform:translateY(0) rotate(0)}
+.footerBottom [data-dz-theme-auto]{border:1px solid #bfd8c538;border-radius:20px;padding:7px 10px}
+.footerBottom [data-dz-theme-auto][aria-pressed=true]{color:#f5dfb1;border-color:#ddc28a77;background:#e6bd760b}
+
+/* Decorative atmosphere is isolated beneath the hero's text and controls. */
+.skyScene{position:absolute;inset:0;pointer-events:none;overflow:hidden;isolation:isolate}
+.skySun,.skyMoon{position:absolute;left:84%;top:14%;width:80px;height:80px;transform:translate(-50%,-50%);transition:opacity 1.1s,translate 1.2s var(--ease)}
+.skySun{opacity:1;mix-blend-mode:screen}
+.skySun>span,.skyMoon>span{position:absolute;display:block;pointer-events:none}
+.solarHalo{inset:-110%;border-radius:50%;background:radial-gradient(circle,#fffbea96 0%,#ffe5aa5c 13%,#f5c15b24 33%,transparent 69%);animation:solarBreath 8s ease-in-out infinite alternate}
+.solarCorona{inset:-200%;border-radius:50%;background:repeating-conic-gradient(from 0deg,transparent 0deg 16deg,#ffebb21f 17deg 18deg,transparent 20deg 30deg);mask-image:radial-gradient(circle,transparent 10%,#0008 18%,transparent 69%);-webkit-mask-image:radial-gradient(circle,transparent 10%,#0008 18%,transparent 69%);animation:solarTurn 100s linear infinite}
+.solarFlare{inset:40% -160%;border-radius:50%;background:radial-gradient(ellipse,#fff5cfb0,transparent 67%);transform:rotate(-16deg);animation:solarFlare 9s ease-in-out infinite alternate;filter:blur(1px)}
+.skyMoon{left:83%;top:14%;opacity:0;translate:0 24px;width:62px;height:62px}
+.lunarHalo{inset:-125%;border-radius:50%;background:radial-gradient(circle,#c0e2ff24 10%,#95c4ff0c 33%,transparent 68%);animation:lunarBreath 9s ease-in-out infinite alternate}
+.lunarDisc{inset:0;border-radius:50%;background:radial-gradient(circle at 66% 23%,#9fbbc252 0 8%,transparent 9%),radial-gradient(circle at 40% 65%,#adc0c466 0 12%,transparent 13%),radial-gradient(circle at 70% 59%,#b8c9cd4d 0 6%,transparent 7%),radial-gradient(circle at 37% 36%,#fffde6,#dce8dc 48%,#adc5cc 84%);box-shadow:inset -7px -3px 9px #6c91a988,0 0 19px #d8eaff55,0 0 55px #b2c7ff22;animation:lunarFloat 12s ease-in-out infinite alternate}
+.lunarDisc::after{content:'';position:absolute;inset:-1px;border-radius:50%;background:linear-gradient(104deg,transparent 36%,#182e3e1a 65%,#0c233c99);opacity:.65}
+.skyStars{position:absolute;inset:0;opacity:0;transition:opacity 1.4s}
+.skyStars i{position:absolute;left:var(--sx);top:var(--sy);width:var(--star-size);height:var(--star-size);background:#e4eeff;border-radius:50%;box-shadow:0 0 5px #cae8ff88;animation:starBreath 7s var(--star-delay) ease-in-out infinite alternate}
+.skyStars i:nth-child(5n){box-shadow:0 0 9px #d2efffcc}
+.nightHaze{position:absolute;inset:4% -25% 30%;background:radial-gradient(ellipse at 72% 20%,#83b8cc13,transparent 50%),radial-gradient(ellipse at 55% 80%,#91b8cc0d,transparent 50%);opacity:0;animation:nightHaze 30s ease-in-out infinite alternate}
+.heroPhoto>img{transition:filter 1.2s}
+.heroPhoto::after{transition:background 1.2s}
+html[data-theme=night] .skySun{opacity:0;translate:0 24px}
+html[data-theme=night] .skyMoon{opacity:1;translate:0 0}
+html[data-theme=night] .skyStars,html[data-theme=night] .nightHaze{opacity:1}
+html[data-theme=night] .heroPhoto{background:#071d2b}
+html[data-theme=night] .heroPhoto>img{filter:brightness(.32) saturate(.2) contrast(1.12)}
+html[data-theme=night] .heroPhoto::after{background:linear-gradient(180deg,#06172beb 0%,#0a223899 29%,#091f3040 60%,#091d24 100%),linear-gradient(90deg,#091e26a6,transparent 72%),radial-gradient(ellipse at 84% 17%,#071d32bb,transparent 39%)}
+html[data-theme=night] .sunlight,html[data-theme=night] .sceneSunbeam,html[data-theme=night] .sceneGlow{display:none}
+html[data-theme=night] .sceneWater{background:repeating-linear-gradient(177deg,transparent 0 7px,#d2e7ff66 8px,#c4dfff08 10px,transparent 13px 20px);filter:brightness(.7)}
+html[data-theme=night] .hero .sceneWater{opacity:.25}
+html[data-theme=night] .hero .heroEyebrow{color:#c2d2e2}
+html[data-theme=night] .heroAccent{color:#d7d4b4}
+html[data-theme=night] .heroAccent::after{background:linear-gradient(90deg,transparent,#bed9ff,transparent)}
+html[data-theme=night] .captionDot{background:#c1dfff;box-shadow:0 0 8px #a5d7ff}
+html[data-theme=night] .moodCard{background:#112b3e99;border-color:#afcce433}
+html[data-theme=night] .moodIcon{color:#dae4e9;--icon-accent:#d2c593;background:linear-gradient(140deg,#c2dbf01b,#e6bd7605);border-color:#c2dbf026}
+html[data-theme=night] .moodCard:hover{background:#1b394ccc;border-color:#bbd5e366}
+
+/* Night palette extends through results, partner cards, forms and overlays. */
+html[data-theme=night]{color-scheme:dark;--bg:#091d24;--card:#122d33;--ink:#e4eee7;--muted:#adbbb7;--line:#2b444a;--brand:#b9d8c2;--brand2:#142f38;--good:#a9d4b4;--shadow:0 18px 55px #010a1038}
+html[data-theme=day]{color-scheme:light}
+body.dealzy-experience,.searchDeck,.partnerShowcase,.partnerTile,.dealzy-experience .deal,.escapeSection,.dz-install-card{transition:background-color .65s,border-color .65s,color .4s,transform .3s var(--ease),box-shadow .3s}
+html[data-theme=night] .dealzy-experience .top{background:#081b20f5;border-color:#aec9da1c}
+html[data-theme=night] .dealzy-experience .bottom{background:#081b20f5;border-color:#b5d1dd24}
+html[data-theme=night] .dealzy-experience .hero{background:#091d24}
+html[data-theme=night] .experienceFooter{background:#06161e}
+html[data-theme=night] .searchDeck{background:#132d34ed;border-color:#78969845;box-shadow:0 20px 45px #0005}
+html[data-theme=night] .ask .searchWhere{border-color:#66818b55}
+html[data-theme=night] .searchWhere>span:first-child,html[data-theme=night] .searchWish>span{color:#a4b8b9}
+html[data-theme=night] .ask input::placeholder{color:#b0c0c1}
+html[data-theme=night] .dealzy-experience .ask #askBtn{background:#d5c18e;color:#132a31}
+html[data-theme=night] .dealzy-experience .quick{border-color:#b6cdd022}
+html[data-theme=night] .quick>span,html[data-theme=night] .searchChevron{color:#adbcba}
+html[data-theme=night] .dealzy-experience .quick button{color:#bccfca}
+html[data-theme=night] .quick button:hover{background:#c6ded311}
+html[data-theme=night] .dealzy-experience .locationBar button,html[data-theme=night] .dealzy-experience .helperDock .dz-ai-fab,html[data-theme=night] .dealzy-experience .helperDock .dz-tools-fab{color:#bdd6cd}
+html[data-theme=night] .helperDock button:hover{background:#284048!important}
+html[data-theme=night] .partnerShowcase{background:linear-gradient(120deg,#112b31,#102731);border-color:#31474b}
+html[data-theme=night] .partnerShowcaseHeading .eyebrow{color:#c9c49f}
+html[data-theme=night] .partnerSelection,html[data-theme=night] .partnerFootnote{color:#aabfb9}
+html[data-theme=night] .partnerMoreGrid .partnerTile{background:#183238;border-color:#3b5151;color:#dfede4}
+html[data-theme=night] .partnerMoreGrid .partnerWordmark{color:#deebe2}
+html[data-theme=night] .partnerDescription{color:#b5c8bf}
+html[data-theme=night] .partnerMoreGrid .partnerGlyph,html[data-theme=night] .partnerMoreGrid .partnerTileArrow{color:#b7cdc4}
+html[data-theme=night] .partnerFeatured[data-partner-ticker=booking]{background:linear-gradient(115deg,#133962,#154d77);border-color:#3c5a77}
+html[data-theme=night] .partnerFeatured[data-partner-ticker=expedia]{background:linear-gradient(115deg,#493f29,#675431);border-color:#7d704a;color:#f1e4bd}
+html[data-theme=night] .eyebrow,html[data-theme=night] .categorySection .sectionHead h2,html[data-theme=night] .categorySection .sectionHead>span{color:#aebfac}
+html[data-theme=night] .dealzy-experience .sectionHead h2{color:#e4eee7}
+html[data-theme=night] .textLink{color:#cad7be}
+html[data-theme=night] .dealzy-experience .cat{background:#142f36;color:#dae7dc;border-color:#354c4e}
+html[data-theme=night] .dealzy-experience .cat .i{background:#28413f;color:#c9ddc7}
+html[data-theme=night] .cat:hover{background:#243c3e!important}
+html[data-theme=night] .dzIcon .iconAccent{stroke:var(--icon-accent,#cfbc8e)}
+html[data-theme=night] .dealzy-experience .empty{background:#132d33;color:#b9c9c3;border-color:#354c4e}
+html[data-theme=night] .dealzy-experience .dealImg{background-color:#1d3538}
+html[data-theme=night] .dealzy-experience .dealBody>span[title]{background:#2e4538!important;color:#d1dfbc!important}
+html[data-theme=night] .dealzy-experience .save{color:#a7c7a4}
+html[data-theme=night] .dealzy-experience .badge{background:#142b30ed;color:#e4e7c9;border-color:#779a8955}
+html[data-theme=night] .dealzy-experience .heart{background:#142b30ee;color:#e4d4a4}
+html[data-theme=night] .escapeSection{background:#122e32}
+html[data-theme=night] .escapeCopy h2 em,html[data-theme=night] .howSection h2 em{color:#c0c7a0}
+html[data-theme=night] .escapeCopy p,html[data-theme=night] .imageDisclaimer,html[data-theme=night] .destinationGrid p,html[data-theme=night] .howSection p,html[data-theme=night] .legal{color:#b1c1b5}
+html[data-theme=night] .destinationGrid>a{border-color:#395148}
+html[data-theme=night] .destinationNumber,html[data-theme=night] .destinationGrid small{color:#aebc9f}
+html[data-theme=night] .destinationGrid>a>span:last-child,html[data-theme=night] .howSection li>span{color:#d3d4ac;border-color:#5b6952}
+html[data-theme=night] .dealzy-experience .legal a{color:#c5d7b8}
+html[data-theme=night] .dealzy-experience .dz-install-card{background:#1a3335;border-color:#41564a}
+html[data-theme=night] .dealzy-experience .dz-install-copy b{color:#e4e7d5}
+html[data-theme=night] .dealzy-experience .dz-install-copy small,html[data-theme=night] .dealzy-experience .dz-install-dismiss{color:#b4c1ad}
+html[data-theme=night] .dealzy-experience .filters button{background:#142f36;color:#c8dacf;border-color:#30494a}
+html[data-theme=night] .dealzy-experience .filters button.active{background:#3c5145;border-color:#819078;color:#ebedd6}
+html[data-theme=night] .dealzy-experience .affiliateCard{background:#193337;color:#d5e1d5;border-color:#3d5548}
+html[data-theme=night] .affiliateCard small,html[data-theme=night] .affiliateDisclosure,html[data-theme=night] .affiliateArrow{color:#b0c4ae}
+html[data-theme=night] .affiliateHeading>span{background:#314936;color:#d6e1bd}
+html[data-theme=night] .dealzy-experience .detail,html[data-theme=night] .dealzy-experience .dz-sheet,html[data-theme=night] .dealzy-experience .dz-ai-panel,html[data-theme=night] .dealzy-experience .dz-location-card,html[data-theme=night] .dealzy-experience .dz-picker-sheet,html[data-theme=night] .dealzy-experience .dza-sheet{background:#112b32;color:#e2ece3}
+html[data-theme=night] .dealzy-experience .dza-card,html[data-theme=night] .dealzy-experience .dz-tool,html[data-theme=night] .dealzy-experience .profileCard,html[data-theme=night] .dealzy-experience .tripCard{background:#183339;border-color:#354d50;color:#e1e9dc}
+html[data-theme=night] .dealzy-experience .dz-tool span{color:#b5c5b8}
+html[data-theme=night] .dealzy-experience .dz-tool .emoji{background:#2b433b;color:#ceddbe}
+html[data-theme=night] .dealzy-experience :is(input,select,textarea){background-color:#17333a!important;color:#e6ede5!important;border-color:#5a706c!important}
+html[data-theme=night] .dealzy-experience :is(input,textarea)::placeholder{color:#b5c4c1}
+html[data-theme=night] .dealzy-experience .ask input{background:transparent!important}
+html[data-theme=night] #detailText,html[data-theme=night] .dealzy-experience .profileCard a{color:#c0d3bd!important}
+html[data-theme=night] .dealzy-experience .dz-ai-bubble.assistant,html[data-theme=night] .dealzy-experience .dz-ai-notice,html[data-theme=night] .dealzy-experience .dz-ai-suggestions button,html[data-theme=night] .dealzy-experience .dz-ai-guided{background:#2a413a;color:#e0e5cd;border-color:#51664c}
+html[data-theme=night] .dealzy-experience .dz-location-card p,html[data-theme=night] .dealzy-experience .dz-location-later{color:#b9c9b7}
+html[data-theme=night] .dealzy-experience .dz-picker-option{color:#d8e7d9}
+html[data-theme=night] .dealzy-experience .dz-picker-option.selected,html[data-theme=night] .dealzy-experience .dz-location-city,html[data-theme=night] .dealzy-experience .dz-picker-custom{background:#2f493c;color:#e1e6bd;border-color:#728365}
+html[data-theme=night] .dealzy-experience .dz-result,html[data-theme=night] .dealzy-experience .dz-row{background:#1a3338;color:#dae6d8;border-color:#3c554b}
+html[data-theme=night] .dealzy-experience .dz-small,html[data-theme=night] .dealzy-experience .dz-form label{color:#b6c5b7}
+html[data-theme=night] .dealzy-experience [data-explore-travel]{background:#18363b!important;border-color:#405b54!important;box-shadow:none!important}
+html[data-theme=night] .travelPartnerGlyph{color:#cfd9b9}
+html[data-theme=night] .dealzy-experience .pill:not(.heroEyebrow){background:#203d41;color:#d4e3cd;border-color:#567163}
+html[data-theme=night] #dzExplorePro,html[data-theme=night] #dzExploreTravelForm>.travelFormCard{background:#142f36!important;border-color:#405854!important;color:#e1ecde;box-shadow:none!important}
+html[data-theme=night] #dzExplorePro button{background:#23413f!important;color:#dce8d5!important;border-color:#577265!important;box-shadow:none!important}
+html[data-theme=night] #dzExploreSources button[aria-pressed=true]{background:#485b43!important;color:#f3f0cd!important;border-color:#95a477!important}
+html[data-theme=night] #dzTravelClose{background:#2b454c!important;color:#f2f4e8!important}
+html[data-theme=night] .dealzy-experience .dza-grid label{color:#bdcdbe}
+html[data-theme=night] .dealzy-experience .dza-btn.alt{background:#294739;color:#dce4bd}
+html[data-theme=night] .dealzy-experience :is(.close,.dz-close,.dza-close,.dz-ai-close){background:#29434b;color:#f0f4e7;border:1px solid #67818566}
+.dealzy-experience.dz-intro-done :is(.heroInner,.searchDeck,.moodGrid){animation:none!important;opacity:1;transform:none}
+html[data-theme=day] :is(.skyMoon,.skyStars,.nightHaze) *,html[data-theme=day] .nightHaze,html[data-theme=night] .skySun *{animation-play-state:paused}
+@keyframes solarBreath{from{transform:scale(.85);opacity:.55}to{transform:scale(1.1);opacity:.95}}
+@keyframes solarTurn{to{transform:rotate(360deg)}}
+@keyframes solarFlare{from{opacity:.25;scale:.85 1}to{opacity:.7;scale:1.05 1}}
+@keyframes lunarBreath{from{scale:.9;opacity:.5}to{scale:1.1;opacity:.95}}
+@keyframes lunarFloat{from{translate:0 0}to{translate:0 -3px}}
+@keyframes starBreath{from{opacity:.22;scale:.8}to{opacity:.8;scale:1.1}}
+@keyframes nightHaze{from{translate:-2% 0}to{translate:2% 1%}}
+@media(max-width:600px){
+ .headerActions #locationBtn{display:none}.headerActions{gap:9px}.themeToggle{width:36px;height:36px}.themeToggle svg{width:23px;height:23px}.brandWord{font-size:29px}.brandAI{letter-spacing:-1px}
+ .skySun{top:17%;left:85%;width:64px;height:64px}.skyMoon{top:12%;left:86%;width:40px;height:40px}.solarCorona{inset:-170%}.lunarHalo{inset:-145%}
+ .footerBottom{justify-content:flex-start;column-gap:14px}.footerBottom [data-dz-top]{margin-left:auto}
+}
+@media(max-width:360px){.brandWord{font-size:26px}.brandMark{width:30px;height:30px}.headerActions{gap:7px}.themeToggle{width:34px;height:34px}.skyMoon{width:34px;height:34px;left:86%;top:12%}}
+@media(prefers-reduced-motion:reduce){.skyScene *{animation:none!important}.skySun,.skyMoon,.skyStars,.themeToggle svg,.heroPhoto>img,body.dealzy-experience{transition:none!important}}

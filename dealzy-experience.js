@@ -17,6 +17,7 @@
     const stopped=paused||reduced.matches;
     body.classList.toggle('dz-motion-paused',stopped);
     body.classList.toggle('dz-motion-ready',!stopped);
+    if(stopped)body.classList.add('dz-intro-done');
     if(motionButton){
       motionButton.textContent=stopped?'▷':'Ⅱ';
       motionButton.setAttribute('aria-pressed',String(stopped));

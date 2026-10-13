@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261014-brand1';
+    liveScript.src='/dealzy-live.js?v=20261014-sky1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261014-brand1';
+  i18nScript.src='/dealzy-i18n.js?v=20261014-sky1';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
@@ -63,7 +63,7 @@
       history.replaceState(null,'',location.pathname+location.search);
       setTimeout(()=>{
         const t=document.getElementById('toast');
-        if(t){t.textContent='Email confirmed · My Dealzy is connected';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2800);}
+        if(t){t.textContent='Email confirmed · My DealzyAI is connected';t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2800);}
       },400);
     }catch(_){}
   }
@@ -185,7 +185,7 @@
   fab.className = 'dz-tools-fab';
   fab.type = 'button';
   fab.textContent = '⚡ Super App';
-  fab.setAttribute('aria-label','Open Dealzy Super App');
+  fab.setAttribute('aria-label','Open DealzyAI Super App');
   document.body.appendChild(fab);
 
   const wrap = document.createElement('div');
@@ -193,7 +193,7 @@
   wrap.innerHTML = `
     <section class="dz-sheet" role="dialog" aria-modal="true" aria-label="Dealzy toolbox">
       <div class="dz-sheet-head">
-        <div><h2>Dealzy Super App</h2><div class="dz-small">Discover, compare, plan, track, save and organize everything from one place.</div></div>
+        <div><h2>DealzyAI Super App</h2><div class="dz-small">Discover, compare, plan, track, save and organize everything from one place.</div></div>
         <button class="dz-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="dz-tools-grid">
@@ -204,7 +204,7 @@
         <button class="dz-tool" data-tool="notifications"><span class="emoji">${window.DealzyIcons?.svg('bell')||''}</span><b>Notifications</b><span>See price-watch matches and Dealzy alerts.</span></button>
         <button class="dz-tool" data-tool="search"><span class="emoji">${window.DealzyIcons?.svg('search')||''}</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
         <button class="dz-tool" data-tool="nearby"><span class="emoji">${window.DealzyIcons?.svg('map')||''}</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
-        <button class="dz-tool" data-tool="account"><span class="emoji">${window.DealzyIcons?.svg('profile')||''}</span><b>My Dealzy</b><span>Account, password, orders and user management.</span></button>
+        <button class="dz-tool" data-tool="account"><span class="emoji">${window.DealzyIcons?.svg('profile')||''}</span><b>My DealzyAI</b><span>Account, password, orders and user management.</span></button>
         <button class="dz-tool" data-tool="planner"><span class="emoji">${window.DealzyIcons?.svg('spark')||''}</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
         <button class="dz-tool" data-tool="travel"><span class="emoji">${window.DealzyIcons?.svg('suitcase')||''}</span><b>Travel Hub</b><span>Hotels, flights, cars and things to do in one place.</span></button>
         <button class="dz-tool" data-tool="watch"><span class="emoji">${window.DealzyIcons?.svg('chart')||''}</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
@@ -406,7 +406,7 @@
     try{const r=await fetch('/api/cloud-status',{cache:'no-store'});const d=await r.json();configured=!!d.configured;}catch(_){}
 
     if(!configured){
-      showPanel('<h3>👤 My Dealzy</h3>'+
+      showPanel('<h3>👤 My DealzyAI</h3>'+
         '<div class="dz-form">'+
           '<label>Display name<input id="dzName" value="'+esc(profile.name||'')+'" placeholder="Your name"></label>'+
           '<label>Email<input id="dzEmail" type="email" value="'+esc(profile.email||'')+'" placeholder="you@example.com"></label>'+
@@ -459,7 +459,7 @@
 
     if(!session||!session.access_token){
       const accessError=localStorage.getItem('dealzyAccountAccessError')||'';
-      showPanel('<h3>👤 My Dealzy</h3>'+
+      showPanel('<h3>👤 My DealzyAI</h3>'+
         (accessError?'<div class="dz-result"><b>Account unavailable</b><br><span class="dz-small">'+esc(accessError)+'</span></div>':'')+
         '<div class="dz-form">'+
           '<label>Email<input id="dzCloudEmail" type="email" value="'+esc(profile.email||'')+'" placeholder="you@example.com"></label>'+
@@ -485,7 +485,7 @@
             });
             let d={};try{d=await r.json()}catch(_){}
             if(!r.ok) throw new Error(d.msg||d.error_description||'Reset email failed');
-            out.textContent='Reset email sent. Open the link, then change your password in My Dealzy.';
+            out.textContent='Reset email sent. Open the link, then change your password in My DealzyAI.';
             return;
           }
           out.textContent=action==='login'?'Signing in…':'Creating account…';
@@ -523,7 +523,7 @@
         localStorage.removeItem(sessionKey);
         return accountTool();
       }
-      showPanel('<h3>👤 My Dealzy</h3><div class="dz-result">'+esc(e.message||'Could not load account')+'</div>');
+      showPanel('<h3>👤 My DealzyAI</h3><div class="dz-result">'+esc(e.message||'Could not load account')+'</div>');
       return;
     }
 
@@ -545,7 +545,7 @@
       '</div>';
     }).join(''):'<div class="dz-result">No Dealzy orders or bookings yet.</div>';
 
-    showPanel('<h3>👤 My Dealzy</h3>'+
+    showPanel('<h3>👤 My DealzyAI</h3>'+
       '<div class="dz-result"><b>Connected account</b><br><span class="dz-small">'+esc(me.email||me.phone||'Signed in')+' · '+esc(role.toUpperCase())+'</span></div>'+
       '<h3 style="margin-top:18px">Profile</h3>'+
       '<div class="dz-form">'+
@@ -966,7 +966,7 @@
   async function notificationsTool(){
     const session=await getCloudSession();
     if(!session||!session.access_token){
-      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Sign in to My Dealzy to use your private notification center.</div>');
+      showPanel('<h3>📬 Notifications</h3><div class="dz-result">Sign in to My DealzyAI to use your private notification center.</div>');
       return;
     }
     showPanel('<h3>📬 Notifications</h3><div class="dz-result">Loading…</div>');
@@ -1221,8 +1221,8 @@
       card.id='dealzyInstallCard';
       card.className='dz-install-card';
       card.setAttribute('aria-label',fr?'Installer Dealzy':'Install Dealzy');
-      card.innerHTML='<img src="/icon.svg?v=20261014-brand1" alt="" width="48" height="48">'+
-        '<div class="dz-install-copy"><b>'+(fr?'Dealzy sur votre téléphone':'Dealzy on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
+      card.innerHTML='<img src="/icon.svg?v=20261014-sky1" alt="" width="48" height="48">'+
+        '<div class="dz-install-copy"><b>'+(fr?'DealzyAI sur votre téléphone':'DealzyAI on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
         '<button type="button" class="dz-install-action">'+(fr?'Installer':'Install')+'</button>'+
         '<button type="button" class="dz-install-dismiss" aria-label="'+(fr?'Plus tard':'Later')+'">×</button>';
       (home.querySelector('.howSection')||home.querySelector('.hero'))?.insertAdjacentElement('afterend',card);
@@ -1273,7 +1273,7 @@
       try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
       const isFr=window.DealzyI18n&&window.DealzyI18n.getLocale()==='fr';
       const data={
-        title:'Dealzy AI',
+        title:'DealzyAI',
         text:isFr
           ? 'Dealzy AI · offres et voyages en direct aux États-Unis et au Canada · '+market.city
           : 'Dealzy AI · live deals and travel across the USA and Canada · '+market.city,
