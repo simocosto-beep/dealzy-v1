@@ -37,6 +37,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
 .analytics-rank-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .analytics-rank-count{font-weight:850}
 .moderation-result{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#f8f9fd}.moderation-result strong{display:block;margin-bottom:6px}.moderation-result ul{margin:6px 0 10px;padding-left:22px}.moderation-result li{margin:4px 0}.moderation-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}
+.ops-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}.ops-panel .btn:disabled{opacity:.6;cursor:wait}.ops-status[data-state="error"]{background:#fff4ee;border-color:#e8c5ac;color:#783f25}.ops-status[data-state="ready"]{background:#edf7f1;border-color:#bddbcc;color:#164735}.ops-updated{display:block;margin:8px 0 16px;font-size:12px}.ops-panel .field{min-width:0}.ops-panel .btn{max-width:100%;white-space:normal;text-align:left}.ops-panel .section-box{overflow-wrap:anywhere}#opsEditEmailBtn{margin-bottom:14px}
 @media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.controls{grid-template-columns:1fr}.main{padding:14px}.top{padding:0 14px}.admin-nav{padding:9px 14px}.page-title{padding:14px 14px 0}.form-grid{grid-template-columns:1fr}.mini-grid{grid-template-columns:1fr 1fr}.user-toolbar .field,.user-toolbar .select{flex:1 1 100%;min-width:0}.user-toolbar .btn{flex:1 1 calc(50% - 6px)}}@media(max-width:480px){.login{align-items:start;padding-top:32px}.login-card{padding:22px;border-radius:20px}.logo{width:48px;height:48px;border-radius:14px}h1{font-size:28px}.field{padding:11px 13px}.grid{grid-template-columns:1fr 1fr}.stat b{font-size:22px}.top .btn span{display:none}}
 </style>
 </head>
@@ -106,15 +107,17 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
   </div>
   <main class="main">
     <div id="flash"></div>
-    <section class="panel hidden" data-admin-page="assistantOps">
+    <section class="panel ops-panel hidden" data-admin-page="assistantOps">
       <h2>Assistant administratif Dealzy</h2>
       <p class="sub">Vérification automatique toutes les 10 minutes, même lorsque cet écran est fermé. Les offres dont la date de fin est passée sont désactivées et chaque action est enregistrée. Les fournisseurs, contrats et erreurs de synchronisation qui demandent une décision vous sont signalés par email.</p>
-      <button type="button" class="btn" id="refreshOpsBtn">Actualiser le suivi</button>
-      <div id="opsStatus" role="status" class="section-box">Chargement du suivi…</div>
+      <button type="button" class="btn btn-ghost" id="refreshOpsBtn">Actualiser le suivi</button>
+      <div id="opsStatus" role="status" aria-live="polite" class="section-box ops-status">Chargement du suivi…</div>
+      <small id="opsUpdated" class="sub ops-updated hidden"></small>
+      <button type="button" id="opsEditEmailBtn" class="btn btn-ghost hidden" aria-expanded="false" aria-controls="opsConfig">Modifier la connexion email</button>
       <div id="opsConfig" class="section-box hidden">
-        <h3>Connecter l’envoi d’emails</h3>
+        <h3 id="opsConfigTitle">Connecter l’envoi d’emails</h3>
         <p class="sub">Clé Resend réservée à l’envoi sur dealzyai.com. Elle est conservée dans le coffre serveur ; elle ne sera jamais réaffichée.</p>
-        <form id="opsKeyForm"><label for="opsEmailKey">Clé d’envoi</label><input type="password" id="opsEmailKey" autocomplete="off" spellcheck="false" required><button type="submit" class="btn">Enregistrer la connexion email</button></form>
+        <form id="opsKeyForm"><label for="opsEmailKey">Clé d’envoi</label><input class="field" type="password" id="opsEmailKey" autocomplete="off" spellcheck="false" required><div class="ops-actions"><button id="opsSaveEmailBtn" type="submit" class="btn btn-ghost">Enregistrer la connexion email</button><button id="opsCancelEmailBtn" type="button" class="btn btn-ghost hidden">Annuler</button></div><div id="opsConfigMsg" role="status" aria-live="polite"></div></form>
       </div>
       <h3>Votre intervention</h3><div id="opsInterventions"></div>
       <h3>Dernières vérifications</h3><div id="opsRuns"></div>
@@ -743,6 +746,6 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
     </div>
   </div>
 </div>
-<script src="/admin.js?v=20261001-moderation1"></script>
+<script src="/admin.js?v=20261014-ops-feedback1"></script>
 </body></html>
 
