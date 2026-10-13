@@ -105,6 +105,8 @@ jobs:
           cp "$SDKROOT/build-tools/35.0.0/lib/apksigner.jar" play-release/signing-tools/apksigner.jar
           sha256sum play-release/Dealzy-AI-v1.0.2-unsigned.apk play-release/Dealzy-AI-v1.0.2-unsigned.aab > play-release/SHA256SUMS.txt
           cp app/build/reports/lint-results-release.html play-release/
+          "$SDKROOT/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk > play-release/APK-METADATA.txt
+          "$SDKROOT/build-tools/35.0.0/zipalign" -c 4 app/build/outputs/apk/release/app-release-unsigned.apk
           ls -lh play-release play-release/signing-tools
 
       - name: Upload unsigned release package
