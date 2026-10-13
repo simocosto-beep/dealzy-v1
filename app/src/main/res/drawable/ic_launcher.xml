@@ -1,16 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="512"
-    android:viewportHeight="512">
-    <path
-        android:fillColor="#6557F5"
-        android:pathData="M0,0h512v512h-512z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M135,115h105c93,0 151,53 151,141c0,87 -58,141 -151,141H135V115zM238,326c48,0 76,-26 76,-70c0,-45 -28,-70 -76,-70h-28v140h28z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M300,201l13,30 30,13 -30,13 -13,30 -13,-30 -30,-13 30,-13z"/>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#123C32" android:pathData="M0,0h108v108H0z"/>
+    <group android:scaleX="1.1" android:scaleY="1.1" android:translateX="18" android:translateY="15">
+        <path android:fillColor="#FFF9EB" android:fillType="evenOdd" android:pathData="M9,10h19c16,0 27,10 27,25S44,60 28,60H9V10zM20,21v28h8c10,0 16,-5 16,-14S38,21 28,21H20z"/>
+        <path android:fillColor="#E6BD76" android:pathData="M27,35l32,-31 -8,31 -8,-10 -16,10z"/>
+        <path android:fillColor="#BE8F43" android:pathData="M27,35l16,-10 -4,15 -4,-8 -8,3z"/>
+    </group>
 </vector>

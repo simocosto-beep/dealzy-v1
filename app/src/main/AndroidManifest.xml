@@ -6,7 +6,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Dealzy AI"
+        android:label="DealzyAI"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.Dealzy"

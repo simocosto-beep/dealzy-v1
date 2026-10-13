@@ -34,20 +34,14 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().setStatusBarColor(Color.rgb(246, 247, 251));
-            getWindow().setNavigationBarColor(Color.WHITE);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            );
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
+        getWindow().setStatusBarColor(Color.rgb(18, 60, 50));
+        getWindow().setNavigationBarColor(Color.rgb(18, 60, 50));
+        getWindow().getDecorView().setSystemUiVisibility(0);
 
         FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(18, 60, 50));
         webView = new WebView(this);
+        webView.setBackgroundColor(Color.rgb(250, 248, 242));
         root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -80,7 +74,7 @@ public class MainActivity extends Activity {
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " Dealzy-Android/1.0.1");
+        s.setUserAgentString(s.getUserAgentString() + " Dealzy-Android/1.0.2");
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
@@ -124,7 +118,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.loadUrl(PROD_ORIGIN + "/?android=1&appVersion=1.0.1");
+        webView.loadUrl(PROD_ORIGIN + "/?android=1&appVersion=1.0.2");
     }
 
     private boolean hasLocationPermission() {
