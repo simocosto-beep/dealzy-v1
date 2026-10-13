@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261013-escape1';
+    liveScript.src='/dealzy-live.js?v=20261013-escape2';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261013-escape1';
+  i18nScript.src='/dealzy-i18n.js?v=20261013-escape2';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
@@ -896,7 +896,7 @@
         if(!place||!cin||!cout){showPanel('<h3>🚗 Cars</h3><div class="dz-result">Enter pick-up location and rental dates.</div>');return}
         saveSearch('car',{place,cin,cout,age},place+' · '+cin+' → '+cout);
         recordPartnerClick('Booking.com','Car search · '+place);
-        window.open('https://www.booking.com/cars/','_blank','noopener,noreferrer');
+        window.open(DealzyAffiliates.bookingUrl('https://www.booking.com/cars/'),'_blank','noopener,noreferrer');
       };
     };
 
@@ -914,7 +914,7 @@
         if(!dest||!date){showPanel('<h3>🎟️ Things to do</h3><div class="dz-result">Enter destination and date.</div>');return}
         saveSearch('activity',{dest,date},dest+' · '+date);
         recordPartnerClick('Booking.com','Attractions · '+dest);
-        window.open('https://www.booking.com/attractions/','_blank','noopener,noreferrer');
+        window.open(DealzyAffiliates.bookingUrl('https://www.booking.com/attractions/'),'_blank','noopener,noreferrer');
       };
     };
 
@@ -1221,7 +1221,7 @@
       card.id='dealzyInstallCard';
       card.className='dz-install-card';
       card.setAttribute('aria-label',fr?'Installer Dealzy':'Install Dealzy');
-      card.innerHTML='<img src="/icon.svg?v=20261013-escape1" alt="" width="48" height="48">'+
+      card.innerHTML='<img src="/icon.svg?v=20261013-escape2" alt="" width="48" height="48">'+
         '<div class="dz-install-copy"><b>'+(fr?'Dealzy sur votre téléphone':'Dealzy on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
         '<button type="button" class="dz-install-action">'+(fr?'Installer':'Install')+'</button>'+
         '<button type="button" class="dz-install-dismiss" aria-label="'+(fr?'Plus tard':'Later')+'">×</button>';

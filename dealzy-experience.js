@@ -87,9 +87,8 @@
       if(entry.isIntersecting){entry.target.classList.add('is-visible');revealObserver.unobserve(entry.target);}
     }),{threshold:.08});
     doc.querySelectorAll('.dz-reveal').forEach(element=>revealObserver.observe(element));
-    const hero=doc.querySelector('.heroVisual');
     const motionObserver=new IntersectionObserver(entries=>entries.forEach(entry=>entry.target.classList.toggle('is-offscreen',!entry.isIntersecting)),{threshold:0});
-    if(hero) motionObserver.observe(hero);
+    doc.querySelectorAll('.livingPhoto').forEach(photo=>motionObserver.observe(photo));
   }
   // Escape and focus restoration work for the existing detail sheet as well.
   let detailOrigin=null;

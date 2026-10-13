@@ -147,6 +147,10 @@
     const isFr=locale()==='fr';
     const affiliates=DealzyAffiliates.forCountry(market.country,dealzyProviderRuntime.affiliateIds);
     const items=[];
+    if(dealzyProviderRuntime.booking!==false){
+      const target='https://www.booking.com/searchresults.html?'+new URLSearchParams({ss:market.city}).toString();
+      items.push({id:'booking',name:'Booking.com',icon:'🏨',url:DealzyAffiliates.bookingUrl(target)});
+    }
     if(dealzyProviderRuntime.expedia!==false){
       items.push({id:'expedia',name:'Expedia · Dealzy AI',icon:'🧳',url:DealzyAffiliates.expediaUrl(market.country)});
     }
