@@ -30,9 +30,14 @@
     if(subtitle&&c.hero_subtitle) subtitle.textContent=tr(String(c.hero_subtitle));
     if(hero){
       const img=validRuntimeImage(c.hero_image_url);
-      hero.style.backgroundImage=img
-        ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'
-        : '';
+      const editorialImage=hero.querySelector('.heroPhoto img');
+      if(editorialImage){
+        editorialImage.src=img||'/assets/experience/golden-table.webp';
+      }else{
+        hero.style.backgroundImage=img
+          ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'
+          : '';
+      }
     }
 
     const home=document.getElementById('homeView');
@@ -130,7 +135,7 @@
     ).join('');
     expediaHome.innerHTML=
       '<div class="partnerTickerLabel"><b>'+h(isFr?'Bons plans partenaires':'Partner deals')+'</b><small>'+h(isFr?'Offres externes sélectionnées':'Selected external offers')+'</small></div>'+
-      '<div class="partnerTickerViewport"><div class="partnerTickerTrack">'+renderItems()+renderItems()+'</div></div>';
+      '<div class="partnerTickerViewport"><div class="partnerTickerTrack">'+renderItems()+'</div></div>';
     expediaHome.querySelectorAll('[data-partner-ticker]').forEach(link=>{
       link.onclick=()=>{
         const id=link.dataset.partnerTicker;
@@ -630,8 +635,11 @@
   }
 
   function milesBetween(a,b,c,d){
-    const vals=[a,b,c,d].map(Number);
-    if(vals.some(x=>!Number.isFinite(x))) return null;
+    // Missing provider coordinates are unknown, never the point (0, 0).
+    const input=[a,b,c,d];
+    if(input.some(x=>x==null||(typeof x==='string'&&!x.trim()))) return null;
+    const vals=input.map(Number);
+    if(vals.some(x=>!Number.isFinite(x))||Math.abs(vals[0])>90||Math.abs(vals[2])>90||Math.abs(vals[1])>180||Math.abs(vals[3])>180) return null;
     const toRad=v=>v*Math.PI/180;
     const R=3958.8;
     const dLat=toRad(vals[2]-vals[0]);
@@ -1907,6 +1915,8 @@
     }
   }
 
+  window.DealzyMarket={openPicker:openMarketPicker,get:()=>({...market})};
+
   function updateMarketUI(){
     renderAffiliateHome();
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
@@ -1944,13 +1954,13 @@
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
-    if(heroBadge){
+    if(heroBadge&&!heroBadge.classList.contains("heroEyebrow")){
       const customBadge=String(runtimeContent.hero_badge||'').trim();
       heroBadge.textContent=customBadge||("🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE");
     }
 
     const query=document.getElementById("aiQuery");
-    if(query && !query.dataset.userEdited && document.activeElement!==query){
+    if(query && !document.body.classList.contains("dealzy-experience") && !query.dataset.userEdited && document.activeElement!==query){
       const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
         ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
@@ -1997,7 +2007,7 @@
       }
     });
 
-    const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
+    const quickButtons=document.body.classList.contains("dealzy-experience")?[]:[...document.querySelectorAll("#homeView .quick button")];
     if(quickButtons[0]) quickButtons[0].textContent=tr("📍 Near me");
     if(quickButtons[1]) quickButtons[1].textContent=tr("🗓 This weekend");
     if(quickButtons[2]) quickButtons[2].textContent=locale()==="fr"
@@ -2006,6 +2016,7 @@
 
     renderProfileInsights();
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
+    document.dispatchEvent(new CustomEvent("dealzy:marketchange",{detail:{...market}}));
   }
 
   function parseSmartQuery(q){
