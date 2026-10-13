@@ -155,8 +155,11 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px
           <div id="analyticsTopCategories"></div>
         </section>
         <section class="panel" style="margin-top:18px">
-          <div class="panel-head"><div><h2>Partner clicks</h2><p class="sub">Recorded clicks from signed-in members only. These are not sales or confirmed affiliate commissions; reconcile earnings in each partner network.</p></div></div>
+          <div class="panel-head"><div><h2>Partner clicks</h2><p class="sub">Recorded clicks from signed-in members only. These are not sales or confirmed affiliate commissions; reconcile earnings in each partner network.</p></div><button type="button" id="exportPartnerClicksBtn" class="btn btn-ghost">Export click summary CSV</button></div>
           <div id="analyticsTopProviders"></div>
+          <h3 style="margin:18px 0 8px;font-size:14px">Member click trend · last 14 days</h3>
+          <div id="partnerClicksDailyBars" class="analytics-bars" aria-label="Daily recorded member partner clicks over the last 14 days"></div>
+          <p class="sub" style="margin-top:10px">Summary only · top 10 partners (30 days) and 14 daily totals. No guest clicks or earnings are included.</p>
         </section>
       </div>
 
