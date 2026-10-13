@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261013-warm1';
+    liveScript.src='/dealzy-live.js?v=20261013-feedback2';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261013-warm1';
+  i18nScript.src='/dealzy-i18n.js?v=20261013-feedback2';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
@@ -1221,11 +1221,11 @@
       card.id='dealzyInstallCard';
       card.className='dz-install-card';
       card.setAttribute('aria-label',fr?'Installer Dealzy':'Install Dealzy');
-      card.innerHTML='<img src="/icon-192.png" alt="" aria-hidden="true">'+
+      card.innerHTML='<span class="dz-install-wordmark" aria-hidden="true">dealzy</span>'+
         '<div class="dz-install-copy"><b>'+(fr?'Dealzy sur votre téléphone':'Dealzy on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
         '<button type="button" class="dz-install-action">'+(fr?'Installer':'Install')+'</button>'+
         '<button type="button" class="dz-install-dismiss" aria-label="'+(fr?'Plus tard':'Later')+'">×</button>';
-      home.querySelector('.howSection, .hero')?.insertAdjacentElement('afterend',card);
+      (home.querySelector('.howSection')||home.querySelector('.hero'))?.insertAdjacentElement('afterend',card);
       card.querySelector('.dz-install-action').onclick=requestInstall;
       card.querySelector('.dz-install-dismiss').onclick=()=>{
         try{sessionStorage.setItem('dealzyInstallDismissed','1');}catch(_){}

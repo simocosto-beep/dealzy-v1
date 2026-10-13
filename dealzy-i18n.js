@@ -2,6 +2,11 @@
   "use strict";
 
   const FR={
+    "Dealzy on your phone":"Dealzy sur votre téléphone",
+    "One tap from your home screen.":"Un accès direct depuis votre écran d’accueil.",
+    "Install":"Installer",
+    "Later":"Plus tard",
+    "✦ AI Assistant":"✦ Assistant IA",
     "Planning tools":"Ma boîte à outils",
     "Ask the assistant":"Demander à l’assistant",
     "Skip to content":"Aller au contenu",

@@ -26,8 +26,28 @@
     const hero=document.querySelector('#homeView .hero');
     const title=document.querySelector('#homeView .hero h1');
     const subtitle=document.querySelector('#homeView .hero p');
-    if(title&&c.hero_title) title.textContent=tr(String(c.hero_title));
-    if(subtitle&&c.hero_subtitle) subtitle.textContent=tr(String(c.hero_subtitle));
+    const editorial=hero?.id==='discoveryHero';
+    const configuredTitle=String(c.hero_title||'').trim();
+    const legacyTitles=['Find amazing experiences with AI.','Trouvez des expériences incroyables avec l’IA.'];
+    if(title&&editorial&&(!configuredTitle||legacyTitles.includes(configuredTitle))){
+      // A previously saved default must not overwrite the redesigned headline.
+      const lead=document.createElement('span');
+      const accent=document.createElement('em');
+      lead.textContent=tr('Less searching.');
+      accent.textContent=tr('More living.');
+      title.replaceChildren(lead,accent);
+      delete title.dataset.customCopy;
+    }else if(title&&configuredTitle){
+      title.textContent=tr(configuredTitle);
+      title.dataset.customCopy='true';
+    }
+    const configuredSubtitle=String(c.hero_subtitle||'').trim();
+    const legacySubtitles=['Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.','Restaurants, activités, spas, voyages, événements et plus — personnalisés selon votre budget, votre lieu et le moment.'];
+    if(subtitle&&editorial&&(!configuredSubtitle||legacySubtitles.includes(configuredSubtitle))){
+      subtitle.textContent=tr('That little restaurant. That big adventure. Find your next good moment, close to home or a little further away.');
+    }else if(subtitle&&configuredSubtitle){
+      subtitle.textContent=tr(configuredSubtitle);
+    }
     if(hero){
       const img=validRuntimeImage(c.hero_image_url);
       const editorialImage=hero.querySelector('.heroPhoto img');
