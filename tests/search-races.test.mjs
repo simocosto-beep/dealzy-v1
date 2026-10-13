@@ -44,3 +44,25 @@ test('explore shows loading immediately and ignores superseded provider initiali
   await pending;
   assert.equal(grid.innerHTML,'New search');
 });
+
+test('missing provider coordinates stay unknown instead of becoming (0, 0)',()=>{
+  const context=vm.createContext({});
+  vm.runInContext(section('  function milesBetween(', '  function dealzyScore('),context);
+  for(const missing of [null,undefined,'',' ']){
+    context.missing=missing;
+    assert.equal(vm.runInContext('milesBetween(45.5,-73.5,missing,missing)',context),null);
+  }
+  assert.equal(vm.runInContext('milesBetween(0,0,0,0)',context),0);
+  assert.equal(vm.runInContext('milesBetween(45.5,-73.5,91,0)',context),null);
+});
+
+test('offers without coordinates survive only when their destination is confirmed',async()=>{
+  let destination='Montreal';
+  const context=vm.createContext({marketRevision:0,market:{country:'CA',city:'Montreal',currency:'CAD'},state:{coords:{lat:45.5,lng:-73.5}},ensureMarketCityCoords:async()=>{},coordsAllowedForMarket:()=>true,readExplorePrefs:()=>({radius:25}),URLSearchParams,AbortSignal,fetch:async()=>({ok:true,json:async()=>({query:{destination},results:[{id:'known-city',provider:'viator',title:'Activity',lat:null,lng:null}]})}),toDeal:x=>x,remember:x=>x});
+  vm.runInContext(section('  function milesBetween(', '  function dealzyScore('),context);
+  vm.runInContext(section('  function dealDistance(', '  function exploreRequestKey('),context);
+  vm.runInContext(section('  async function fetchLive(', '  async function fetchCategoryBoosted('),context);
+  assert.equal((await vm.runInContext('fetchLive("Things to Do")',context)).length,1);
+  destination='Miami';
+  assert.equal((await vm.runInContext('fetchLive("Things to Do")',context)).length,0);
+});

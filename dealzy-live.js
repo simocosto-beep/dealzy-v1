@@ -26,13 +26,41 @@
     const hero=document.querySelector('#homeView .hero');
     const title=document.querySelector('#homeView .hero h1');
     const subtitle=document.querySelector('#homeView .hero p');
-    if(title&&c.hero_title) title.textContent=tr(String(c.hero_title));
-    if(subtitle&&c.hero_subtitle) subtitle.textContent=tr(String(c.hero_subtitle));
+    const editorial=hero?.id==='discoveryHero';
+    const configuredTitle=String(c.hero_title||'').trim();
+    const legacyTitles=['Find amazing experiences with AI.','Trouvez des expériences incroyables avec l’IA.'];
+    if(title&&editorial&&(!configuredTitle||legacyTitles.includes(configuredTitle))){
+      // A previously saved default must not overwrite the redesigned headline.
+      const lead=document.createElement('span');
+      const accent=document.createElement('em');
+      lead.textContent=tr('Your next escape');
+      const lastWord=document.createElement('span');
+      lastWord.className='heroAccent';
+      lastWord.textContent=tr('here.');
+      accent.append(document.createTextNode(tr('starts')+' '),lastWord);
+      title.replaceChildren(lead,accent);
+      delete title.dataset.customCopy;
+    }else if(title&&configuredTitle){
+      title.textContent=tr(configuredTitle);
+      title.dataset.customCopy='true';
+    }
+    const configuredSubtitle=String(c.hero_subtitle||'').trim();
+    const legacySubtitles=['Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.','Restaurants, activités, spas, voyages, événements et plus — personnalisés selon votre budget, votre lieu et le moment.'];
+    if(subtitle&&editorial&&(!configuredSubtitle||legacySubtitles.includes(configuredSubtitle))){
+      subtitle.textContent=tr('Travel and experiences that feel like you. Across the United States and Canada.');
+    }else if(subtitle&&configuredSubtitle){
+      subtitle.textContent=tr(configuredSubtitle);
+    }
     if(hero){
       const img=validRuntimeImage(c.hero_image_url);
-      hero.style.backgroundImage=img
-        ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'
-        : '';
+      const editorialImage=hero.querySelector('.heroPhoto img');
+      if(editorialImage){
+        editorialImage.src=img||'/assets/experience/escape-horizon.webp';
+      }else{
+        hero.style.backgroundImage=img
+          ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'
+          : '';
+      }
     }
 
     const home=document.getElementById('homeView');
@@ -111,26 +139,40 @@
   function renderAffiliateHome(){
     let expediaHome=document.getElementById('expediaHome');
     if(!expediaHome){
-      expediaHome=document.createElement('div');
+      expediaHome=document.createElement('section');
       expediaHome.id='expediaHome';
-      expediaHome.className='partnerTicker';
-      $("#cats").after(expediaHome);
+      expediaHome.className='partnerShowcase';
+      expediaHome.setAttribute('aria-labelledby','partnerHeading');
+      document.querySelector('.inspirationSection').before(expediaHome);
     }
     const isFr=locale()==='fr';
     const affiliates=DealzyAffiliates.forCountry(market.country,dealzyProviderRuntime.affiliateIds);
     const items=[];
-    if(dealzyProviderRuntime.expedia!==false){
-      items.push({id:'expedia',name:'Expedia · Dealzy AI',icon:'🧳',url:DealzyAffiliates.expediaUrl(market.country)});
+    if(dealzyProviderRuntime.booking!==false){
+      const target='https://www.booking.com/searchresults.html?'+new URLSearchParams({ss:market.city}).toString();
+      items.push({id:'booking',name:'Booking.com',label:{en:'Hotels & stays',fr:'Hôtels et hébergements'},url:DealzyAffiliates.bookingUrl(target)});
     }
-    affiliates.forEach(p=>items.push({id:p.id,name:p.name,icon:p.icon||'✨',url:p.url}));
+    if(dealzyProviderRuntime.expedia!==false){
+      items.push({id:'expedia',name:'Expedia',label:{en:'The Dealzy travel shop',fr:'La boutique voyage Dealzy'},url:DealzyAffiliates.expediaUrl(market.country)});
+    }
+    affiliates.forEach(p=>items.push({id:p.id,name:p.name,label:p.label,url:p.url}));
+    expediaHome.hidden=!items.length;
     if(!items.length){ expediaHome.innerHTML=''; return; }
-    const renderItems=()=>items.map(p=>
-      '<a class="partnerTickerItem" data-partner-ticker="'+h(p.id)+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
-      '<span class="partnerTickerIcon" aria-hidden="true">'+h(p.icon)+'</span><b>'+h(p.name)+'</b><span aria-hidden="true">↗</span></a>'
-    ).join('');
+    const primary=items.filter(p=>p.id==='booking'||p.id==='expedia');
+    const others=items.filter(p=>p.id!=='booking'&&p.id!=='expedia');
+    const conciseLabels={pelago:['Activities & experiences','Activités et expériences'],tours4fun:['Tours & day trips','Circuits et excursions'],kkday:['Attractions & outings','Attractions et sorties'],esimx:['Travel eSIMs','eSIM pour voyager'],airzlink:['Stay connected','Restez connectés'],gearup:['Mobile gaming','Jeux sur mobile'],magicstory:['Personalized books','Livres personnalisés']};
+    const partnerLabel=p=>conciseLabels[p.id]?.[isFr?1:0]||p.label?.[isFr?'fr':'en']||'';
+    const partnerName=p=>({airzlink:'AirZlink',gearup:'GearUP'}[p.id]||p.name);
+    const renderItem=(p,featured=false)=>
+      '<a class="partnerTile'+(featured?' partnerFeatured':'')+'" data-partner-ticker="'+h(p.id)+'" aria-label="'+h(p.name+' · '+partnerLabel(p))+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
+      '<span class="partnerTileTop"><span class="partnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.partner(p.id)||'')+'</span><span class="partnerTileArrow" aria-hidden="true">'+(window.DealzyIcons?.svg('arrow')||'↗')+'</span></span>'+
+      '<b class="partnerWordmark">'+h(partnerName(p))+'</b><span class="partnerDescription">'+h(partnerLabel(p))+'</span>'+
+      (featured?'<span class="partnerVisit">'+h(isFr?'Découvrir':'Explore')+' <span aria-hidden="true">→</span></span>':'')+'</a>';
     expediaHome.innerHTML=
-      '<div class="partnerTickerLabel"><b>'+h(isFr?'Bons plans partenaires':'Partner deals')+'</b><small>'+h(isFr?'Offres externes sélectionnées':'Selected external offers')+'</small></div>'+
-      '<div class="partnerTickerViewport"><div class="partnerTickerTrack">'+renderItems()+renderItems()+'</div></div>';
+      '<div class="partnerShowcaseHeading"><div><span class="eyebrow">'+h(isFr?'LES PARTENAIRES DEALZYAI':'THE DEALZYAI PARTNERS')+'</span><h2 id="partnerHeading">'+h(isFr?'De l’envie au départ.':'From someday to let’s go.')+'</h2></div><span class="partnerSelection">'+h(isFr?'Séjours, expériences et petits plus.':'Stays, experiences & a little more.')+'</span></div>'+
+      '<div class="partnerFeaturedGrid">'+primary.map(p=>renderItem(p,true)).join('')+'</div>'+
+      (others.length?'<div class="partnerMoreGrid">'+others.map(p=>renderItem(p)).join('')+'</div>':'')+
+      '<p class="partnerFootnote">'+h(isFr?'Liens affiliés · Une commission peut être versée à Dealzy. Réservation et conditions chez le partenaire.':'Affiliate links · Dealzy may earn a commission. Bookings and terms are handled by the partner.')+'</p>';
     expediaHome.querySelectorAll('[data-partner-ticker]').forEach(link=>{
       link.onclick=()=>{
         const id=link.dataset.partnerTicker;
@@ -143,7 +185,7 @@
     if(dealzyProviderRuntime.expedia===false) return '';
     const isFr=locale()==='fr';
     return '<a class="expediaHomeCard" href="'+h(DealzyAffiliates.expediaUrl(market.country))+'" target="_blank" rel="sponsored noopener noreferrer">'+
-      '<span class="expediaHomeIcon" aria-hidden="true">🧳</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
+      '<span class="expediaHomeIcon" aria-hidden="true">'+(window.DealzyIcons?.svg('suitcase')||'')+'</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
       '<h3>Expedia · Dealzy AI</h3><p>'+h(isFr?'Retrouvez la boutique voyage de Dealzy sur Expedia.':'Visit Dealzy’s travel shop on Expedia.')+'</p>'+
       '<span class="expediaHomeAction">'+h(isFr?'Ouvrir la boutique Expedia ↗':'Open the Expedia shop ↗')+'</span>'+
       '<small class="expediaHomeNote">'+h(isFr?'Réservation chez Expedia. Commission possible sur les achats éligibles.':'Book on Expedia. We may earn a commission on eligible purchases.')+'</small></div></a>';
@@ -630,8 +672,11 @@
   }
 
   function milesBetween(a,b,c,d){
-    const vals=[a,b,c,d].map(Number);
-    if(vals.some(x=>!Number.isFinite(x))) return null;
+    // Missing provider coordinates are unknown, never the point (0, 0).
+    const input=[a,b,c,d];
+    if(input.some(x=>x==null||(typeof x==='string'&&!x.trim()))) return null;
+    const vals=input.map(Number);
+    if(vals.some(x=>!Number.isFinite(x))||Math.abs(vals[0])>90||Math.abs(vals[2])>90||Math.abs(vals[1])>180||Math.abs(vals[3])>180) return null;
     const toRad=v=>v*Math.PI/180;
     const R=3958.8;
     const dLat=toRad(vals[2]-vals[0]);
@@ -969,10 +1014,10 @@
       "box-shadow:"+(active?"0 4px 12px rgba(81,69,205,.10)":"none")
     ].join(";");
     const sourceButtons=[
-      '<button data-source="all" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
+      '<button data-source="all" aria-pressed="'+String(prefs.source==="all")+'" style="'+sourceChipStyle(prefs.source==="all")+'">'+(isFr?"Toutes":"All")+' <span style="opacity:.65">· '+rows.length+'</span></button>'
     ];
     Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([key,n])=>{
-      sourceButtons.push('<button data-source="'+h(key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
+      sourceButtons.push('<button data-source="'+h(key)+'" aria-pressed="'+String(prefs.source===key)+'" style="'+sourceChipStyle(prefs.source===key)+'">'+h(sourceLabels[key]||key)+' <span style="opacity:.65">· '+n+'</span></button>');
     });
 
     const sortLabels={best:isFr?"Meilleur":"Best",nearest:isFr?"Plus proche":"Nearest",rating:isFr?"Mieux noté":"Top rated",price:isFr?"Prix bas":"Price low"};
@@ -1362,7 +1407,7 @@
 
     if(kind==="hotel"){
       host.innerHTML=
-        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🏨 Booking.com</b><div class="meta">'+(isFr?"Recherche d’hôtel":"Hotel search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
             '<label class="meta" style="grid-column:1/-1">'+(isFr?"Destination":"Destination")+'<input id="dzHotelDest" '+inputStyle+' value="'+h(selectedCity)+'"></label>'+
@@ -1392,7 +1437,7 @@
 
     if(kind==="flight"){
       host.innerHTML=
-        '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+        '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">✈️ Skyscanner</b><div class="meta">'+(isFr?"Comparateur de vols":"Flight search")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">'+
             '<label class="meta">'+(isFr?"Départ (IATA)":"From (IATA)")+'<input id="dzFlightFrom" maxlength="3" autocapitalize="characters" '+inputStyle+' placeholder="JFK"></label>'+
@@ -1428,7 +1473,7 @@
     }
 
     host.innerHTML=
-      '<div style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
+      '<div class="travelFormCard" style="background:#fff;border:1px solid #e7e9f0;border-radius:20px;padding:15px;box-shadow:0 8px 24px rgba(17,24,39,.06)">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b style="font-size:17px">🧳 Expedia · Dealzy AI</b><div class="meta">'+(isFr?"Boutique voyage Dealzy":"Dealzy travel shop")+'</div></div><button id="dzTravelClose" style="border:0;background:#f2f4f7;border-radius:50%;width:34px;height:34px;font-size:18px">×</button></div>'+
         '<p class="meta" style="line-height:1.5">'+(isFr?"Hôtels, séjours et inspiration voyage via la boutique Expedia de Dealzy AI.":"Hotels, stays and travel inspiration through Dealzy AI’s Expedia shop.")+'</p>'+
         '<button id="dzExpediaGo" '+accent+'>'+(isFr?"Ouvrir Expedia Dealzy ↗":"Open Expedia Dealzy ↗")+'</button>'+
@@ -1522,13 +1567,13 @@
     const controls=exploreControlsHtml(sourceUniverse,prefs,isFr);
     const travelButtons=[
       dealzyProviderRuntime.booking!==false
-        ? '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'
+        ? '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('hotel')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'
         : '',
       dealzyProviderRuntime.skyscanner!==false
-        ? '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'
+        ? '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('plane')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'
         : '',
       dealzyProviderRuntime.expedia!==false
-        ? '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'
+        ? '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('suitcase')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'
         : ''
     ].filter(Boolean).join("");
     const travelCards=travelButtons
@@ -1572,7 +1617,7 @@
   renderAll=function(){
     const seasonalUrl=seasonalPartnerUrl();
     const visibleCats=orderedCategories();
-    $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
+    $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i" aria-hidden="true">'+(window.DealzyIcons?.category(c[1])||c[0])+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     renderAffiliateHome();
     const personalized=personalizedHome(homeDeals);
@@ -1907,6 +1952,8 @@
     }
   }
 
+  window.DealzyMarket={openPicker:openMarketPicker,get:()=>({...market})};
+
   function updateMarketUI(){
     renderAffiliateHome();
     const flag=market.country==="CA"?"🇨🇦":"🇺🇸";
@@ -1944,13 +1991,13 @@
     }
 
     const heroBadge=document.querySelector("#homeView .hero .pill");
-    if(heroBadge){
+    if(heroBadge&&!heroBadge.classList.contains("heroEyebrow")){
       const customBadge=String(runtimeContent.hero_badge||'').trim();
       heroBadge.textContent=customBadge||("🇺🇸 "+tr("United States")+" · 🇨🇦 "+tr("Canada")+" — LIVE");
     }
 
     const query=document.getElementById("aiQuery");
-    if(query && !query.dataset.userEdited && document.activeElement!==query){
+    if(query && !document.body.classList.contains("dealzy-experience") && !query.dataset.userEdited && document.activeElement!==query){
       const preferred=Math.max(10,Number(readOnboarding().budget)||100);
       query.value=locale()==="fr"
         ? "Dîner à "+market.city+" ce soir moins de "+moneyFor(preferred,market.currency)
@@ -1997,7 +2044,7 @@
       }
     });
 
-    const quickButtons=[...document.querySelectorAll("#homeView .quick button")];
+    const quickButtons=document.body.classList.contains("dealzy-experience")?[]:[...document.querySelectorAll("#homeView .quick button")];
     if(quickButtons[0]) quickButtons[0].textContent=tr("📍 Near me");
     if(quickButtons[1]) quickButtons[1].textContent=tr("🗓 This weekend");
     if(quickButtons[2]) quickButtons[2].textContent=locale()==="fr"
@@ -2006,6 +2053,7 @@
 
     renderProfileInsights();
     if(window.DealzyI18n) window.DealzyI18n.apply(document);
+    document.dispatchEvent(new CustomEvent("dealzy:marketchange",{detail:{...market}}));
   }
 
   function parseSmartQuery(q){

@@ -40,7 +40,7 @@
     const place=country==='CA'?'Canada':fr?'États-Unis':'United States';
     return '<section class="affiliateSection" aria-label="'+(fr?'Partenaires voyage':'Travel partners')+'"><div class="affiliateHeading"><h3>'+(fr?'Encore plus à découvrir':'More to explore')+'</h3><span>'+place+'</span></div><p class="affiliateDisclosure">'+(fr?'Liens affiliés : Dealzy peut recevoir une commission. Prix, disponibilité et réservation chez le partenaire.':'Affiliate links: Dealzy may earn a commission. Check prices, availability and book with the partner.')+'</p><div class="affiliateGrid">'+rows.map(p=>{
       const description=p.id==='tours4fun'&&country==='US'?(fr?'Circuits dans l’Ouest américain':'Tours in the American West'):p.label[fr?'fr':'en'];
-      return '<a class="affiliateCard" data-affiliate-partner="'+p.id+'" href="'+escape(p.url)+'" target="_blank" rel="sponsored noopener noreferrer"><span aria-hidden="true">'+p.icon+'</span><div><b>'+p.name+'</b><small>'+description+'</small></div><span class="affiliateArrow" aria-hidden="true">↗</span></a>';
+      return '<a class="affiliateCard" data-affiliate-partner="'+p.id+'" href="'+escape(p.url)+'" target="_blank" rel="sponsored noopener noreferrer"><span aria-hidden="true">'+(globalThis.DealzyIcons?.partner(p.id)||p.icon)+'</span><div><b>'+p.name+'</b><small>'+description+'</small></div><span class="affiliateArrow" aria-hidden="true">↗</span></a>';
     }).join('')+'</div></section>';
   }
   function bind(root,onClick){

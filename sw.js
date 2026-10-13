@@ -1,5 +1,5 @@
-const CACHE='dealzy-v4.7-cost-comparison-20261009';
-const CORE=['/','/index.html','/dealzy-tools.js?v=20261007-repair1','/dealzy-providers.js','/dealzy-i18n.js?v=20261007-repair1','/dealzy-live.js?v=20261007-repair1','/dealzy-assistant.js','/manifest.webmanifest','/icon.svg','/icon-192.png','/icon-512.png','/icon-180.png'];
+const CACHE='dealzy-v10-partners-20261014-3';
+const CORE=['/dealzy-theme.css?v=20261014-partners3','/dealzy-theme.js?v=20261014-partners3','/dealzy-icons.js?v=20261014-partners3','/dealzy-experience.css?v=20261014-partners3','/dealzy-experience.js?v=20261014-partners3','/assets/experience/escape-horizon.webp','/','/index.html','/dealzy-tools.js?v=20261014-partners3','/dealzy-providers.js','/dealzy-i18n.js?v=20261014-partners3','/dealzy-live.js?v=20261014-partners3','/dealzy-assistant.js','/manifest.webmanifest?v=20261014-partners3','/icon.svg?v=20261014-partners3','/icon-192.png?v=20261014-partners3','/icon-512.png?v=20261014-partners3','/icon-180.png?v=20261014-partners3'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
