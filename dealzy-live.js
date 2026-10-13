@@ -139,30 +139,39 @@
   function renderAffiliateHome(){
     let expediaHome=document.getElementById('expediaHome');
     if(!expediaHome){
-      expediaHome=document.createElement('div');
+      expediaHome=document.createElement('section');
       expediaHome.id='expediaHome';
-      expediaHome.className='partnerTicker';
-      $("#cats").after(expediaHome);
+      expediaHome.className='partnerShowcase';
+      expediaHome.setAttribute('aria-labelledby','partnerHeading');
+      document.querySelector('.inspirationSection').before(expediaHome);
     }
     const isFr=locale()==='fr';
     const affiliates=DealzyAffiliates.forCountry(market.country,dealzyProviderRuntime.affiliateIds);
     const items=[];
     if(dealzyProviderRuntime.booking!==false){
       const target='https://www.booking.com/searchresults.html?'+new URLSearchParams({ss:market.city}).toString();
-      items.push({id:'booking',name:'Booking.com',icon:'🏨',url:DealzyAffiliates.bookingUrl(target)});
+      items.push({id:'booking',name:'Booking.com',label:{en:'Hotels & stays',fr:'Hôtels et hébergements'},url:DealzyAffiliates.bookingUrl(target)});
     }
     if(dealzyProviderRuntime.expedia!==false){
-      items.push({id:'expedia',name:'Expedia · Dealzy AI',icon:'🧳',url:DealzyAffiliates.expediaUrl(market.country)});
+      items.push({id:'expedia',name:'Expedia',label:{en:'The Dealzy travel shop',fr:'La boutique voyage Dealzy'},url:DealzyAffiliates.expediaUrl(market.country)});
     }
-    affiliates.forEach(p=>items.push({id:p.id,name:p.name,icon:p.icon||'✨',url:p.url}));
+    affiliates.forEach(p=>items.push({id:p.id,name:p.name,label:p.label,url:p.url}));
+    expediaHome.hidden=!items.length;
     if(!items.length){ expediaHome.innerHTML=''; return; }
-    const renderItems=()=>items.map(p=>
-      '<a class="partnerTickerItem" data-partner-ticker="'+h(p.id)+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
-      '<span class="partnerTickerIcon" aria-hidden="true">'+h(p.icon)+'</span><b>'+h(p.name)+'</b><span aria-hidden="true">↗</span></a>'
-    ).join('');
+    const primary=items.filter(p=>p.id==='booking'||p.id==='expedia');
+    const others=items.filter(p=>p.id!=='booking'&&p.id!=='expedia');
+    const conciseLabels={pelago:['Activities & experiences','Activités et expériences'],tours4fun:['Tours & day trips','Circuits et excursions'],kkday:['Attractions & outings','Attractions et sorties'],esimx:['Travel eSIMs','eSIM pour voyager'],airzlink:['Stay connected','Restez connectés'],gearup:['Mobile gaming','Jeux sur mobile'],magicstory:['Personalized books','Livres personnalisés']};
+    const partnerLabel=p=>conciseLabels[p.id]?.[isFr?1:0]||p.label?.[isFr?'fr':'en']||'';
+    const renderItem=(p,featured=false)=>
+      '<a class="partnerTile'+(featured?' partnerFeatured':'')+'" data-partner-ticker="'+h(p.id)+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
+      '<span class="partnerTileTop"><span class="partnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.partner(p.id)||'')+'</span><span class="partnerTileArrow" aria-hidden="true">'+(window.DealzyIcons?.svg('arrow')||'↗')+'</span></span>'+
+      '<b class="partnerWordmark">'+h(p.name)+'</b><span class="partnerDescription">'+h(partnerLabel(p))+'</span>'+
+      (featured?'<span class="partnerVisit">'+h(isFr?'Découvrir':'Explore')+' <span aria-hidden="true">→</span></span>':'')+'</a>';
     expediaHome.innerHTML=
-      '<div class="partnerTickerLabel"><b>'+h(isFr?'Bons plans partenaires':'Partner deals')+'</b><small>'+h(isFr?'Offres externes sélectionnées':'Selected external offers')+'</small></div>'+
-      '<div class="partnerTickerViewport"><div class="partnerTickerTrack">'+renderItems()+'</div></div>';
+      '<div class="partnerShowcaseHeading"><div><span class="eyebrow">'+h(isFr?'LES PARTENAIRES DEALZY':'THE DEALZY PARTNERS')+'</span><h2 id="partnerHeading">'+h(isFr?'De l’envie au départ.':'From someday to let’s go.')+'</h2></div><span class="partnerSelection">'+h(isFr?'Séjours, expériences et petits plus.':'Stays, experiences & a little more.')+'</span></div>'+
+      '<div class="partnerFeaturedGrid">'+primary.map(p=>renderItem(p,true)).join('')+'</div>'+
+      (others.length?'<div class="partnerMoreGrid">'+others.map(p=>renderItem(p)).join('')+'</div>':'')+
+      '<p class="partnerFootnote">'+h(isFr?'Liens affiliés · Une commission peut être versée à Dealzy. Réservation et conditions chez le partenaire.':'Affiliate links · Dealzy may earn a commission. Bookings and terms are handled by the partner.')+'</p>';
     expediaHome.querySelectorAll('[data-partner-ticker]').forEach(link=>{
       link.onclick=()=>{
         const id=link.dataset.partnerTicker;
@@ -175,7 +184,7 @@
     if(dealzyProviderRuntime.expedia===false) return '';
     const isFr=locale()==='fr';
     return '<a class="expediaHomeCard" href="'+h(DealzyAffiliates.expediaUrl(market.country))+'" target="_blank" rel="sponsored noopener noreferrer">'+
-      '<span class="expediaHomeIcon" aria-hidden="true">🧳</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
+      '<span class="expediaHomeIcon" aria-hidden="true">'+(window.DealzyIcons?.svg('suitcase')||'')+'</span><div><small>'+h(isFr?'Voyage · Lien partenaire':'Travel · Partner link')+'</small>'+
       '<h3>Expedia · Dealzy AI</h3><p>'+h(isFr?'Retrouvez la boutique voyage de Dealzy sur Expedia.':'Visit Dealzy’s travel shop on Expedia.')+'</p>'+
       '<span class="expediaHomeAction">'+h(isFr?'Ouvrir la boutique Expedia ↗':'Open the Expedia shop ↗')+'</span>'+
       '<small class="expediaHomeNote">'+h(isFr?'Réservation chez Expedia. Commission possible sur les achats éligibles.':'Book on Expedia. We may earn a commission on eligible purchases.')+'</small></div></a>';
@@ -1557,13 +1566,13 @@
     const controls=exploreControlsHtml(sourceUniverse,prefs,isFr);
     const travelButtons=[
       dealzyProviderRuntime.booking!==false
-        ? '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🏨</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'
+        ? '<button type="button" data-explore-travel="hotel" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('hotel')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Booking.com</b><span class="meta" style="font-size:10px">'+(isFr?"Hôtels":"Hotels")+'</span></button>'
         : '',
       dealzyProviderRuntime.skyscanner!==false
-        ? '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">✈️</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'
+        ? '<button type="button" data-explore-travel="flight" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('plane')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Skyscanner</b><span class="meta" style="font-size:10px">'+(isFr?"Vols":"Flights")+'</span></button>'
         : '',
       dealzyProviderRuntime.expedia!==false
-        ? '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div style="font-size:24px">🧳</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'
+        ? '<button type="button" data-explore-travel="expedia" style="border:1px solid #e7e9f0;background:#fff;border-radius:17px;padding:12px 8px;text-align:center;box-shadow:0 6px 18px rgba(17,24,39,.05);font:inherit;color:inherit"><div class="travelPartnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.svg('suitcase')||'')+'</div><b style="display:block;font-size:13px;margin-top:5px">Expedia</b><span class="meta" style="font-size:10px">'+(isFr?"Voyage":"Travel")+'</span></button>'
         : ''
     ].filter(Boolean).join("");
     const travelCards=travelButtons
@@ -1607,7 +1616,7 @@
   renderAll=function(){
     const seasonalUrl=seasonalPartnerUrl();
     const visibleCats=orderedCategories();
-    $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i">'+c[0]+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
+    $("#cats").innerHTML=visibleCats.map((c)=>'<button class="cat" data-cat="'+h(c[1])+'"><span class="i" aria-hidden="true">'+(window.DealzyIcons?.category(c[1])||c[0])+"</span><b>"+h(tr(c[1]))+"</b></button>").join("");
     $("#cats").querySelectorAll("[data-cat]").forEach((b)=>b.onclick=()=>{state.filter=b.dataset.cat;show("explore");renderExplore();});
     renderAffiliateHome();
     const personalized=personalizedHome(homeDeals);

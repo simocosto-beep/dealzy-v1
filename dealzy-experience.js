@@ -34,7 +34,9 @@
     if(budgetButton) budgetButton.textContent=isFrench()?`Moins de ${market?.currency==='CAD'?'50 CA$':'50 $'}`:`Under ${market?.currency==='CAD'?'CA$50':'$50'}`;
     if(languageButton){languageButton.textContent=isFrench()?'EN':'FR';languageButton.setAttribute('aria-label',isFrench()?'Switch to English':'Passer en français');}
     const toolsButton=doc.querySelector('.dz-tools-fab');
-    if(toolsButton)toolsButton.textContent=isFrench()?'✦ Ma boîte à outils':'✦ Planning tools';
+    if(toolsButton)toolsButton.innerHTML=(window.DealzyIcons?.svg('tools')||'')+'<span>'+(isFrench()?'Ma boîte à outils':'Planning tools')+'</span>';
+    const assistantButton=doc.querySelector('.dz-ai-fab');
+    if(assistantButton)assistantButton.innerHTML=(window.DealzyIcons?.svg('spark')||'')+'<span>'+(isFrench()?'Assistant IA':'AI Assistant')+'</span>';
     syncMotion();
   }
   function navigate(view){

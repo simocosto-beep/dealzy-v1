@@ -23,13 +23,13 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261013-escape2';
+    liveScript.src='/dealzy-live.js?v=20261014-brand1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
   };
   const i18nScript=document.createElement('script');
-  i18nScript.src='/dealzy-i18n.js?v=20261013-escape2';
+  i18nScript.src='/dealzy-i18n.js?v=20261014-brand1';
   i18nScript.defer=true;
   i18nScript.onload=startDealzyLive;
   i18nScript.onerror=startDealzyLive;
@@ -197,22 +197,22 @@
         <button class="dz-close" type="button" aria-label="Close">×</button>
       </div>
       <div class="dz-tools-grid">
-        <button class="dz-tool" data-tool="compare"><span class="emoji">⚖️</span><b>Smart Compare</b><span>Compare your saved deals side by side.</span></button>
-        <button class="dz-tool" data-tool="budget"><span class="emoji">🎯</span><b>Budget Finder</b><span>Find options that fit your category and budget.</span></button>
-        <button class="dz-tool" data-tool="savings"><span class="emoji">💸</span><b>Savings Calculator</b><span>See discount percentage and money saved.</span></button>
-        <button class="dz-tool" data-tool="alerts"><span class="emoji">🔔</span><b>Deal Alerts</b><span>Save a watch rule for future matching deals.</span></button>
-        <button class="dz-tool" data-tool="notifications"><span class="emoji">📬</span><b>Notifications</b><span>See price-watch matches and Dealzy alerts.</span></button>
-        <button class="dz-tool" data-tool="search"><span class="emoji">✨</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
-        <button class="dz-tool" data-tool="nearby"><span class="emoji">🗺️</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
-        <button class="dz-tool" data-tool="account"><span class="emoji">👤</span><b>My Dealzy</b><span>Account, password, orders and user management.</span></button>
-        <button class="dz-tool" data-tool="planner"><span class="emoji">🧠</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
-        <button class="dz-tool" data-tool="travel"><span class="emoji">🧳</span><b>Travel Hub</b><span>Hotels, flights, cars and things to do in one place.</span></button>
-        <button class="dz-tool" data-tool="watch"><span class="emoji">📉</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
-        <button class="dz-tool" data-tool="coupons"><span class="emoji">🎟️</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
-        <button class="dz-tool" data-tool="backup"><span class="emoji">💾</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
-        <button class="dz-tool" data-tool="split"><span class="emoji">🧾</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
-        <button class="dz-tool" data-tool="providers"><span class="emoji">🔌</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
-        <button class="dz-tool" data-tool="app"><span class="emoji">📲</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
+        <button class="dz-tool" data-tool="compare"><span class="emoji">${window.DealzyIcons?.svg('compare')||''}</span><b>Smart Compare</b><span>Compare your saved deals side by side.</span></button>
+        <button class="dz-tool" data-tool="budget"><span class="emoji">${window.DealzyIcons?.svg('target')||''}</span><b>Budget Finder</b><span>Find options that fit your category and budget.</span></button>
+        <button class="dz-tool" data-tool="savings"><span class="emoji">${window.DealzyIcons?.svg('coins')||''}</span><b>Savings Calculator</b><span>See discount percentage and money saved.</span></button>
+        <button class="dz-tool" data-tool="alerts"><span class="emoji">${window.DealzyIcons?.svg('bell')||''}</span><b>Deal Alerts</b><span>Save a watch rule for future matching deals.</span></button>
+        <button class="dz-tool" data-tool="notifications"><span class="emoji">${window.DealzyIcons?.svg('bell')||''}</span><b>Notifications</b><span>See price-watch matches and Dealzy alerts.</span></button>
+        <button class="dz-tool" data-tool="search"><span class="emoji">${window.DealzyIcons?.svg('search')||''}</span><b>Provider Search</b><span>Search through the Dealzy server gateway.</span></button>
+        <button class="dz-tool" data-tool="nearby"><span class="emoji">${window.DealzyIcons?.svg('map')||''}</span><b>Nearby Map</b><span>Open a map centered on your current location.</span></button>
+        <button class="dz-tool" data-tool="account"><span class="emoji">${window.DealzyIcons?.svg('profile')||''}</span><b>My Dealzy</b><span>Account, password, orders and user management.</span></button>
+        <button class="dz-tool" data-tool="planner"><span class="emoji">${window.DealzyIcons?.svg('spark')||''}</span><b>Smart Planner</b><span>Build a mini plan around your budget and party size.</span></button>
+        <button class="dz-tool" data-tool="travel"><span class="emoji">${window.DealzyIcons?.svg('suitcase')||''}</span><b>Travel Hub</b><span>Hotels, flights, cars and things to do in one place.</span></button>
+        <button class="dz-tool" data-tool="watch"><span class="emoji">${window.DealzyIcons?.svg('chart')||''}</span><b>Price Watch</b><span>Save products or deals you want to monitor.</span></button>
+        <button class="dz-tool" data-tool="coupons"><span class="emoji">${window.DealzyIcons?.svg('ticket')||''}</span><b>Coupon Vault</b><span>Keep promo codes and expiry dates in one place.</span></button>
+        <button class="dz-tool" data-tool="backup"><span class="emoji">${window.DealzyIcons?.svg('cloud')||''}</span><b>Backup & Restore</b><span>Export or restore your local Dealzy data.</span></button>
+        <button class="dz-tool" data-tool="split"><span class="emoji">${window.DealzyIcons?.svg('receipt')||''}</span><b>Split & Tip</b><span>Split a bill and calculate tips instantly.</span></button>
+        <button class="dz-tool" data-tool="providers"><span class="emoji">${window.DealzyIcons?.svg('link')||''}</span><b>Sources</b><span>See which deal providers are active or pending.</span></button>
+        <button class="dz-tool" data-tool="app"><span class="emoji">${window.DealzyIcons?.svg('phone')||''}</span><b>App & Share</b><span>Install Dealzy or share it with someone.</span></button>
       </div>
       <div id="dzPanel" class="dz-panel"></div>
     </section>`;
@@ -1221,7 +1221,7 @@
       card.id='dealzyInstallCard';
       card.className='dz-install-card';
       card.setAttribute('aria-label',fr?'Installer Dealzy':'Install Dealzy');
-      card.innerHTML='<img src="/icon.svg?v=20261013-escape2" alt="" width="48" height="48">'+
+      card.innerHTML='<img src="/icon.svg?v=20261014-brand1" alt="" width="48" height="48">'+
         '<div class="dz-install-copy"><b>'+(fr?'Dealzy sur votre téléphone':'Dealzy on your phone')+'</b><small>'+(fr?'Un accès direct depuis votre écran d’accueil.':'One tap from your home screen.')+'</small></div>'+
         '<button type="button" class="dz-install-action">'+(fr?'Installer':'Install')+'</button>'+
         '<button type="button" class="dz-install-dismiss" aria-label="'+(fr?'Plus tard':'Later')+'">×</button>';
