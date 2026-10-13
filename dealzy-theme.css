@@ -67,15 +67,19 @@ html[data-theme=night] .dealzy-experience .quick button{color:#bccfca}
 html[data-theme=night] .quick button:hover{background:#c6ded311}
 html[data-theme=night] .dealzy-experience .locationBar button,html[data-theme=night] .dealzy-experience .helperDock .dz-ai-fab,html[data-theme=night] .dealzy-experience .helperDock .dz-tools-fab{color:#bdd6cd}
 html[data-theme=night] .helperDock button:hover{background:#284048!important}
-html[data-theme=night] .partnerShowcase{background:linear-gradient(120deg,#112b31,#102731);border-color:#31474b}
+html[data-theme=night] .partnerShowcase{border-color:#31474b}
 html[data-theme=night] .partnerShowcaseHeading .eyebrow{color:#c9c49f}
 html[data-theme=night] .partnerSelection,html[data-theme=night] .partnerFootnote{color:#aabfb9}
-html[data-theme=night] .partnerMoreGrid .partnerTile{background:#183238;border-color:#3b5151;color:#dfede4}
+html[data-theme=night] .partnerTile{border-color:#3b5151;color:#dfede4}
+html[data-theme=night] .partnerTile:hover{background:#25413f}
 html[data-theme=night] .partnerMoreGrid .partnerWordmark{color:#deebe2}
 html[data-theme=night] .partnerDescription{color:#b5c8bf}
 html[data-theme=night] .partnerMoreGrid .partnerGlyph,html[data-theme=night] .partnerMoreGrid .partnerTileArrow{color:#b7cdc4}
-html[data-theme=night] .partnerFeatured[data-partner-ticker=booking]{background:linear-gradient(115deg,#133962,#154d77);border-color:#3c5a77}
-html[data-theme=night] .partnerFeatured[data-partner-ticker=expedia]{background:linear-gradient(115deg,#493f29,#675431);border-color:#7d704a;color:#f1e4bd}
+html[data-theme=night] .partnerFeatured{background:#183238}
+html[data-theme=night] .partnerFeatured:hover{background:#25413f}
+html[data-theme=night] .partnerFeatured[data-partner-ticker=booking] .partnerWordmark{color:#c5dcf6}
+html[data-theme=night] .partnerFeatured[data-partner-ticker=booking] .partnerGlyph{background:#284660;color:#c5dcf6}
+html[data-theme=night] .partnerFeatured[data-partner-ticker=expedia] .partnerGlyph{background:#48432e;color:#ecdaa1}
 html[data-theme=night] .eyebrow,html[data-theme=night] .categorySection .sectionHead h2,html[data-theme=night] .categorySection .sectionHead>span{color:#aebfac}
 html[data-theme=night] .dealzy-experience .sectionHead h2{color:#e4eee7}
 html[data-theme=night] .textLink{color:#cad7be}
