@@ -29,7 +29,7 @@ const ADMIN_PAGES={
   system:{title:'System',subtitle:'Maintenance mode and admin activity.'}
 };
 
-function showAdminPage(page,{remember=true}={}){
+function showAdminPage(page,{remember=true,refresh=true}={}){
   if(!ADMIN_PAGES[page]) page='overview';
   if(admin?.role==='viewer'&&['users','moderation'].includes(page)) page='overview';
   currentAdminPage=page;
@@ -49,8 +49,8 @@ function showAdminPage(page,{remember=true}={}){
   if($('#adminPageSubtitle')) $('#adminPageSubtitle').textContent=meta.subtitle;
   if(remember){try{localStorage.setItem('dealzy_admin_page_v1',page)}catch(_){}}
   window.scrollTo({top:0,behavior:'auto'});
-  if(page==='assistantOps'&&session?.access_token) loadOps().catch(e=>flash(e.message,true));
-  if(page==='notifications'&&session?.access_token){
+  if(refresh&&page==='assistantOps'&&session?.access_token) loadOps();
+  if(refresh&&page==='notifications'&&session?.access_token){
     loadAdminNotifications().catch(e=>flash(e.message,true));
   }
 }
@@ -61,7 +61,7 @@ function initAdminNav(){
   });
   let wanted='overview';
   try{wanted=localStorage.getItem('dealzy_admin_page_v1')||'overview'}catch(_){}
-  showAdminPage(wanted,{remember:false});
+  showAdminPage(wanted,{remember:false,refresh:false});
 }
 
 const $=s=>document.querySelector(s);
@@ -502,22 +502,106 @@ async function exportUsersCsv(){
 }
 
 
-async function loadOps(){
-  const data=await api('/rest/v1/rpc/dealzy_admin_ops_snapshot',{method:'POST',body:'{}'});
-  $('#opsStatus').textContent=(data.scheduled?'Surveillance active. ':'Surveillance non programmée. ')+(data.email_configured?'Connexion email configurée.':'Envoi email à connecter.');
-  $('#opsConfig').classList.toggle('hidden',admin?.role!=='superadmin');
+let opsPending=null,opsSnapshot=null,opsLoadedAt=null,opsEditingEmail=false,opsSavingEmail=false;
+
+function syncOpsEmailForm(){
+  const canConfigure=admin?.role==='superadmin'&&!!opsSnapshot;
+  const configured=!!opsSnapshot?.email_configured;
+  const open=canConfigure&&(!configured||opsEditingEmail);
+  $('#opsConfig').classList.toggle('hidden',!open);
+  $('#opsEditEmailBtn').classList.toggle('hidden',!canConfigure||!configured);
+  $('#opsEditEmailBtn').setAttribute('aria-expanded',String(open));
+  $('#opsConfigTitle').textContent=configured?'Modifier la connexion email':'Connecter l’envoi d’emails';
+  $('#opsCancelEmailBtn').classList.toggle('hidden',!configured);
+  if(!open) $('#opsEmailKey').value='';
+}
+
+// The snapshot only reads diagnostics. Retry this read, never a configuration write.
+async function fetchOpsSnapshot(){
+  const controller=new AbortController();
+  let timer;
+  try{
+    return await Promise.race([
+      api('/rest/v1/rpc/dealzy_admin_ops_snapshot',{method:'POST',body:'{}',signal:controller.signal}),
+      new Promise((_,reject)=>{timer=setTimeout(()=>{
+        const error=new Error('Snapshot timed out');error.name='AbortError';
+        controller.abort();reject(error);
+      },12000)})
+    ]);
+  }finally{clearTimeout(timer)}
+}
+
+function renderOps(data){
+  $('#opsStatus').textContent=(data.scheduled?'Surveillance programmée toutes les 10 minutes. ':'Surveillance non programmée. ')+(data.email_configured?'Connexion email configurée.':'Envoi email à connecter.');
+  $('#opsStatus').dataset.state='ready';
+  $('#opsUpdated').textContent='Suivi actualisé à '+opsLoadedAt.toLocaleTimeString();
+  $('#opsUpdated').classList.remove('hidden');
+  syncOpsEmailForm();
   const labels={no_action:'Aucune intervention détectée',email_not_configured:'Email à connecter',needs_review:'Intervention nécessaire',send:'Email en file d’envoi'};
   const rows=(values,format,empty)=>values.length?values.map(x=>'<div class="history-row">'+format(x)+'</div>').join(''):'<p class="sub">'+esc(empty)+'</p>';
   $('#opsInterventions').innerHTML=rows(data.interventions||[],x=>'<b>'+esc(x.summary)+'</b><p>'+esc(x.action)+'</p>','Aucune intervention détectée dans les diagnostics.');
-  $('#opsRuns').innerHTML=rows(data.runs||[],x=>esc(new Date(x.created_at).toLocaleString())+' · '+esc(labels[x.result.state]||x.result.state)+' · '+esc(x.result.retired_offers||0)+' offre(s) expirée(s) désactivée(s)','Aucune vérification enregistrée.');
+  $('#opsRuns').innerHTML=rows(data.runs||[],x=>esc(new Date(x.created_at).toLocaleString())+' · '+esc(labels[x.result?.state]||x.result?.state||'Résultat indisponible')+' · '+esc(x.result?.retired_offers||0)+' offre(s) expirée(s) désactivée(s)','Aucune vérification enregistrée.');
   $('#opsEmails').innerHTML=rows(data.emails||[],x=>esc(new Date(x.created_at).toLocaleString())+' · '+esc(({pending:'En attente',accepted:'Accepté par Resend',delivered:'Livré',failed:'Échec',unknown:'Envoi à vérifier'})[x.status]||x.status)+(x.last_error?'<p>'+esc(x.last_error)+'</p>':''),'Aucun email envoyé.');
 }
-$('#refreshOpsBtn').onclick=()=>loadOps().catch(e=>flash(e.message,true));
+
+function loadOps(){
+  if(opsPending) return opsPending;
+  const status=$('#opsStatus'),button=$('#refreshOpsBtn');
+  button.disabled=true;button.textContent='Actualisation…';
+  status.dataset.state='loading';status.setAttribute('aria-busy','true');
+  status.textContent=opsSnapshot?'Actualisation du suivi…':'Chargement du suivi…';
+  opsPending=(async()=>{
+    try{
+      let data;
+      try{data=await fetchOpsSnapshot()}
+      catch(error){
+        if(!['TypeError','AbortError'].includes(error.name)) throw error;
+        status.textContent='Connexion interrompue. Nouvelle tentative…';
+        await new Promise(resolve=>setTimeout(resolve,700));
+        data=await fetchOpsSnapshot();
+      }
+      if(!data||typeof data.scheduled!=='boolean'||typeof data.email_configured!=='boolean') throw new Error('Invalid snapshot');
+      opsSnapshot=data;opsLoadedAt=new Date();
+      renderOps(data);button.textContent='Actualiser le suivi';
+      return true;
+    }catch(error){
+      status.dataset.state='error';
+      const expired=/Session expired|Sign in required/.test(error.message);
+      status.textContent=expired?'Votre session a expiré. Reconnectez-vous pour consulter le suivi.':'Impossible de charger le suivi pour le moment. Réessayez dans un instant.';
+      if(opsSnapshot) status.textContent+=' Les derniers résultats restent affichés ci-dessous ; ils ne sont pas actualisés.';
+      else ['opsInterventions','opsRuns','opsEmails'].forEach(id=>$('#'+id).innerHTML='<p class="sub">Les données seront disponibles après le chargement du suivi.</p>');
+      button.textContent='Réessayer';
+      return false;
+    }finally{
+      button.disabled=false;status.setAttribute('aria-busy','false');opsPending=null;
+    }
+  })();
+  return opsPending;
+}
+$('#refreshOpsBtn').onclick=()=>loadOps();
+$('#opsEditEmailBtn').onclick=()=>{
+  if(opsSavingEmail) return;
+  opsEditingEmail=!opsEditingEmail;$('#opsConfigMsg').textContent='';syncOpsEmailForm();
+  if(opsEditingEmail) $('#opsEmailKey').focus();
+};
+$('#opsCancelEmailBtn').onclick=()=>{opsEditingEmail=false;$('#opsConfigMsg').textContent='';syncOpsEmailForm();$('#opsEditEmailBtn').focus()};
 $('#opsKeyForm').onsubmit=async e=>{
- e.preventDefault();const input=$('#opsEmailKey'),button=e.submitter;button.disabled=true;
- try{await api('/rest/v1/rpc/dealzy_admin_ops_configure',{method:'POST',body:JSON.stringify({p_key:input.value.trim()})});input.value='';await loadOps();flash('Connexion email enregistrée.');}
- catch(_){flash('Connexion email non enregistrée. Vérifiez la clé et votre accès superadmin.',true);}
- finally{input.value='';button.disabled=false;}
+ e.preventDefault();
+ if(opsSavingEmail||admin?.role!=='superadmin') return;
+ const input=$('#opsEmailKey'),button=$('#opsSaveEmailBtn'),message=$('#opsConfigMsg');
+ if(!input.value.trim()) return;
+ opsSavingEmail=true;button.disabled=true;$('#opsCancelEmailBtn').disabled=true;$('#opsEditEmailBtn').disabled=true;
+ message.textContent='Enregistrement…';
+ try{
+   await api('/rest/v1/rpc/dealzy_admin_ops_configure',{method:'POST',body:JSON.stringify({p_key:input.value.trim()})});
+   input.value='';opsEditingEmail=false;message.textContent='';
+   if(opsPending) await opsPending;
+   if(opsSnapshot) opsSnapshot={...opsSnapshot,email_configured:true};
+   syncOpsEmailForm();flash('Connexion email enregistrée.');
+   // A failed refresh must not report a successful key save as a failed write.
+   await loadOps();
+ }catch(_){message.textContent='Enregistrement non confirmé. Actualisez le suivi avant de réessayer ; vérifiez votre accès superadmin si nécessaire.';}
+ finally{input.value='';opsSavingEmail=false;button.disabled=false;$('#opsCancelEmailBtn').disabled=false;$('#opsEditEmailBtn').disabled=false;}
 };
 
 function val(id){const el=$('#'+id);return el?el.value:''}
