@@ -1026,6 +1026,43 @@ function renderAnalytics(a){
   ranks('#analyticsTopSearches',a.top_searches,'query');
   ranks('#analyticsTopCategories',a.top_categories,'category');
   ranks('#analyticsTopProviders',(a.partner_clicks||{}).top_providers,'provider');
+  const clickDaily=Array.isArray(a.partner_clicks?.recent_daily_clicks)?a.partner_clicks.recent_daily_clicks:[];
+  const clickMax=Math.max(1,...clickDaily.map(x=>Number(x.count)||0));
+  const clickBars=$('#partnerClicksDailyBars');
+  if(clickBars){
+    clickBars.innerHTML=clickDaily.length?clickDaily.map(x=>{
+      const count=Math.max(0,Number(x.count)||0);
+      const height=Math.max(3,Math.round(count/clickMax*170));
+      const date=/^\d{4}-\d{2}-\d{2}$/.test(String(x.day||''))?String(x.day):'';
+      const label=date?new Date(date+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+      return '<div class="analytics-bar-wrap" title="'+esc(date+' · '+count+' member clicks')+'"><div class="analytics-bar" style="height:'+height+'px"></div><div class="analytics-bar-label">'+esc(label)+'</div></div>';
+    }).join(''):'<div class="sub">No member click history available.</div>';
+  }
+}
+
+function exportPartnerClicksCsv(){
+  try{
+    const clicks=analyticsData?.partner_clicks||{};
+    const top=Array.isArray(clicks.top_providers)?clicks.top_providers:[];
+    const days=Array.isArray(clicks.recent_daily_clicks)?clicks.recent_daily_clicks:[];
+    const rows=[['section','period','partner_or_date','recorded_clicks','coverage']];
+    const scope='Signed-in Dealzy members only; not sales, revenue or all visitor clicks';
+    rows.push(['total','last_7_days','all_recorded_members',Number(clicks.clicks_7d)||0,scope]);
+    rows.push(['total','last_30_days','all_recorded_members',Number(clicks.clicks_30d)||0,scope]);
+    for(const item of top.slice(0,10)){
+      rows.push(['top_partner','last_30_days',String(item.provider||'unknown'),Math.max(0,Number(item.count)||0),scope+'; top 10 only']);
+    }
+    for(const item of days.slice(-14)){
+      rows.push(['daily','daily',String(item.day||''),Math.max(0,Number(item.count)||0),scope]);
+    }
+    const csv='\ufeff'+rows.map(row=>row.map(csvCell).join(',')).join('\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');
+    link.href=url;link.download='dealzy-member-affiliate-click-summary-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    flash('Partner click summary exported. These are not confirmed commissions.');
+  }catch(e){flash(e.message,true)}
 }
 
 async function fetchUsers(search='',opts={}){
@@ -1732,6 +1769,7 @@ $('#createCouponBtn').onclick=createCommercialCoupon;
 $('#applyCouponBtn').onclick=applyCommercialCoupon;
 $('#newOrderBtn').onclick=()=>openOrderModal(null);
 $('#exportOrdersBtn').onclick=exportOrdersCsv;
+$('#exportPartnerClicksBtn').onclick=exportPartnerClicksCsv;
 $('#orderStatus').onchange=syncOrderAdvancedFields;
 $('#closeOrderModal').onclick=closeOrderModal;
 $('#orderModal').addEventListener('click',e=>{if(e.target===$('#orderModal')) closeOrderModal()});
