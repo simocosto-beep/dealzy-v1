@@ -57,3 +57,9 @@ The owner found the partner cards too bulky and SIM CORP © too large. Booking a
 SIM CORP © is now an 11px signature with lighter letter spacing, less surrounding space and no decorative underline. Country and information pages share the smaller signature. Cache revision: 20261014-partners2.
 
 Validation: targeted local Chromium checks pass at 320/390/768/1440px with no horizontal or brand-name clipping; mobile featured rows are 76px tall. French/English rerenders, US/Canada partner eligibility, Booking destination wrapping, Expedia country shop, sponsored link attributes, reduced motion and 11px signatures on the homepage and country page pass without page errors. Mobile day/night, US partner directory and desktop layouts were visually reviewed. JavaScript syntax and git whitespace checks pass. Test fixtures and screenshots stay local. Delivery continues on the existing branch preview.
+
+## Correction: retain Booking and Expedia feature cards
+
+The owner clarified that only the secondary partner tiles needed simplifying. Restore Booking's blue and Expedia's gold feature cards, their side-by-side mobile layout, category pictograms, decorative arc and Discover links. Keep the compact secondary directory and 11px SIM CORP © signature. Cache revision: 20261014-partners3.
+
+Targeted Chromium validation passes: aligned featured cards with original 174px minimum mobile height, two Discover links, secondary unboxed links, small footer signature, FR/EN, US/Canada eligibility, affiliate URL/attributes and no clipping at 320/390/768/1440px. Day and night screenshots reviewed; no page errors.

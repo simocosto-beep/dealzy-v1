@@ -166,7 +166,8 @@
     const renderItem=(p,featured=false)=>
       '<a class="partnerTile'+(featured?' partnerFeatured':'')+'" data-partner-ticker="'+h(p.id)+'" aria-label="'+h(p.name+' · '+partnerLabel(p))+'" href="'+h(p.url)+'" target="_blank" rel="sponsored noopener noreferrer">'+
       '<span class="partnerTileTop"><span class="partnerGlyph" aria-hidden="true">'+(window.DealzyIcons?.partner(p.id)||'')+'</span><span class="partnerTileArrow" aria-hidden="true">'+(window.DealzyIcons?.svg('arrow')||'↗')+'</span></span>'+
-      '<b class="partnerWordmark">'+h(partnerName(p))+'</b><span class="partnerDescription">'+h(partnerLabel(p))+'</span></a>';
+      '<b class="partnerWordmark">'+h(partnerName(p))+'</b><span class="partnerDescription">'+h(partnerLabel(p))+'</span>'+
+      (featured?'<span class="partnerVisit">'+h(isFr?'Découvrir':'Explore')+' <span aria-hidden="true">→</span></span>':'')+'</a>';
     expediaHome.innerHTML=
       '<div class="partnerShowcaseHeading"><div><span class="eyebrow">'+h(isFr?'LES PARTENAIRES DEALZYAI':'THE DEALZYAI PARTNERS')+'</span><h2 id="partnerHeading">'+h(isFr?'De l’envie au départ.':'From someday to let’s go.')+'</h2></div><span class="partnerSelection">'+h(isFr?'Séjours, expériences et petits plus.':'Stays, experiences & a little more.')+'</span></div>'+
       '<div class="partnerFeaturedGrid">'+primary.map(p=>renderItem(p,true)).join('')+'</div>'+
