@@ -827,35 +827,42 @@
     Object.values(saved).forEach((d)=>{if(d&&d.id!=null) catalog.set(Number(d.id),d);});
   }
 
-  async function trackPartnerClick(d){
+  function trackPartnerClick(d){
+    const provider=String(d.provider||d.source||"partner").toLowerCase();
+    const event={
+      provider,
+      source:d.source||"",
+      title:d.title||"",
+      externalId:d.externalId||null,
+      market:{country:market.country,city:market.city,currency:market.currency},
+      clickedAt:new Date().toISOString()
+    };
+    // Every visitor keeps a local record, even without a Dealzy account.
     try{
       const events=JSON.parse(localStorage.getItem("dealzyPartnerClicks")||"[]");
-      events.push({
-        provider:d.provider||d.source||"partner",
-        source:d.source||"",
-        title:d.title||"",
-        externalId:d.externalId||null,
-        market:{country:market.country,city:market.city,currency:market.currency},
-        clickedAt:new Date().toISOString()
-      });
+      if(!Array.isArray(events)) throw new Error("Invalid click history");
+      events.push(event);
       localStorage.setItem("dealzyPartnerClicks",JSON.stringify(events.slice(-200)));
       if(window.DealzyCloud) window.DealzyCloud.queueSync();
     }catch(_){}
+    // The protected server RPC intentionally accepts authenticated members only.
+    // Start the keepalive request immediately, before a partner link navigates away;
+    // awaiting a session refresh here can discard legitimate outbound clicks.
     try{
-      const session=window.DealzyCloud&&window.DealzyCloud.getSession
-        ? await window.DealzyCloud.getSession()
-        : null;
+      const session=JSON.parse(localStorage.getItem("dealzyCloudSession")||"null");
+      if(!session||!session.access_token) return;
+      if(session.expires_at && Date.now()/1000 >= Number(session.expires_at)-15) return;
       const headers={
         'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+        'Authorization':'Bearer '+session.access_token,
         'Content-Type':'application/json'
       };
-      if(session&&session.access_token) headers.Authorization='Bearer '+session.access_token;
-      await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
+      fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
         method:'POST',
         headers,
         keepalive:true,
         body:JSON.stringify({
-          p_provider:String(d.provider||d.source||'partner').toLowerCase(),
+          p_provider:provider,
           p_source:String(d.source||'').slice(0,80),
           p_title:String(d.title||'').slice(0,240),
           p_external_id:d.externalId==null?null:String(d.externalId).slice(0,160),
@@ -863,7 +870,7 @@
           p_city:market.city,
           p_currency_code:market.currency
         })
-      });
+      }).catch(()=>{});
     }catch(_){}
   }
 
