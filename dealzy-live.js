@@ -33,8 +33,11 @@
       // A previously saved default must not overwrite the redesigned headline.
       const lead=document.createElement('span');
       const accent=document.createElement('em');
-      lead.textContent=tr('Less searching.');
-      accent.textContent=tr('More living.');
+      lead.textContent=tr('Your next escape');
+      const lastWord=document.createElement('span');
+      lastWord.className='heroAccent';
+      lastWord.textContent=tr('here.');
+      accent.append(document.createTextNode(tr('starts')+' '),lastWord);
       title.replaceChildren(lead,accent);
       delete title.dataset.customCopy;
     }else if(title&&configuredTitle){
@@ -44,7 +47,7 @@
     const configuredSubtitle=String(c.hero_subtitle||'').trim();
     const legacySubtitles=['Restaurants, activities, spas, travel, events and more — personalized around your budget, location and moment.','Restaurants, activités, spas, voyages, événements et plus — personnalisés selon votre budget, votre lieu et le moment.'];
     if(subtitle&&editorial&&(!configuredSubtitle||legacySubtitles.includes(configuredSubtitle))){
-      subtitle.textContent=tr('That little restaurant. That big adventure. Find your next good moment, close to home or a little further away.');
+      subtitle.textContent=tr('Travel and experiences that feel like you. Across the United States and Canada.');
     }else if(subtitle&&configuredSubtitle){
       subtitle.textContent=tr(configuredSubtitle);
     }
@@ -52,7 +55,7 @@
       const img=validRuntimeImage(c.hero_image_url);
       const editorialImage=hero.querySelector('.heroPhoto img');
       if(editorialImage){
-        editorialImage.src=img||'/assets/experience/golden-table.webp';
+        editorialImage.src=img||'/assets/experience/escape-horizon.webp';
       }else{
         hero.style.backgroundImage=img
           ? 'linear-gradient(135deg,rgba(21,34,74,.86),rgba(61,139,253,.36)),url("'+img.replaceAll('"','%22')+'")'

@@ -1,15 +1,19 @@
-# Dealzy warm experience — 13 October 2026
+# Dealzy Évasion — 13 October 2026
 
-Approved direction: warm ivory, coral, plum, human photography, editorial typography.
+Approved direction: concept 3, selected by the owner: forest green, warm ivory, champagne light, immersive photography and confident sans-serif typography. Replaces the rejected coral/plum/serif concept on the existing preview branch.
 
-The homepage uses the existing live provider search, favorites, itinerary, market picker, account and affiliate URLs. No API, database, payments or provider configuration is changed. Search supports Enter. City selectors use the existing market state. EN/FR switching remains available. Prices and availability come from providers; generated photographs are inspirational, never offer inventory.
+Homepage: panoramic lake hero, legible bilingual headline, responsive search, occasion shortcuts within the landscape, two clearly labelled inspirational cards, live provider offers, travel and destination sections, coherent dark-green footer and mobile navigation.
 
-Motion: slow photographic movement, sunlight, floating postcard, single entrance reveals and hover feedback. A pause control persists locally. System reduced motion, hidden document and offscreen hero stop the decorative animations.
+Identity: new native SVG horizon/mountain/water symbol in header and footer; favicon, maskable app PNGs (180/192/512), installation card, country/info guides, admin/reset logos and social share preview use the same design. Branding URLs and the service worker are versioned together to retire cached old icons. App background and browser theme match the new palette.
 
-Files: index.html, dealzy-experience.css/js, two local WebP photos, translations and minimal core UI hooks. Shared asset URLs and the service worker version are advanced together. Install invitation is below the main discovery content.
+Motion: restrained slow photographic zoom, moving sunlight, entrance reveals and image/card hover feedback. Pause persists locally; system reduced motion, hidden document and offscreen hero stop decorative animation. Pausing never hides content.
 
-Assets generated for this design: a convivial sunlit terrace, and a Canadian alpine lake. Both compressed to WebP at 1280 px. Existing offer images retain provider provenance.
+Existing provider search, favorites, travel hub, city picker, account and affiliate URLs remain connected. No backend, database, payment or provider configuration changed. Saved legacy hero copy no longer overwrites the design; genuine custom admin copy remains supported.
 
-Validation completed: 47 Node tests pass, including two regressions for unknown coordinates and destination confirmation. Chromium UI checks with isolated test responses passed FR/EN, search with Enter and a CAD budget, city selection, favorites, keyboard detail access, travel and outdoor category navigation, pause and reduced motion. No horizontal overflow at 320/390/768/1440 px and no uncaught JavaScript errors. Test fixtures are not included in the public app.
+The new hero photograph is generated inspiration, not an offer image. Two existing generated inspirational assets are reused. Live offer images retain their provider provenance. The SVG logo and interface icons are code-native vectors.
 
-The existing GitHub/Vercel integration generated a preview for draft PR #27. Production has not been promoted.
+Hero asset: assets/experience/escape-horizon.webp, 1536 × 1024, approximately 231 KB. Built-in image generation was used. Prompt: cinematic Canadian mountain lake at golden hour, woman with olive backpack in the right third, calm dark forest and water on the left for UI text, warm sun rays, natural editorial texture, no text/logo/UI, inspirational landscape rather than a specific bookable property. Original generation: exec-b27af165-2d94-485d-b198-856ff8e139d4.png.
+
+Validation: all 47 existing Node tests pass. Local Chromium with isolated test provider responses passes FR/EN (including saved legacy runtime copy), installation branding and position, assistant/tools dialogs, pause, Enter search with city and budget, favorites, keyboard offer details, travel filter, market picker, outdoor search and reduced motion. No horizontal overflow at 320, 390, 768 and 1440 pixels; no uncaught page errors. Desktop and mobile layouts visually reviewed. Fixture offers and QA screenshots are not published.
+
+Delivery: existing draft PR #27 and its GitHub/Vercel branch preview. Production is not promoted by this design update. The Vercel preview uses the project's existing access protection; the connector has not been able to bypass it, so local UI validation is reported separately from deployment readiness.

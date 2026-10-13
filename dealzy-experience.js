@@ -1,4 +1,4 @@
-/* Warm experience UI: uses the existing market, search and navigation functions. */
+/* Évasion experience UI: uses the existing market, search and navigation functions. */
 (() => {
   'use strict';
   const doc=document, body=doc.body;
