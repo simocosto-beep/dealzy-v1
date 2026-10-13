@@ -32,7 +32,7 @@
     "Your city, your pace.":"Votre ville, votre rythme.",
     "Choose a city or explore near you.":"Choisissez une ville ou explorez autour de vous.",
     "FOLLOW YOUR MOOD":"SUIVEZ VOS ENVIES",
-    "What kind of day is it?":"Aujourd’hui, on fait quoi ?",
+    "What kind of day is it?":"On fait quoi aujourd’hui ?",
     "No occasion needed.":"Pas besoin d’une occasion.",
     "Just the two of us":"En amoureux",
     "A little time together":"Du temps à deux",

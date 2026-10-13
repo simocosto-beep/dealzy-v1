@@ -33,6 +33,8 @@
     const budgetButton=doc.querySelector('.quick button:last-child');
     if(budgetButton) budgetButton.textContent=isFrench()?`Moins de ${market?.currency==='CAD'?'50 CA$':'50 $'}`:`Under ${market?.currency==='CAD'?'CA$50':'$50'}`;
     if(languageButton){languageButton.textContent=isFrench()?'EN':'FR';languageButton.setAttribute('aria-label',isFrench()?'Switch to English':'Passer en français');}
+    const toolsButton=doc.querySelector('.dz-tools-fab');
+    if(toolsButton)toolsButton.textContent=isFrench()?'✦ Ma boîte à outils':'✦ Planning tools';
     syncMotion();
   }
   function navigate(view){
