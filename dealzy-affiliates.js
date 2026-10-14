@@ -1,4 +1,4 @@
-/* Approved affiliate links, updated 2026-10-06. Country destinations stay separate where available. */
+/* Partner destinations. A working tracking link does not prove a payable commission. */
 (function(root,factory){
   const api=factory();
   if(typeof module==='object'&&module.exports) module.exports=api;
@@ -12,7 +12,7 @@
     {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}},
     {id:'airzlink',name:'AirZlink eSIM',icon:'🌐',label:{en:'Global travel eSIM — 200+ countries & regions',fr:'eSIM voyage mondiale — plus de 200 pays et régions'},urls:{US:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402',CA:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402'}},
     {id:'gearup',name:'GearUP for Mobile',icon:'🎮',label:{en:'Mobile gaming network booster',fr:'Accélérateur réseau pour jeux mobiles'},urls:{US:'https://gearupapp.pxf.io/c/7851126/3931528/53368',CA:'https://gearupapp.pxf.io/c/7851126/3931528/53368'}},
-    {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books — 45% off first subscription book',fr:'Livres personnalisés pour enfants — 45 % sur le premier livre avec abonnement'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
+    {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books',fr:'Livres personnalisés pour enfants'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
   ];
   const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
 
@@ -27,6 +27,21 @@
   function bookingUrl(destination='https://www.booking.com'){
     const target=String(destination||'https://www.booking.com');
     return booking.deepLinkBase+'?url='+encodeURIComponent(target);
+  }
+  // Ordinary flight search until a Skyscanner-approved affiliate link is configured.
+  // Never copy an Impact ID from referral documentation into a customer clickout.
+  function flightUrl({origin,destination,out,back='',country='US',locale='en'}={}){
+    origin=String(origin||'').trim().toUpperCase();
+    destination=String(destination||'').trim().toUpperCase();
+    const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&
+      Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
+    if(!/^[A-Z]{3}$/.test(origin)||!/^[A-Z]{3}$/.test(destination)||origin===destination||
+      !validDate(out)||(back&&(!validDate(back)||back<=out))) return '';
+    const market=country==='CA'?'CA':'US';
+    const dates=[out,...(back?[back]:[])].map(value=>value.replace(/-/g,''));
+    const params=new URLSearchParams({market,currency:market==='CA'?'CAD':'USD',
+      locale:locale==='fr'?'fr-CA':market==='CA'?'en-CA':'en-US',adults:'1',cabinclass:'economy'});
+    return 'https://www.skyscanner.net/transport/flights/'+[origin,destination,...dates].join('/')+'?'+params;
   }
   const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function forCountry(country,enabledIds=[]){
@@ -49,5 +64,5 @@
       if(p) link.onclick=()=>onClick(p);
     });
   }
-  return {partners,forCountry,render,bind,booking,bookingUrl,expediaUrl:country=>expedia[country]||''};
+  return {partners,forCountry,render,bind,booking,bookingUrl,flightUrl,expediaUrl:country=>expedia[country]||''};
 });

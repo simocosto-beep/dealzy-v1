@@ -1460,21 +1460,13 @@
         const destination=host.querySelector("#dzFlightTo").value.trim().toUpperCase();
         const out=host.querySelector("#dzFlightOut").value;
         const back=host.querySelector("#dzFlightBack").value;
-        if(!/^[A-Z]{3}$/.test(origin)||!/^[A-Z]{3}$/.test(destination)||!out||(back&&back<=out)){
+        const url=DealzyAffiliates.flightUrl({origin,destination,out,back,country:market.country,locale:isFr?'fr':'en'});
+        if(!url){
           toast(isFr?"Entre des codes aéroport à 3 lettres et des dates valides.":"Enter valid 3-letter airport codes and dates.");
           return;
         }
-        const p=new URLSearchParams({
-          mediaPartnerId:"2850210",
-          utm_term:"skyscanner_chatgpt_app_data",
-          origin,
-          destination,
-          outboundDate:out,
-          cabinclass:"economy"
-        });
-        if(back) p.set("inboundDate",back);
         saveExploreTravelSearch("flight",{origin,destination,out,back},origin+" → "+destination+" · "+out+(back?" → "+back:""));
-        openExploreTravelPartner("Skyscanner","https://skyscanner.net/g/referrals/v1/flights/day-view?"+p.toString(),"Flight search · "+origin+" → "+destination);
+        openExploreTravelPartner("Skyscanner",url,"Flight search · "+origin+" → "+destination);
       };
       return;
     }

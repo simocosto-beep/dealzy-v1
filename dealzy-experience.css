@@ -113,3 +113,10 @@ html{scroll-behavior:smooth;scroll-padding-top:100px}body.dealzy-experience{back
 .travelPartnerGlyph{display:grid;place-items:center;color:#315c48}.travelPartnerGlyph .dzIcon{width:32px;height:32px}.dealzy-experience .dz-tool .emoji{display:grid;place-items:center;width:43px;height:43px;border-radius:12px;background:#eaf0e2;color:#315c48;margin-bottom:10px}.dz-tool .emoji .dzIcon{width:29px;height:29px}
 @media(max-width:850px){.accountShortcut{display:none}}
 @media(max-width:600px){.partnerFeatured[data-partner-ticker=booking] .partnerWordmark{font-size:clamp(14px,4.35vw,20px);letter-spacing:-.7px}}
+
+/* Keep Explore and Travel Hub cards inside narrow mobile viewports. */
+.dealzy-experience .grid>*{min-width:0}
+.affiliateSection,.affiliateGrid,.affiliateCard>div{min-width:0}
+.affiliateCard>div{overflow-wrap:anywhere}
+.affiliateCard>span:first-child{flex-shrink:0}
+@media(max-width:600px){.dealzy-experience .grid,.affiliateGrid{grid-template-columns:minmax(0,1fr)}}
