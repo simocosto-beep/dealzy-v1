@@ -23,7 +23,7 @@
   const startDealzyLive=()=>{
     if(document.querySelector('script[data-dealzy-live]')) return;
     const liveScript=document.createElement('script');
-    liveScript.src='/dealzy-live.js?v=20261014-partners3';
+    liveScript.src='/dealzy-live.js?v=20261014-affiliate-audit1';
     liveScript.defer=true;
     liveScript.dataset.dealzyLive='1';
     document.head.appendChild(liveScript);
@@ -247,13 +247,14 @@
     const symbol=currency==='CAD'?'CA'+String.fromCharCode(36):String.fromCharCode(36);
     return symbol+Number(v||0).toFixed(0);
   }
-  async function recordPartnerClick(provider,title,extra){
+  function recordPartnerClick(provider,title,extra){
     let market={country:'US',city:'Miami',currency:'USD'};
     try{
       try{market={...market,...(JSON.parse(localStorage.getItem('dealzyMarket')||'null')||{})};}catch(_){}
       const events=JSON.parse(localStorage.getItem('dealzyPartnerClicks')||'[]');
+      if(!Array.isArray(events)) throw new Error('Invalid click history');
       events.push({
-        provider:String(provider||'Partner'),
+        provider:String(provider||'partner').toLowerCase(),
         title:title||'',
         market,
         source:(extra&&extra.source)||'clickout',
@@ -264,13 +265,17 @@
       queueCloudSync();
     }catch(_){}
     try{
-      const session=await getCloudSession();
+      // Start the protected keepalive request before external navigation. Guests
+      // keep local history only; session refresh must not delay the clickout.
+      const session=JSON.parse(localStorage.getItem('dealzyCloudSession')||'null');
+      if(!session||!session.access_token) return;
+      if(session.expires_at && Date.now()/1000 >= Number(session.expires_at)-15) return;
       const headers={
         'apikey':'sb_publishable_EVDiDkczLgCmggcMxbV8tw_jQm4g9Rh',
+        'Authorization':'Bearer '+session.access_token,
         'Content-Type':'application/json'
       };
-      if(session&&session.access_token) headers.Authorization='Bearer '+session.access_token;
-      await fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
+      fetch('https://stkmhgeuavsidpapqvyw.supabase.co/rest/v1/rpc/dealzy_track_partner_click',{
         method:'POST',
         headers,
         keepalive:true,
@@ -283,7 +288,7 @@
           p_city:market.city,
           p_currency_code:market.currency
         })
-      });
+      }).catch(()=>{});
     }catch(_){}
   }
 
@@ -819,7 +824,7 @@
         Expedia is connected through Dealzy's official Travel Creator Shop. Booking.com and Skyscanner remain provider clickouts. External prices are never presented as native Dealzy inventory unless returned by an approved live API.
       </div>`);
 
-    DealzyAffiliates.bind(panel,p=>recordPartnerClick(p.name,p.name+' · '+market.country));
+    DealzyAffiliates.bind(panel,p=>recordPartnerClick(p.id,p.name+' · '+market.country,{source:'travel-hub'}));
     const form=panel.querySelector('#dzTravelForm');
     const expediaLink=panel.querySelector('#dzExpediaShop');
     if(expediaLink) expediaLink.onclick=()=>recordPartnerClick('Expedia','Dealzy AI Travel Shop');
@@ -869,12 +874,11 @@
         const d=form.querySelector('#dzFlightTo').value.trim().toUpperCase();
         const out=form.querySelector('#dzFlightOut').value;
         const back=form.querySelector('#dzFlightBack').value;
-        if(!/^[A-Z]{3}$/.test(o)||!/^[A-Z]{3}$/.test(d)||!out){showPanel('<h3>✈️ Flights</h3><div class="dz-result">Enter valid 3-letter airport/city codes and a departure date.</div>');return}
+        const url=DealzyAffiliates.flightUrl({origin:o,destination:d,out,back,country:market.country,locale:window.DealzyI18n?.getLocale()||'en'});
+        if(!url){alert(window.DealzyI18n?.t('Enter valid 3-letter airport codes and dates.')||'Enter valid 3-letter airport codes and dates.');return;}
         saveSearch('flight',{origin:o,destination:d,out,back},o+' → '+d+' · '+out+(back?' → '+back:''));
-        const p=new URLSearchParams({mediaPartnerId:'2850210',utm_term:'skyscanner_chatgpt_app_data',origin:o,destination:d,outboundDate:out,cabinclass:'economy'});
-        if(back) p.set('inboundDate',back);
         recordPartnerClick('Skyscanner','Flight search · '+o+' → '+d);
-        window.open('https://skyscanner.net/g/referrals/v1/flights/day-view?'+p.toString(),'_blank','noopener,noreferrer');
+        window.open(url,'_blank','noopener,noreferrer');
       };
     };
 
@@ -1097,7 +1101,7 @@
           if(Number(d.savings)>0) dealBits.push('Save '+money(d.savings));
           if(Number(d.discountPct)>0) dealBits.push(d.discountPct+'% off');
           const source=esc(d.source||d.provider||data.mode||'Dealzy');
-          const action=d.partnerUrl?'<a href="'+esc(d.partnerUrl)+'" target="_blank" rel="noopener noreferrer" class="dz-action alt" data-track-provider="'+source+'" data-track-title="'+esc(d.title)+'" style="display:inline-block;margin-top:8px;text-decoration:none">Open on '+source+'</a>':'';
+          const action=d.partnerUrl?'<a href="'+esc(d.partnerUrl)+'" target="_blank" rel="noopener noreferrer" class="dz-action alt" data-track-provider="'+esc(d.provider||d.source||'partner')+'" data-track-title="'+esc(d.title)+'" style="display:inline-block;margin-top:8px;text-decoration:none">Open on '+source+'</a>':'';
           return '<div class="dz-result" style="margin:8px 0"><b>'+esc(d.title)+'</b><br><span class="dz-small">'+meta+'</span><br><span class="dz-small"><b>'+source+'</b>'+(dealBits.length?' · '+dealBits.join(' · '):'')+'</span>'+action+'</div>';
         }).join('');
         out.innerHTML='<div class="dz-small" style="margin:10px 0"><b>'+esc(modeLabel)+'</b> · '+(data.count||0)+' result'+((data.count||0)===1?'':'s')+'</div>'+
