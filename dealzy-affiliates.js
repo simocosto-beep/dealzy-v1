@@ -12,7 +12,8 @@
     {id:'esimx',name:'eSIMX',icon:'📱',label:{en:'Travel eSIM data plans',fr:'Forfaits eSIM pour voyager'},urls:{US:'https://skylarkconnectllc.pxf.io/4ajAmG',CA:'https://skylarkconnectllc.pxf.io/yZQvby'}},
     {id:'airzlink',name:'AirZlink eSIM',icon:'🌐',label:{en:'Global travel eSIM — 200+ countries & regions',fr:'eSIM voyage mondiale — plus de 200 pays et régions'},urls:{US:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402',CA:'https://airzlinkesimapp.pxf.io/c/7851126/3872333/48402'}},
     {id:'gearup',name:'GearUP for Mobile',icon:'🎮',label:{en:'Mobile gaming network booster',fr:'Accélérateur réseau pour jeux mobiles'},urls:{US:'https://gearupapp.pxf.io/c/7851126/3931528/53368',CA:'https://gearupapp.pxf.io/c/7851126/3931528/53368'}},
-    {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books',fr:'Livres personnalisés pour enfants'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}}
+    {id:'magicstory',name:'Magic Story',icon:'📚',label:{en:'Personalized children’s books',fr:'Livres personnalisés pour enfants'},urls:{US:'https://www.tkqlhce.com/click-101895085-17360114'},evergreen:{US:'https://www.tkqlhce.com/click-101895085-17360179'}},
+    {id:'lightsaber',name:'Lightsaber.com',icon:'⚔️',label:{en:'Collector lightsabers & cosplay gear',fr:'Sabres de collection et accessoires cosplay'},urls:{US:'https://lightsabercom.sjv.io/m434y1',CA:'https://lightsabercom.sjv.io/m434y1'}}
   ];
   const expedia={US:'https://www.expedia.com/shop/dealzy-ai/usa-city-stays-dealzy-ai',CA:'https://www.expedia.com/shop/dealzy-ai/canada-city-stays-dealzy-ai'};
 
@@ -49,7 +50,7 @@
     return partners.filter(p=>enabledIds.includes(p.id)&&/^https:\/\//.test(p.urls[country]||'')).map(p=>({...p,url:p.urls[country],country}));
   }
   function render(country,locale,enabledIds,travelOnly=false){
-    const rows=forCountry(country,enabledIds).filter(p=>!travelOnly||!['gearup','magicstory'].includes(p.id));
+    const rows=forCountry(country,enabledIds).filter(p=>!travelOnly||!['gearup','magicstory','lightsaber'].includes(p.id));
     if(!rows.length) return '';
     const fr=locale==='fr';
     const place=country==='CA'?'Canada':fr?'États-Unis':'United States';
